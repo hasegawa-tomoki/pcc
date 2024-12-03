@@ -2,4 +2,5 @@
 *.o
 tmp*
 a.out
+.idea
 
