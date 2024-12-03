@@ -1,0 +1,9 @@
+services:
+  php:
+    build: ./docker/php
+    platform: linux/x86_64
+    hostname: 'localhost'
+    volumes:
+      - ./:/usr/local/src/pcc:cached
+      - ./docker/web/php.ini:/usr/local/etc/php/php.ini:cached
+    working_dir: /usr/local/src/pcc
