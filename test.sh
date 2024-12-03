@@ -4,7 +4,7 @@ assert() {
   input="$2"
 
   php pcc.php "$input" > tmp.s
-  cc -o tmp tmp.s
+  cc -Wa,--noexecstack -o tmp tmp.s
   ./tmp
   actual="$?"
 
