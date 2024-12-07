@@ -1,0 +1,15 @@
+{
+    "name": "hasegawa-tomoki/pcc",
+    "autoload": {
+        "psr-4": {
+            "Pcc\\": "src"
+        }
+    },
+    "authors": [
+        {
+            "name": "Tomoki Hasegawa",
+            "email": "hasegawa.tomoki@gmail.com"
+        }
+    ],
+    "require": {}
+}
