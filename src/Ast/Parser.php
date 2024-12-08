@@ -23,15 +23,26 @@ class Parser
         return Node::newNodeNum($this->tokenizer->expectNumber());
     }
 
+    public function unary(): Node
+    {
+        if ($this->tokenizer->consume('+')){
+            return $this->primary();
+        }
+        if ($this->tokenizer->consume('-')){
+            return Node::newNode(NodeKind::ND_SUB, Node::newNodeNum(0), $this->primary());
+        }
+        return $this->primary();
+    }
+
     public function mul(): Node
     {
-        $node = $this->primary();
+        $node = $this->unary();
 
         for (;;){
             if ($this->tokenizer->consume('*')){
-                $node = Node::newNode(NodeKind::ND_MUL, $node, $this->primary());
+                $node = Node::newNode(NodeKind::ND_MUL, $node, $this->unary());
             } elseif ($this->tokenizer->consume('/')){
-                $node = Node::newNode(NodeKind::ND_DIV, $node, $this->primary());
+                $node = Node::newNode(NodeKind::ND_DIV, $node, $this->unary());
             } else {
                 return $node;
             }
