@@ -10,8 +10,8 @@ function main(int $argc = null, array $argv = null): int
         return 1;
     }
 
-    $tokenizer = new Pcc\Tokenizer\Tokenizer();
-    $tokenizer->tokenize($argv[1]);
+    $tokenizer = new Pcc\Tokenizer\Tokenizer($argv[1]);
+    $tokenizer->tokenize();
 
     printf(".intel_syntax noprefix\n");
     printf(".globl main\n");
