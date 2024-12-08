@@ -57,7 +57,7 @@ class Tokenizer
                 continue;
             }
 
-            if (str_contains("+-", $this->userInput[$pos])) {
+            if (str_contains("+-*/()", $this->userInput[$pos])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $this->userInput[$pos], $pos);
                 $pos++;
                 continue;
