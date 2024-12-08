@@ -6,3 +6,5 @@ a.out
 
 
 /vendor/
+/.phpunit.cache/
+
