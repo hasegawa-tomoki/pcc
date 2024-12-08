@@ -11,4 +11,10 @@ class Console
         printf($format.PHP_EOL, ...$args);
         exit(1);
     }
+
+    public static function error(string $format, ...$args): void
+    {
+        printf($format.PHP_EOL, ...$args);
+        exit(1);
+    }
 }

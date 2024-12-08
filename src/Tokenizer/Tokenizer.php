@@ -17,7 +17,9 @@ class Tokenizer
 
     public function consume(string $op): bool
     {
-        if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED || $this->tokens[0]->str !== $op) {
+        if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED ||
+            strlen($op) != $this->tokens[0]->len ||
+            $this->tokens[0]->str !== $op) {
             return false;
         }
         array_shift($this->tokens);
@@ -26,7 +28,9 @@ class Tokenizer
 
     public function expect(string $op): void
     {
-        if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED || $this->tokens[0]->str !== $op) {
+        if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED ||
+            strlen($op) != $this->tokens[0]->len ||
+            $this->tokens[0]->str !== $op) {
             Console::errorAt($this->userInput, $this->tokens[0]->pos, "'%s'ではありません\n", $op);
         }
         array_shift($this->tokens);
@@ -40,6 +44,11 @@ class Tokenizer
         $val = $this->tokens[0]->val;
         array_shift($this->tokens);
         return $val;
+    }
+
+    public function isTokenKind(TokenKind $kind): bool
+    {
+        return $this->tokens[0]->kind === $kind;
     }
 
     public function atEof(): bool
@@ -57,7 +66,13 @@ class Tokenizer
                 continue;
             }
 
-            if (str_contains("+-*/()", $this->userInput[$pos])) {
+            if (in_array($token = substr($this->userInput, $pos, 2), ['==', '!=', '<=', '>='])) {
+                $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $pos += 2;
+                continue;
+            }
+
+            if (str_contains("+-*/()<>", $this->userInput[$pos])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $this->userInput[$pos], $pos);
                 $pos++;
                 continue;
@@ -70,6 +85,7 @@ class Tokenizer
                     $valStr .= $this->userInput[$pos];
                     $pos++;
                 }
+                $token->str = $valStr;
                 $token->val = intval($valStr);
                 $tokens[] = $token;
                 continue;

@@ -70,4 +70,19 @@ class ParserTest extends TestCase
         $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->rhs->kind);
         $this->assertEquals(2, $node->rhs->val);
     }
+
+    public function testExprWithNegativeValue()
+    {
+        $tokenizer = new Tokenizer('-10 + 20');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $node = $parser->expr();
+
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_ADD, $node->kind);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_NEG, $node->lhs->kind);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->lhs->lhs->kind);
+        $this->assertEquals(10, $node->lhs->lhs->val);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->rhs->kind);
+        $this->assertEquals(20, $node->rhs->val);
+    }
 }

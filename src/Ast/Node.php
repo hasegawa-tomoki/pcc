@@ -24,6 +24,13 @@ class Node
         return $node;
     }
 
+    public static function newUnary(NodeKind $nodeKind, Node $expr)
+    {
+        $node = self::newNode($nodeKind);
+        $node->lhs = $expr;
+        return $node;
+    }
+
     public static function newNum(int $val): Node
     {
         $node = self::newNode(NodeKind::ND_NUM);

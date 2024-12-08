@@ -7,6 +7,11 @@ class Token
     public int $val;
     public string $str;
     public int $pos;
+    public int $len {
+        get {
+            return strlen($this->str);
+        }
+    }
 
     public function __construct(TokenKind $kind, string $str, int $pos)
     {
