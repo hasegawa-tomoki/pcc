@@ -20,7 +20,7 @@ class Parser
             return $node;
         }
 
-        return Node::newNodeNum($this->tokenizer->expectNumber());
+        return Node::newNum($this->tokenizer->expectNumber());
     }
 
     public function unary(): Node
@@ -29,7 +29,7 @@ class Parser
             return $this->primary();
         }
         if ($this->tokenizer->consume('-')){
-            return Node::newNode(NodeKind::ND_SUB, Node::newNodeNum(0), $this->primary());
+            return Node::newBinary(NodeKind::ND_SUB, Node::newNum(0), $this->primary());
         }
         return $this->primary();
     }
@@ -40,9 +40,9 @@ class Parser
 
         for (;;){
             if ($this->tokenizer->consume('*')){
-                $node = Node::newNode(NodeKind::ND_MUL, $node, $this->unary());
+                $node = Node::newBinary(NodeKind::ND_MUL, $node, $this->unary());
             } elseif ($this->tokenizer->consume('/')){
-                $node = Node::newNode(NodeKind::ND_DIV, $node, $this->unary());
+                $node = Node::newBinary(NodeKind::ND_DIV, $node, $this->unary());
             } else {
                 return $node;
             }
@@ -55,9 +55,9 @@ class Parser
 
         for (;;){
             if ($this->tokenizer->consume('+')){
-                $node = Node::newNode(NodeKind::ND_ADD, $node, $this->mul());
+                $node = Node::newBinary(NodeKind::ND_ADD, $node, $this->mul());
             } elseif ($this->tokenizer->consume('-')){
-                $node = Node::newNode(NodeKind::ND_SUB, $node, $this->mul());
+                $node = Node::newBinary(NodeKind::ND_SUB, $node, $this->mul());
             } else {
                 return $node;
             }

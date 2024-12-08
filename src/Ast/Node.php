@@ -9,19 +9,24 @@ class Node
     public Node $rhs;
     public int $val;
 
-    public static function newNode(NodeKind $nodeKind, Node $lhs, Node $rhs): Node
+    public static function newNode(NodeKind $nodeKind): Node
     {
         $node = new Node();
         $node->kind = $nodeKind;
+        return $node;
+    }
+
+    public static function newBinary(NodeKind $nodeKind, Node $lhs, Node $rhs): Node
+    {
+        $node = self::newNode($nodeKind);
         $node->lhs = $lhs;
         $node->rhs = $rhs;
         return $node;
     }
 
-    public static function newNodeNum(int $val): Node
+    public static function newNum(int $val): Node
     {
-        $node = new Node();
-        $node->kind = NodeKind::ND_NUM;
+        $node = self::newNode(NodeKind::ND_NUM);
         $node->val = $val;
         return $node;
     }
