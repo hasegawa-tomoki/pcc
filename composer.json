@@ -13,5 +13,8 @@
     ],
     "require-dev": {
         "phpunit/phpunit": "^11.5"
+    },
+    "require": {
+        "spatie/ray": "^1.41"
     }
 }
