@@ -14,66 +14,38 @@ class Parser
     {
     }
 
-    // primary = "(" expr ")" | number
-    public function primary(): Node
+    // stmt = expr-stmt
+    public function stmt(): Node
     {
-        if ($this->tokenizer->consume('(')){
-            $node = $this->expr();
-            $this->tokenizer->expect(')');
-            return $node;
-        }
-
-        if ($this->tokenizer->isTokenKind(TokenKind::TK_NUM)){
-            return Node::newNum($this->tokenizer->expectNumber());
-        }
-
-        Console::errorAt($this->tokenizer->userInput, $this->tokenizer->tokens[0]->pos, "数値でも開き括弧でもないトークンです\n");
+        return $this->exprStmt();
     }
 
-    // unary = ("+" | "-") unary | primary
-    public function unary(): Node
+    // expr-stmt = expr ";"
+    public function exprStmt(): Node
     {
-        if ($this->tokenizer->consume('+')){
-            return $this->unary();
-        }
-        if ($this->tokenizer->consume('-')){
-            return Node::newUnary(NodeKind::ND_NEG, $this->unary());
-        }
-
-        return $this->primary();
+        $node = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->expr());
+        $this->tokenizer->expect(';');
+        return $node;
     }
 
-    // mul = unary ("*" unary | "/" unary)*
-    public function mul(): Node
+    // expr = equality
+    public function expr(): Node
     {
-        $node = $this->unary();
+        return $this->equality();
+    }
+
+    // equality = relational ("==" relational | "!=" relational)*
+    public function equality(): Node
+    {
+        $node = $this->relational();
 
         for (;;){
-            if ($this->tokenizer->consume('*')){
-                $node = Node::newBinary(NodeKind::ND_MUL, $node, $this->unary());
+            if ($this->tokenizer->consume('==')){
+                $node = Node::newBinary(NodeKind::ND_EQ, $node, $this->relational());
                 continue;
             }
-            if ($this->tokenizer->consume('/')){
-                $node = Node::newBinary(NodeKind::ND_DIV, $node, $this->unary());
-                continue;
-            }
-
-            return $node;
-        }
-    }
-
-    // add = mul ("+" mul | "-" mul)*
-    public function add(): Node
-    {
-        $node = $this->mul();
-
-        for (;;){
-            if ($this->tokenizer->consume('+')){
-                $node = Node::newBinary(NodeKind::ND_ADD, $node, $this->mul());
-                continue;
-            }
-            if ($this->tokenizer->consume('-')){
-                $node = Node::newBinary(NodeKind::ND_SUB, $node, $this->mul());
+            if ($this->tokenizer->consume('!=')){
+                $node = Node::newBinary(NodeKind::ND_NE, $node, $this->relational());
                 continue;
             }
 
@@ -108,18 +80,18 @@ class Parser
         }
     }
 
-    // equality = relational ("==" relational | "!=" relational)*
-    public function equality(): Node
+    // add = mul ("+" mul | "-" mul)*
+    public function add(): Node
     {
-        $node = $this->relational();
+        $node = $this->mul();
 
         for (;;){
-            if ($this->tokenizer->consume('==')){
-                $node = Node::newBinary(NodeKind::ND_EQ, $node, $this->relational());
+            if ($this->tokenizer->consume('+')){
+                $node = Node::newBinary(NodeKind::ND_ADD, $node, $this->mul());
                 continue;
             }
-            if ($this->tokenizer->consume('!=')){
-                $node = Node::newBinary(NodeKind::ND_NE, $node, $this->relational());
+            if ($this->tokenizer->consume('-')){
+                $node = Node::newBinary(NodeKind::ND_SUB, $node, $this->mul());
                 continue;
             }
 
@@ -127,24 +99,52 @@ class Parser
         }
     }
 
-    // expr = equality
-    public function expr(): Node
+    // mul = unary ("*" unary | "/" unary)*
+    public function mul(): Node
     {
-        return $this->equality();
+        $node = $this->unary();
+
+        for (;;){
+            if ($this->tokenizer->consume('*')){
+                $node = Node::newBinary(NodeKind::ND_MUL, $node, $this->unary());
+                continue;
+            }
+            if ($this->tokenizer->consume('/')){
+                $node = Node::newBinary(NodeKind::ND_DIV, $node, $this->unary());
+                continue;
+            }
+
+            return $node;
+        }
     }
 
-    // expr-stmt = expr ";"
-    public function exprStmt(): Node
+    // unary = ("+" | "-") unary | primary
+    public function unary(): Node
     {
-        $node = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->expr());
-        $this->tokenizer->expect(';');
-        return $node;
+        if ($this->tokenizer->consume('+')){
+            return $this->unary();
+        }
+        if ($this->tokenizer->consume('-')){
+            return Node::newUnary(NodeKind::ND_NEG, $this->unary());
+        }
+
+        return $this->primary();
     }
 
-    // stmt = expr-stmt
-    public function stmt(): Node
+    // primary = "(" expr ")" | number
+    public function primary(): Node
     {
-        return $this->exprStmt();
+        if ($this->tokenizer->consume('(')){
+            $node = $this->expr();
+            $this->tokenizer->expect(')');
+            return $node;
+        }
+
+        if ($this->tokenizer->isTokenKind(TokenKind::TK_NUM)){
+            return Node::newNum($this->tokenizer->expectNumber());
+        }
+
+        Console::errorAt($this->tokenizer->userInput, $this->tokenizer->tokens[0]->pos, "数値でも開き括弧でもないトークンです\n");
     }
 
     /**
