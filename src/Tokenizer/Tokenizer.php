@@ -17,12 +17,28 @@ class Tokenizer
 
     public function consume(string $op): bool
     {
+        if (! $this->consumable($op)){
+            return false;
+        }
+        array_shift($this->tokens);
+        return true;
+    }
+
+    public function consumeIdent(): ?Token
+    {
+        if ($this->tokens[0]->kind !== TokenKind::TK_IDENT){
+            return null;
+        }
+        return array_shift($this->tokens);
+    }
+
+    public function consumable(string $op): bool
+    {
         if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED ||
             strlen($op) != $this->tokens[0]->len ||
             $this->tokens[0]->str !== $op) {
             return false;
         }
-        array_shift($this->tokens);
         return true;
     }
 
@@ -74,6 +90,12 @@ class Tokenizer
 
             if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->userInput[$pos])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $this->userInput[$pos], $pos);
+                $pos++;
+                continue;
+            }
+
+            if (preg_match('/^[a-z]/', $this->userInput[$pos])) {
+                $tokens[] = new Token(TokenKind::TK_IDENT, $this->userInput[$pos], $pos);
                 $pos++;
                 continue;
             }

@@ -28,10 +28,21 @@ class Parser
         return $node;
     }
 
-    // expr = equality
+    // expr = assign
     public function expr(): Node
     {
-        return $this->equality();
+        return $this->assign();
+    }
+
+    // assign = equality ("=" assign)?
+    public function assign(): Node
+    {
+        $node = $this->equality();
+        if ($this->tokenizer->consumable('=')){
+            $this->tokenizer->consume('=');
+            $node = Node::newBinary(NodeKind::ND_ASSIGN, $node, $this->assign());
+        }
+        return $node;
     }
 
     // equality = relational ("==" relational | "!=" relational)*
@@ -131,13 +142,17 @@ class Parser
         return $this->primary();
     }
 
-    // primary = "(" expr ")" | number
+    // primary = "(" expr ")" | ident | number
     public function primary(): Node
     {
         if ($this->tokenizer->consume('(')){
             $node = $this->expr();
             $this->tokenizer->expect(')');
             return $node;
+        }
+
+        if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
+            return Node::newVar($this->tokenizer->consumeIdent()?->str);
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_NUM)){

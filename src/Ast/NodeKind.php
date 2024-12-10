@@ -13,6 +13,8 @@ enum NodeKind
     case ND_NE;
     case ND_LT;
     case ND_LE;
+    case ND_ASSIGN;
     case ND_EXPR_STMT;
+    case ND_VAR;
     case ND_NUM;
 }

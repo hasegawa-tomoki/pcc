@@ -21,6 +21,17 @@ class CodeGenerator
         $this->depth--;
     }
 
+    public function genAddr(Node $node): void
+    {
+        if ($node->kind == NodeKind::ND_VAR){
+            $offset = (ord($node->name) - ord('a') + 1) * 8;
+            printf("  lea %d(%%rbp), %%rax\n", -1 * $offset);
+            return;
+        }
+
+        Console::error('not an lvalue');
+    }
+
     public function genExpr(Node $node): void
     {
         switch ($node->kind) {
@@ -30,6 +41,17 @@ class CodeGenerator
             case NodeKind::ND_NEG:
                 $this->genExpr($node->lhs);
                 printf("  neg %%rax\n");
+                return;
+            case NodeKind::ND_VAR:
+                $this->genAddr($node);
+                printf("  mov (%%rax), %%rax\n");
+                return;
+            case NodeKind::ND_ASSIGN:
+                $this->genAddr($node->lhs);
+                $this->push();
+                $this->genExpr($node->rhs);
+                $this->pop('%rdi');
+                printf("  mov %%rax, (%%rdi)\n");
                 return;
         }
 
@@ -81,5 +103,28 @@ class CodeGenerator
         }
 
         Console::error('invalid statement');
+    }
+
+    /**
+     * @param Node[] $nodes
+     * @return void
+     */
+    public function gen(array $nodes): void
+    {
+        printf("  .globl main\n");
+        printf("main:\n");
+
+        printf("  push %%rbp\n");
+        printf("  mov %%rsp, %%rbp\n");
+        printf("  sub \$208, %%rsp\n");
+
+        foreach ($nodes as $node){
+            $this->genStmt($node);
+            assert($this->depth == 0);
+        }
+
+        printf("  mov %%rbp, %%rsp\n");
+        printf("  pop %%rbp\n");
+        printf("  ret\n");
     }
 }

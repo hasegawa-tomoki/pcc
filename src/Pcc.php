@@ -25,15 +25,9 @@ class Pcc
             Console::error("extra token");
         }
 
-        printf(".globl main\n");
-        printf("main:\n");
 
         $codeGenerator = new CodeGenerator();
-        foreach ($nodes as $node){
-            $codeGenerator->genStmt($node);
-            assert($codeGenerator->depth == 0);
-        }
-        printf("  ret\n");
+        $codeGenerator->gen($nodes);
 
         return 0;
     }
