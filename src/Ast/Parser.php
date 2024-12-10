@@ -38,7 +38,7 @@ class Parser
     public function assign(): Node
     {
         $node = $this->equality();
-        if ($this->tokenizer->consumable('=')){
+        if ($this->tokenizer->equal('=')){
             $this->tokenizer->consume('=');
             $node = Node::newBinary(NodeKind::ND_ASSIGN, $node, $this->assign());
         }
@@ -152,7 +152,7 @@ class Parser
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
-            return Node::newVar($this->tokenizer->consumeIdent()?->str);
+            return Node::newVar($this->tokenizer->getIdent()?->str);
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_NUM)){

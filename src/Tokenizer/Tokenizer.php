@@ -15,31 +15,26 @@ class Tokenizer
     {
     }
 
+    public function equal(string $op): bool
+    {
+        return $this->tokens[0]->str === $op;
+    }
+
     public function consume(string $op): bool
     {
-        if (! $this->consumable($op)){
+        if (! $this->equal($op)){
             return false;
         }
         array_shift($this->tokens);
         return true;
     }
 
-    public function consumeIdent(): ?Token
+    public function getIdent(): ?Token
     {
         if ($this->tokens[0]->kind !== TokenKind::TK_IDENT){
             return null;
         }
         return array_shift($this->tokens);
-    }
-
-    public function consumable(string $op): bool
-    {
-        if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED ||
-            strlen($op) != $this->tokens[0]->len ||
-            $this->tokens[0]->str !== $op) {
-            return false;
-        }
-        return true;
     }
 
     public function expect(string $op): void
