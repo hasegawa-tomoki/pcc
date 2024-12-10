@@ -19,7 +19,7 @@ class Pcc
         $tokenizer = new Tokenizer($argv[1]);
         $tokenizer->tokenize();
         $parser = new Ast\Parser($tokenizer);
-        $node = $parser->expr();
+        $nodes = $parser->parse();
 
         if (! $tokenizer->isTokenKind(TokenKind::TK_EOF)){
             Console::error("extra token");
@@ -29,10 +29,12 @@ class Pcc
         printf("main:\n");
 
         $codeGenerator = new CodeGenerator();
-        $codeGenerator->genExpr($node);
+        foreach ($nodes as $node){
+            $codeGenerator->genStmt($node);
+            assert($codeGenerator->depth == 0);
+        }
         printf("  ret\n");
 
-        assert($codeGenerator->depth == 0);
         return 0;
     }
 }

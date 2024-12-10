@@ -72,4 +72,14 @@ class CodeGenerator
 
         Console::error('invalid expression');
     }
+
+    public function genStmt(Node $node): void
+    {
+        if ($node->kind == NodeKind::ND_EXPR_STMT) {
+            $this->genExpr($node->lhs);
+            return;
+        }
+
+        Console::error('invalid statement');
+    }
 }

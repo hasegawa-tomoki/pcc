@@ -132,4 +132,31 @@ class Parser
     {
         return $this->equality();
     }
+
+    // expr-stmt = expr ";"
+    public function exprStmt(): Node
+    {
+        $node = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->expr());
+        $this->tokenizer->expect(';');
+        return $node;
+    }
+
+    // stmt = expr-stmt
+    public function stmt(): Node
+    {
+        return $this->exprStmt();
+    }
+
+    /**
+     * @return \Pcc\Ast\Node[]
+     */
+    public function parse(): array
+    {
+        $nodes = [];
+        while (! $this->tokenizer->isTokenKind(TokenKind::TK_EOF)){
+            $nodes[] = $this->stmt();
+        }
+
+        return $nodes;
+    }
 }
