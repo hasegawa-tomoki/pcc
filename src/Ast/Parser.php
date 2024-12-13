@@ -23,9 +23,15 @@ class Parser
         $this->locals[$name] = $var;
     }
 
-    // stmt = expr-stmt
+    // stmt = "return" expr ";" | expr-stmt
     public function stmt(): Node
     {
+        if ($this->tokenizer->consume('return')){
+            $node = Node::newUnary(NodeKind::ND_RETURN, $this->expr());
+            $this->tokenizer->expect(';');
+            return $node;
+        }
+
         return $this->exprStmt();
     }
 

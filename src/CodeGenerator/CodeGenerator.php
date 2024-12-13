@@ -101,9 +101,14 @@ class CodeGenerator
 
     public function genStmt(Node $node): void
     {
-        if ($node->kind == NodeKind::ND_EXPR_STMT) {
-            $this->genExpr($node->lhs);
-            return;
+        switch ($node->kind){
+            case NodeKind::ND_RETURN:
+                $this->genExpr($node->lhs);
+                printf("  jmp .L.return\n");
+                return;
+            case NodeKind::ND_EXPR_STMT:
+                $this->genExpr($node->lhs);
+                return;
         }
 
         Console::error('invalid statement');
@@ -137,6 +142,7 @@ class CodeGenerator
             assert($this->depth == 0);
         }
 
+        printf(".L.return:\n");
         printf("  mov %%rbp, %%rsp\n");
         printf("  pop %%rbp\n");
         printf("  ret\n");

@@ -77,6 +77,15 @@ class Tokenizer
         return $this->isIdent1($c) or preg_match('/^[0-9]/', $c);
     }
 
+    public function convertKeywords(): void
+    {
+        foreach ($this->tokens as $idx => $token){
+            if ($token->str === 'return'){
+                $this->tokens[$idx]->kind = TokenKind::TK_KEYWORD;
+            }
+        }
+    }
+
     public function tokenize(): void
     {
         $pos = 0;
@@ -102,7 +111,7 @@ class Tokenizer
                 continue;
             }
 
-            // Identifier
+            // Identifier or keyword
             if ($this->isIdent1($this->userInput[$pos])){
                 $start = $pos;
                 while ($pos < strlen($this->userInput) && $this->isIdent2($this->userInput[$pos])){
@@ -123,11 +132,12 @@ class Tokenizer
                 $pos++;
                 continue;
             }
-
             Console::errorAt($this->userInput, $pos, "トークナイズできません: %s\n", $this->userInput[$pos]);
         }
 
         $tokens[] = new Token(TokenKind::TK_EOF, '', $pos);
         $this->tokens = $tokens;
+
+        $this->convertKeywords();
     }
 }
