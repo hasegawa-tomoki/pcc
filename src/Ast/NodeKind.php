@@ -16,6 +16,7 @@ enum NodeKind
     case ND_ASSIGN;
     case ND_RETURN;
     case ND_IF;
+    case ND_FOR;
     case ND_BLOCK;
     case ND_EXPR_STMT;
     case ND_VAR;

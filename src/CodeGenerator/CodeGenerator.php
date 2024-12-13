@@ -123,6 +123,23 @@ class CodeGenerator
                 printf(".L.end.%d:\n", $c);
                 return;
             }
+            case NodeKind::ND_FOR: {
+                $c = $this->cnt();
+                $this->genStmt($node->init);
+                printf(".L.begin.%d:\n", $c);
+                if ($node->cond) {
+                    $this->genExpr($node->cond);
+                    printf("  cmp \$0, %%rax\n");
+                    printf("  je  .L.end.%d\n", $c);
+                }
+                $this->genStmt($node->then);
+                if ($node->inc) {
+                    $this->genExpr($node->inc);
+                }
+                printf("  jmp .L.begin.%d\n", $c);
+                printf(".L.end.%d:\n", $c);
+                return;
+            }
             case NodeKind::ND_BLOCK:
                 foreach ($node->body as $n){
                     $this->genStmt($n);

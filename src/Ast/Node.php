@@ -9,10 +9,12 @@ class Node
     public Node $lhs;
     public Node $rhs;
 
-    // "if" statement
-    public Node $cond;
+    // "if" or $for" statement
+    public ?Node $cond = null;
     public Node $then;
     public ?Node $els = null;
+    public ?Node $init = null;
+    public ?Node $inc = null;
 
     /**
      * block

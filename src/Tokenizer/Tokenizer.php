@@ -13,6 +13,7 @@ class Tokenizer
         'return',
         'if',
         'else',
+        'for',
     ];
 
     public function __construct(

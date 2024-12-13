@@ -23,10 +23,11 @@ class Parser
         $this->locals[$name] = $var;
     }
 
-    // stmt = "return" expr ";" |
-    //        "if" "(" expr ")" stmt ("else" stmt)? |
-    //        "{" compound-stmt |
-    //        expr-stmt
+    // stmt = "return" expr ";"
+    //        | "if" "(" expr ")" stmt ("else" stmt)?
+    //        | "for" "(" expr-stmt expr? ";" expr? ")" stmt
+    //        | "{" compound-stmt
+    //        | expr-stmt
     public function stmt(): Node
     {
         if ($this->tokenizer->consume('return')){
@@ -44,6 +45,27 @@ class Parser
             if ($this->tokenizer->consume('else')){
                 $node->els = $this->stmt();
             }
+            return $node;
+        }
+
+        // "for" "(" expr-stmt expr? ";" expr? ")" stmt
+        if ($this->tokenizer->consume('for')){
+            $node = Node::newNode(NodeKind::ND_FOR);
+            $this->tokenizer->expect('(');
+            $node->init = $this->exprStmt();
+
+            if (! $this->tokenizer->consume(';')){
+                $node->cond = $this->expr();
+                $this->tokenizer->expect(';');
+            }
+
+            if (! $this->tokenizer->consume(')')){
+                $node->inc = $this->expr();
+                $this->tokenizer->expect(')');
+            }
+
+            $node->then = $this->stmt();
+
             return $node;
         }
 
