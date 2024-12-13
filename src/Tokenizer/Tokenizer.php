@@ -9,6 +9,12 @@ class Tokenizer
     /** @var Token[] */
     public array $tokens;
 
+    public array $keywords = [
+        'return',
+        'if',
+        'else',
+    ];
+
     public function __construct(
         public readonly string $userInput,
     )
@@ -80,7 +86,7 @@ class Tokenizer
     public function convertKeywords(): void
     {
         foreach ($this->tokens as $idx => $token){
-            if ($token->str === 'return'){
+            if (in_array($token->str, $this->keywords)){
                 $this->tokens[$idx]->kind = TokenKind::TK_KEYWORD;
             }
         }

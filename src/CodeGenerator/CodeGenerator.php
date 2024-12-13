@@ -10,6 +10,13 @@ use Pcc\Console;
 class CodeGenerator
 {
     public int $depth = 0;
+
+    public function cnt(): int
+    {
+        static $i = 1;
+        return $i++;
+    }
+
     public function push(): void
     {
         printf("  push %%rax\n");
@@ -102,6 +109,20 @@ class CodeGenerator
     public function genStmt(Node $node): void
     {
         switch ($node->kind){
+            case NodeKind::ND_IF: {
+                $c = $this->cnt();
+                $this->genExpr($node->cond);
+                printf("  cmp \$0, %%rax\n");
+                printf("  je  .L.else.%d\n", $c);
+                $this->genStmt($node->then);
+                printf("  jmp .L.end.%d\n", $c);
+                printf(".L.else.%d:\n", $c);
+                if ($node->els) {
+                    $this->genStmt($node->els);
+                }
+                printf(".L.end.%d:\n", $c);
+                return;
+            }
             case NodeKind::ND_BLOCK:
                 foreach ($node->body as $n){
                     $this->genStmt($n);

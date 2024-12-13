@@ -24,6 +24,7 @@ class Parser
     }
 
     // stmt = "return" expr ";" |
+    //        "if" "(" expr ")" stmt ("else" stmt)? |
     //        "{" compound-stmt |
     //        expr-stmt
     public function stmt(): Node
@@ -31,6 +32,18 @@ class Parser
         if ($this->tokenizer->consume('return')){
             $node = Node::newUnary(NodeKind::ND_RETURN, $this->expr());
             $this->tokenizer->expect(';');
+            return $node;
+        }
+
+        if ($this->tokenizer->consume('if')){
+            $node = Node::newNode(NodeKind::ND_IF);
+            $this->tokenizer->expect('(');
+            $node->cond = $this->expr();
+            $this->tokenizer->expect(')');
+            $node->then = $this->stmt();
+            if ($this->tokenizer->consume('else')){
+                $node->els = $this->stmt();
+            }
             return $node;
         }
 

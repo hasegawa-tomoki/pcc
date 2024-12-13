@@ -5,11 +5,24 @@ namespace Pcc\Ast;
 class Node
 {
     public NodeKind $kind;
+
     public Node $lhs;
     public Node $rhs;
-    /** @var Node[] */
+
+    // "if" statement
+    public Node $cond;
+    public Node $then;
+    public ?Node $els = null;
+
+    /**
+     * block
+     * @var Node[]
+     */
     public array $body = [];
+
+    // Used if kind == ND_VAR
     public LVar $var;
+    // Used if kind == ND_NUM
     public int $val;
 
     public static function newNode(NodeKind $nodeKind): Node
