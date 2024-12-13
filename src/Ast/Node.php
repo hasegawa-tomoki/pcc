@@ -2,9 +2,12 @@
 
 namespace Pcc\Ast;
 
+use Pcc\Tokenizer\Token;
+
 class Node
 {
     public NodeKind $kind;
+    public Token $tok;
 
     public Node $lhs;
     public Node $rhs;
@@ -27,38 +30,39 @@ class Node
     // Used if kind == ND_NUM
     public int $val;
 
-    public static function newNode(NodeKind $nodeKind): Node
+    public static function newNode(NodeKind $nodeKind, Token $tok): Node
     {
         $node = new Node();
         $node->kind = $nodeKind;
+        $node->tok = $tok;
         return $node;
     }
 
-    public static function newBinary(NodeKind $nodeKind, Node $lhs, Node $rhs): Node
+    public static function newBinary(NodeKind $nodeKind, Node $lhs, Node $rhs, Token $tok): Node
     {
-        $node = self::newNode($nodeKind);
+        $node = self::newNode($nodeKind, $tok);
         $node->lhs = $lhs;
         $node->rhs = $rhs;
         return $node;
     }
 
-    public static function newUnary(NodeKind $nodeKind, Node $expr)
+    public static function newUnary(NodeKind $nodeKind, Node $expr, Token $tok)
     {
-        $node = self::newNode($nodeKind);
+        $node = self::newNode($nodeKind, $tok);
         $node->lhs = $expr;
         return $node;
     }
 
-    public static function newNum(int $val): Node
+    public static function newNum(int $val, Token $tok): Node
     {
-        $node = self::newNode(NodeKind::ND_NUM);
+        $node = self::newNode(NodeKind::ND_NUM, $tok);
         $node->val = $val;
         return $node;
     }
 
-    public static function newVar(LVar $var): Node
+    public static function newVar(LVar $var, Token $tok): Node
     {
-        $node = self::newNode(NodeKind::ND_VAR);
+        $node = self::newNode(NodeKind::ND_VAR, $tok);
         $node->var = $var;
         return $node;
     }

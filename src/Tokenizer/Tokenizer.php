@@ -50,7 +50,7 @@ class Tokenizer
         if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED ||
             strlen($op) != $this->tokens[0]->len ||
             $this->tokens[0]->str !== $op) {
-            Console::errorAt($this->userInput, $this->tokens[0]->pos, "'%s'ではありません\n", $op);
+            Console::errorTok($this->userInput, $this->tokens[0], "expected '%s'", $op);
         }
         array_shift($this->tokens);
     }
@@ -58,7 +58,7 @@ class Tokenizer
     public function expectNumber(): int
     {
         if ($this->tokens[0]->kind !== TokenKind::TK_NUM) {
-            Console::errorAt($this->userInput, $this->tokens[0]->pos, "数ではありません\n");
+            Console::errorTok($this->userInput, $this->tokens[0], "expected 'number'");
         }
         $val = $this->tokens[0]->val;
         array_shift($this->tokens);
@@ -140,7 +140,8 @@ class Tokenizer
                 $pos++;
                 continue;
             }
-            Console::errorAt($this->userInput, $pos, "トークナイズできません: %s\n", $this->userInput[$pos]);
+
+            Console::errorAt($this->userInput, $pos, "invalid token: %s\n", $this->userInput[$pos]);
         }
 
         $tokens[] = new Token(TokenKind::TK_EOF, '', $pos);

@@ -9,4 +9,6 @@ class Func
     /** @var array<string, \Pcc\Ast\LVar> */
     public array $locals;
     public int $stackSize;
+
+    public string $userInput;
 }

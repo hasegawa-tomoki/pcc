@@ -32,13 +32,14 @@ class Parser
     public function stmt(): Node
     {
         if ($this->tokenizer->consume('return')){
-            $node = Node::newUnary(NodeKind::ND_RETURN, $this->expr());
+            $node = Node::newNode(NodeKind::ND_RETURN, $this->tokenizer->tokens[0]);
+            $node->lhs = $this->expr();
             $this->tokenizer->expect(';');
             return $node;
         }
 
         if ($this->tokenizer->consume('if')){
-            $node = Node::newNode(NodeKind::ND_IF);
+            $node = Node::newNode(NodeKind::ND_IF, $this->tokenizer->tokens[0]);
             $this->tokenizer->expect('(');
             $node->cond = $this->expr();
             $this->tokenizer->expect(')');
@@ -51,7 +52,7 @@ class Parser
 
         // "for" "(" expr-stmt expr? ";" expr? ")" stmt
         if ($this->tokenizer->consume('for')){
-            $node = Node::newNode(NodeKind::ND_FOR);
+            $node = Node::newNode(NodeKind::ND_FOR, $this->tokenizer->tokens[0]);
             $this->tokenizer->expect('(');
             $node->init = $this->exprStmt();
 
@@ -72,7 +73,7 @@ class Parser
 
         // "while" "(" expr ")" stmt
         if ($this->tokenizer->consume('while')){
-            $node = Node::newNode(NodeKind::ND_FOR);
+            $node = Node::newNode(NodeKind::ND_FOR, $this->tokenizer->tokens[0]);
             $this->tokenizer->expect('(');
             $node->cond = $this->expr();
             $this->tokenizer->expect(')');
@@ -90,12 +91,13 @@ class Parser
     // compound-stmt = stmt* "}"
     public function compoundStmt(): Node
     {
+        $node = Node::newNode(NodeKind::ND_BLOCK, $this->tokenizer->tokens[0]);
+
         $nodes = [];
         while (! $this->tokenizer->consume('}')){
             $nodes[] = $this->stmt();
         }
 
-        $node = Node::newNode(NodeKind::ND_BLOCK);
         $node->body = $nodes;
         return $node;
     }
@@ -104,10 +106,11 @@ class Parser
     public function exprStmt(): Node
     {
         if ($this->tokenizer->consume(';')){
-            return Node::newNode(NodeKind::ND_BLOCK);
+            return Node::newNode(NodeKind::ND_BLOCK, $this->tokenizer->tokens[0]);
         }
 
-        $node = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->expr());
+        $node = Node::newNode(NodeKind::ND_EXPR_STMT, $this->tokenizer->tokens[0]);
+        $node->lhs = $this->expr();
         $this->tokenizer->expect(';');
         return $node;
     }
@@ -122,10 +125,12 @@ class Parser
     public function assign(): Node
     {
         $node = $this->equality();
+
         if ($this->tokenizer->equal('=')){
             $this->tokenizer->consume('=');
-            $node = Node::newBinary(NodeKind::ND_ASSIGN, $node, $this->assign());
+            return Node::newBinary(NodeKind::ND_ASSIGN, $node, $this->assign(), $this->tokenizer->tokens[0]);
         }
+
         return $node;
     }
 
@@ -135,12 +140,14 @@ class Parser
         $node = $this->relational();
 
         for (;;){
+            $start = $this->tokenizer->tokens[0];
+
             if ($this->tokenizer->consume('==')){
-                $node = Node::newBinary(NodeKind::ND_EQ, $node, $this->relational());
+                $node = Node::newBinary(NodeKind::ND_EQ, $node, $this->relational(), $start);
                 continue;
             }
             if ($this->tokenizer->consume('!=')){
-                $node = Node::newBinary(NodeKind::ND_NE, $node, $this->relational());
+                $node = Node::newBinary(NodeKind::ND_NE, $node, $this->relational(), $start);
                 continue;
             }
 
@@ -154,20 +161,22 @@ class Parser
         $node = $this->add();
 
         for (;;){
+            $start = $this->tokenizer->tokens[0];
+
             if ($this->tokenizer->consume('<')){
-                $node = Node::newBinary(NodeKind::ND_LT, $node, $this->add());
+                $node = Node::newBinary(NodeKind::ND_LT, $node, $this->add(), $start);
                 continue;
             }
             if ($this->tokenizer->consume('<=')){
-                $node = Node::newBinary(NodeKind::ND_LE, $node, $this->add());
+                $node = Node::newBinary(NodeKind::ND_LE, $node, $this->add(), $start);
                 continue;
             }
             if ($this->tokenizer->consume('>')){
-                $node = Node::newBinary(NodeKind::ND_LT, $this->add(), $node);
+                $node = Node::newBinary(NodeKind::ND_LT, $this->add(), $node, $start);
                 continue;
             }
             if ($this->tokenizer->consume('>=')){
-                $node = Node::newBinary(NodeKind::ND_LE, $this->add(), $node);
+                $node = Node::newBinary(NodeKind::ND_LE, $this->add(), $node, $start);
                 continue;
             }
 
@@ -181,12 +190,14 @@ class Parser
         $node = $this->mul();
 
         for (;;){
+            $start = $this->tokenizer->tokens[0];
+
             if ($this->tokenizer->consume('+')){
-                $node = Node::newBinary(NodeKind::ND_ADD, $node, $this->mul());
+                $node = Node::newBinary(NodeKind::ND_ADD, $node, $this->mul(), $start);
                 continue;
             }
             if ($this->tokenizer->consume('-')){
-                $node = Node::newBinary(NodeKind::ND_SUB, $node, $this->mul());
+                $node = Node::newBinary(NodeKind::ND_SUB, $node, $this->mul(), $start);
                 continue;
             }
 
@@ -200,12 +211,14 @@ class Parser
         $node = $this->unary();
 
         for (;;){
+            $start = $this->tokenizer->tokens[0];
+
             if ($this->tokenizer->consume('*')){
-                $node = Node::newBinary(NodeKind::ND_MUL, $node, $this->unary());
+                $node = Node::newBinary(NodeKind::ND_MUL, $node, $this->unary(), $start);
                 continue;
             }
             if ($this->tokenizer->consume('/')){
-                $node = Node::newBinary(NodeKind::ND_DIV, $node, $this->unary());
+                $node = Node::newBinary(NodeKind::ND_DIV, $node, $this->unary(), $start);
                 continue;
             }
 
@@ -220,7 +233,7 @@ class Parser
             return $this->unary();
         }
         if ($this->tokenizer->consume('-')){
-            return Node::newUnary(NodeKind::ND_NEG, $this->unary());
+            return Node::newUnary(NodeKind::ND_NEG, $this->unary(), $this->tokenizer->tokens[0]);
         }
 
         return $this->primary();
@@ -241,14 +254,14 @@ class Parser
                 $this->newLvar($varName);
             }
 
-            return Node::newVar($this->locals[$varName]);
+            return Node::newVar($this->locals[$varName], $this->tokenizer->tokens[0]);
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_NUM)){
-            return Node::newNum($this->tokenizer->expectNumber());
+            return Node::newNum($this->tokenizer->expectNumber(), $this->tokenizer->tokens[0]);
         }
 
-        Console::errorAt($this->tokenizer->userInput, $this->tokenizer->tokens[0]->pos, "数値でも開き括弧でもないトークンです\n");
+        Console::errorTok($this->tokenizer->userInput, $this->tokenizer->tokens[0], 'expected an expression');
     }
 
     // program = stmt*
@@ -257,6 +270,7 @@ class Parser
         $this->tokenizer->expect('{');
 
         $prog = new Func();
+        $prog->userInput = $this->tokenizer->userInput;
         $prog->body = [$this->compoundStmt()];
         $prog->locals = $this->locals;
 
