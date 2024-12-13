@@ -102,6 +102,11 @@ class CodeGenerator
     public function genStmt(Node $node): void
     {
         switch ($node->kind){
+            case NodeKind::ND_BLOCK:
+                foreach ($node->body as $n){
+                    $this->genStmt($n);
+                }
+                return;
             case NodeKind::ND_RETURN:
                 $this->genExpr($node->lhs);
                 printf("  jmp .L.return\n");

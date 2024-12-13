@@ -23,7 +23,9 @@ class Parser
         $this->locals[$name] = $var;
     }
 
-    // stmt = "return" expr ";" | expr-stmt
+    // stmt = "return" expr ";" |
+    //        "{" compound-stmt |
+    //        expr-stmt
     public function stmt(): Node
     {
         if ($this->tokenizer->consume('return')){
@@ -32,7 +34,24 @@ class Parser
             return $node;
         }
 
+        if ($this->tokenizer->consume('{')){
+            return $this->compoundStmt();
+        }
+
         return $this->exprStmt();
+    }
+
+    // compound-stmt = stmt* "}"
+    public function compoundStmt(): Node
+    {
+        $nodes = [];
+        while (! $this->tokenizer->consume('}')){
+            $nodes[] = $this->stmt();
+        }
+
+        $node = Node::newNode(NodeKind::ND_BLOCK);
+        $node->body = $nodes;
+        return $node;
     }
 
     // expr-stmt = expr ";"
@@ -185,13 +204,10 @@ class Parser
     // program = stmt*
     public function parse(): Func
     {
-        $nodes = [];
-        while (! $this->tokenizer->isTokenKind(TokenKind::TK_EOF)){
-            $nodes[] = $this->stmt();
-        }
+        $this->tokenizer->expect('{');
 
         $prog = new Func();
-        $prog->body = $nodes;
+        $prog->body = [$this->compoundStmt()];
         $prog->locals = $this->locals;
 
         return $prog;

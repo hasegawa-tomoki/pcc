@@ -99,5 +99,15 @@ class ParserTest extends TestCase
         $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $expr->rhs->kind);
         $this->assertEquals(10, $expr->rhs->val);
     }
+
+    public function testBlock()
+    {
+        $tokenizer = new Tokenizer('{ {1; {2;} return 3;} }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+
+        $this->assertEquals(\Pcc\Ast\NodeKind::ND_BLOCK, $prog->body[0]->kind);
+        $this->assertEquals(\Pcc\Ast\NodeKind::ND_BLOCK, $prog->body[0]->body[0]->kind);
     }
 }
