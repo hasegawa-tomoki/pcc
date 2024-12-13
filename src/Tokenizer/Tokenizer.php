@@ -88,6 +88,20 @@ class Tokenizer
                 continue;
             }
 
+            // Numeric literal
+            if (ctype_digit($this->userInput[$pos])) {
+                $token = new Token(TokenKind::TK_NUM, $this->userInput[$pos], $pos);
+                $valStr = '';
+                while ($pos < strlen($this->userInput) && ctype_digit($this->userInput[$pos])) {
+                    $valStr .= $this->userInput[$pos];
+                    $pos++;
+                }
+                $token->str = $valStr;
+                $token->val = intval($valStr);
+                $tokens[] = $token;
+                continue;
+            }
+
             // Identifier
             if ($this->isIdent1($this->userInput[$pos])){
                 $start = $pos;
@@ -107,19 +121,6 @@ class Tokenizer
             if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->userInput[$pos])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $this->userInput[$pos], $pos);
                 $pos++;
-                continue;
-            }
-
-            if (ctype_digit($this->userInput[$pos])) {
-                $token = new Token(TokenKind::TK_NUM, $this->userInput[$pos], $pos);
-                $valStr = '';
-                while ($pos < strlen($this->userInput) && ctype_digit($this->userInput[$pos])) {
-                    $valStr .= $this->userInput[$pos];
-                    $pos++;
-                }
-                $token->str = $valStr;
-                $token->val = intval($valStr);
-                $tokens[] = $token;
                 continue;
             }
 
