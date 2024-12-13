@@ -2,6 +2,7 @@
 
 namespace Pcc\CodeGenerator;
 
+use Pcc\Ast\Func;
 use Pcc\Ast\Node;
 use Pcc\Ast\NodeKind;
 use Pcc\Console;
@@ -21,11 +22,14 @@ class CodeGenerator
         $this->depth--;
     }
 
+    public function alignTo(int $n, int $align): int
+    {
+        return ($n + $align - 1) / $align * $align;
+    }
     public function genAddr(Node $node): void
     {
         if ($node->kind == NodeKind::ND_VAR){
-            $offset = (ord($node->name) - ord('a') + 1) * 8;
-            printf("  lea %d(%%rbp), %%rax\n", -1 * $offset);
+            printf("  lea %d(%%rbp), %%rax\n", $node->var->offset);
             return;
         }
 
@@ -105,20 +109,30 @@ class CodeGenerator
         Console::error('invalid statement');
     }
 
-    /**
-     * @param Node[] $nodes
-     * @return void
-     */
-    public function gen(array $nodes): void
+    public function assignLVarOffsets(Func $prog): Func
     {
+        $offset = 0;
+        foreach ($prog->locals as $var){
+            $offset += 8;
+            $var->offset = -1 * $offset;
+        }
+        $prog->stackSize = $this->alignTo($offset, 16);
+        return $prog;
+    }
+
+    public function gen(Func $prog): void
+    {
+        $prog = $this->assignLVarOffsets($prog);
+
         printf("  .globl main\n");
         printf("main:\n");
 
+        // Prologue
         printf("  push %%rbp\n");
         printf("  mov %%rsp, %%rbp\n");
-        printf("  sub \$208, %%rsp\n");
+        printf("  sub \$%d, %%rsp\n", $prog->stackSize);
 
-        foreach ($nodes as $node){
+        foreach ($prog->body as $node){
             $this->genStmt($node);
             assert($this->depth == 0);
         }

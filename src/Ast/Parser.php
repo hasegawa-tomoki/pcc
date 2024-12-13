@@ -8,10 +8,19 @@ use Pcc\Tokenizer\TokenKind;
 
 class Parser
 {
+    /** @var array<string, \Pcc\Ast\LVar> */
+    public array $locals = [];
+
     public function __construct(
         private readonly Tokenizer $tokenizer,
     )
     {
+    }
+
+    public function newLvar(string $name): void
+    {
+        $var = new LVar($name);
+        $this->locals[$name] = $var;
     }
 
     // stmt = expr-stmt
@@ -152,7 +161,12 @@ class Parser
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
-            return Node::newVar($this->tokenizer->getIdent()?->str);
+            $varName = $this->tokenizer->getIdent()->str;
+            if (! isset($this->locals[$varName])){
+                $this->newLvar($varName);
+            }
+
+            return Node::newVar($this->locals[$varName]);
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_NUM)){
@@ -162,16 +176,18 @@ class Parser
         Console::errorAt($this->tokenizer->userInput, $this->tokenizer->tokens[0]->pos, "数値でも開き括弧でもないトークンです\n");
     }
 
-    /**
-     * @return \Pcc\Ast\Node[]
-     */
-    public function parse(): array
+    // program = stmt*
+    public function parse(): Func
     {
         $nodes = [];
         while (! $this->tokenizer->isTokenKind(TokenKind::TK_EOF)){
             $nodes[] = $this->stmt();
         }
 
-        return $nodes;
+        $prog = new Func();
+        $prog->body = $nodes;
+        $prog->locals = $this->locals;
+
+        return $prog;
     }
 }

@@ -67,30 +67,45 @@ class Tokenizer
         return $this->tokens[0]->kind === TokenKind::TK_EOF;
     }
 
+    public function isIdent1(string $c): bool
+    {
+        return preg_match('/^[a-zA-Z_]/', $c);
+    }
+
+    public function isIdent2(string $c): bool
+    {
+        return $this->isIdent1($c) or preg_match('/^[0-9]/', $c);
+    }
+
     public function tokenize(): void
     {
         $pos = 0;
         $tokens = [];
         while ($pos < strlen($this->userInput)) {
+            // Skip whitespace characters
             if (ctype_space($this->userInput[$pos])) {
                 $pos++;
                 continue;
             }
 
+            // Identifier
+            if ($this->isIdent1($this->userInput[$pos])){
+                $start = $pos;
+                while ($pos < strlen($this->userInput) && $this->isIdent2($this->userInput[$pos])){
+                    $pos++;
+                }
+                $tokens[] = new Token(TokenKind::TK_IDENT, substr($this->userInput, $start, $pos - $start), $pos);
+                continue;
+            }
+
+            // Punctuators
             if (in_array($token = substr($this->userInput, $pos, 2), ['==', '!=', '<=', '>='])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $pos += 2;
                 continue;
             }
-
             if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->userInput[$pos])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $this->userInput[$pos], $pos);
-                $pos++;
-                continue;
-            }
-
-            if (preg_match('/^[a-z]/', $this->userInput[$pos])) {
-                $tokens[] = new Token(TokenKind::TK_IDENT, $this->userInput[$pos], $pos);
                 $pos++;
                 continue;
             }

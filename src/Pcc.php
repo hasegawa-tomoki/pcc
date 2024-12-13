@@ -19,15 +19,10 @@ class Pcc
         $tokenizer = new Tokenizer($argv[1]);
         $tokenizer->tokenize();
         $parser = new Ast\Parser($tokenizer);
-        $nodes = $parser->parse();
-
-        if (! $tokenizer->isTokenKind(TokenKind::TK_EOF)){
-            Console::error("extra token");
-        }
-
+        $prog = $parser->parse();
 
         $codeGenerator = new CodeGenerator();
-        $codeGenerator->gen($nodes);
+        $codeGenerator->gen($prog);
 
         return 0;
     }

@@ -7,7 +7,7 @@ class Node
     public NodeKind $kind;
     public Node $lhs;
     public Node $rhs;
-    public string $name;
+    public LVar $var;
     public int $val;
 
     public static function newNode(NodeKind $nodeKind): Node
@@ -39,10 +39,10 @@ class Node
         return $node;
     }
 
-    public static function newVar(string $name): Node
+    public static function newVar(LVar $var): Node
     {
         $node = self::newNode(NodeKind::ND_VAR);
-        $node->name = $name;
+        $node->var = $var;
         return $node;
     }
 }
