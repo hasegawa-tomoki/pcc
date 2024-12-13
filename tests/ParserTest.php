@@ -88,17 +88,16 @@ class ParserTest extends TestCase
 
     public function testAssign()
     {
-        $tokenizer = new Tokenizer('a=10;');
+        $tokenizer = new Tokenizer('a=10');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
-        $nodes = $parser->parse();
-        ray($nodes);
-        $this->assertEquals(1, count($nodes));
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_EXPR_STMT, $nodes[0]->kind);
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_ASSIGN, $nodes[0]->lhs->kind);
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_VAR, $nodes[0]->lhs->lhs->kind);
-        $this->assertEquals('a', $nodes[0]->lhs->lhs->name);
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $nodes[0]->lhs->rhs->kind);
-        $this->assertEquals(10, $nodes[0]->lhs->rhs->val);
+        $expr = $parser->assign();
+
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_ASSIGN, $expr->kind);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_VAR, $expr->lhs->kind);
+        $this->assertEquals('a', $expr->lhs->var->name);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $expr->rhs->kind);
+        $this->assertEquals(10, $expr->rhs->val);
+    }
     }
 }
