@@ -8,7 +8,7 @@ class Node
     public Node $lhs;
     public Node $rhs;
     /** @var Node[] */
-    public array $body;
+    public array $body = [];
     public LVar $var;
     public int $val;
 

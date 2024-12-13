@@ -54,9 +54,13 @@ class Parser
         return $node;
     }
 
-    // expr-stmt = expr ";"
+    // expr-stmt = expr? ";"
     public function exprStmt(): Node
     {
+        if ($this->tokenizer->consume(';')){
+            return Node::newNode(NodeKind::ND_BLOCK);
+        }
+
         $node = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->expr());
         $this->tokenizer->expect(';');
         return $node;
