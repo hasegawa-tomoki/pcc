@@ -125,7 +125,9 @@ class CodeGenerator
             }
             case NodeKind::ND_FOR: {
                 $c = $this->cnt();
-                $this->genStmt($node->init);
+                if ($node->init){
+                    $this->genStmt($node->init);
+                }
                 printf(".L.begin.%d:\n", $c);
                 if ($node->cond) {
                     $this->genExpr($node->cond);

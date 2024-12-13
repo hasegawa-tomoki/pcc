@@ -14,6 +14,7 @@ class Tokenizer
         'if',
         'else',
         'for',
+        'while',
     ];
 
     public function __construct(

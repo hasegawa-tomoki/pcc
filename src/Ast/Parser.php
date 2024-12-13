@@ -26,6 +26,7 @@ class Parser
     // stmt = "return" expr ";"
     //        | "if" "(" expr ")" stmt ("else" stmt)?
     //        | "for" "(" expr-stmt expr? ";" expr? ")" stmt
+    //        | "while" "(" expr ")" stmt
     //        | "{" compound-stmt
     //        | expr-stmt
     public function stmt(): Node
@@ -66,6 +67,16 @@ class Parser
 
             $node->then = $this->stmt();
 
+            return $node;
+        }
+
+        // "while" "(" expr ")" stmt
+        if ($this->tokenizer->consume('while')){
+            $node = Node::newNode(NodeKind::ND_FOR);
+            $this->tokenizer->expect('(');
+            $node->cond = $this->expr();
+            $this->tokenizer->expect(')');
+            $node->then = $this->stmt();
             return $node;
         }
 
