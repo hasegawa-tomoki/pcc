@@ -1,11 +1,8 @@
 <?php
 namespace Pcc;
 
-use Pcc\Ast\Node;
-use Pcc\Ast\NodeKind;
 use Pcc\CodeGenerator\CodeGenerator;
 use Pcc\Tokenizer\Tokenizer;
-use Pcc\Tokenizer\TokenKind;
 
 class Pcc
 {
