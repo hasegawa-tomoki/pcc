@@ -226,7 +226,7 @@ class Parser
         }
     }
 
-    // unary = ("+" | "-") unary | primary
+    // unary = ("+" | "-" | "*" | "&") unary | primary
     public function unary(): Node
     {
         if ($this->tokenizer->consume('+')){
@@ -234,6 +234,12 @@ class Parser
         }
         if ($this->tokenizer->consume('-')){
             return Node::newUnary(NodeKind::ND_NEG, $this->unary(), $this->tokenizer->tokens[0]);
+        }
+        if ($this->tokenizer->consume('&')){
+            return Node::newUnary(NodeKind::ND_ADDR, $this->unary(), $this->tokenizer->tokens[0]);
+        }
+        if ($this->tokenizer->consume('*')){
+            return Node::newUnary(NodeKind::ND_DEREF, $this->unary(), $this->tokenizer->tokens[0]);
         }
 
         return $this->primary();

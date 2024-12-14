@@ -14,6 +14,8 @@ enum NodeKind
     case ND_LT;
     case ND_LE;
     case ND_ASSIGN;
+    case ND_ADDR;   // unary &
+    case ND_DEREF;  // unary *
     case ND_RETURN;
     case ND_IF;
     case ND_FOR;

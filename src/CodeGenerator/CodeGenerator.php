@@ -32,13 +32,17 @@ class CodeGenerator
 
     public function alignTo(int $n, int $align): int
     {
-        return ($n + $align - 1) / $align * $align;
+        return intval(($n + $align - 1) / $align) * $align;
     }
     public function genAddr(Node $node): void
     {
-        if ($node->kind == NodeKind::ND_VAR){
-            printf("  lea %d(%%rbp), %%rax\n", $node->var->offset);
-            return;
+        switch ($node->kind){
+            case NodeKind::ND_VAR:
+                printf("  lea %d(%%rbp), %%rax\n", $node->var->offset);
+                return;
+            case NodeKind::ND_DEREF:
+                $this->genExpr($node->lhs);
+                return;
         }
 
         Console::errorTok($this->userInput, $node->tok, 'not an lvalue');
@@ -57,6 +61,13 @@ class CodeGenerator
             case NodeKind::ND_VAR:
                 $this->genAddr($node);
                 printf("  mov (%%rax), %%rax\n");
+                return;
+            case NodeKind::ND_DEREF:
+                $this->genExpr($node->lhs);
+                printf("  mov (%%rax), %%rax\n");
+                return;
+            case NodeKind::ND_ADDR:
+                $this->genAddr($node->lhs);
                 return;
             case NodeKind::ND_ASSIGN:
                 $this->genAddr($node->lhs);
@@ -163,7 +174,7 @@ class CodeGenerator
     public function assignLVarOffsets(Func $prog): Func
     {
         $offset = 0;
-        foreach ($prog->locals as $var){
+        foreach (array_reverse($prog->locals) as $var){
             $offset += 8;
             $var->offset = -1 * $offset;
         }
@@ -175,6 +186,7 @@ class CodeGenerator
     {
         $this->userInput = $prog->userInput;
         $prog = $this->assignLVarOffsets($prog);
+        //ray($prog);
 
         printf("  .globl main\n");
         printf("main:\n");
