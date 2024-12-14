@@ -1,0 +1,9 @@
+<?php
+
+namespace Pcc\Ast;
+
+enum TypeKind
+{
+    case TY_INT;
+    case TY_PTR;
+}

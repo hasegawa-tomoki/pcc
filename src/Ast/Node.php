@@ -7,14 +7,15 @@ use Pcc\Tokenizer\Token;
 class Node
 {
     public NodeKind $kind;
+    public ?Type $ty = null;
     public Token $tok;
 
-    public Node $lhs;
-    public Node $rhs;
+    public ?Node $lhs = null;
+    public ?Node $rhs = null;
 
     // "if" or $for" statement
     public ?Node $cond = null;
-    public Node $then;
+    public ?Node $then = null;
     public ?Node $els = null;
     public ?Node $init = null;
     public ?Node $inc = null;
@@ -65,5 +66,58 @@ class Node
         $node = self::newNode(NodeKind::ND_VAR, $tok);
         $node->var = $var;
         return $node;
+    }
+
+    public function pointerTo(Type $base): Type
+    {
+        return new Type(TypeKind::TY_PTR, $base);
+    }
+
+    public function addType(): void
+    {
+        if ($this->ty){
+            return;
+        }
+
+        $this->lhs?->addType();
+        $this->rhs?->addType();
+        $this->cond?->addType();
+        $this->then?->addType();
+        $this->els?->addType();
+        $this->init?->addType();
+        $this->inc?->addType();
+
+        foreach ($this->body as $node){
+            $node->addType();
+        }
+
+        switch ($this->kind){
+            case NodeKind::ND_ADD:
+            case NodeKind::ND_SUB:
+            case NodeKind::ND_MUL:
+            case NodeKind::ND_DIV:
+            case NodeKind::ND_NEG:
+            case NodeKind::ND_ASSIGN:
+                $this->ty = $this->lhs->ty;
+                return;
+            case NodeKind::ND_EQ:
+            case NodeKind::ND_NE:
+            case NodeKind::ND_LT:
+            case NodeKind::ND_LE:
+            case NodeKind::ND_VAR:
+            case NodeKind::ND_NUM:
+                $this->ty = new Type(TypeKind::TY_INT);
+                return;
+            case NodeKind::ND_ADDR:
+                $this->ty = $this->pointerTo($this->lhs->ty);
+                return;
+            case NodeKind::ND_DEREF:
+                if ($this->lhs->ty->kind === TypeKind::TY_PTR){
+                    $this->ty = $this->lhs->ty->base;
+                } else {
+                    $this->ty = new Type(TypeKind::TY_INT);
+                }
+                return;
+        }
     }
 }

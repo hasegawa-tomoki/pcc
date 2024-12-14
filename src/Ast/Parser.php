@@ -3,6 +3,7 @@
 namespace Pcc\Ast;
 
 use Pcc\Console;
+use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\Tokenizer;
 use Pcc\Tokenizer\TokenKind;
 
@@ -95,7 +96,9 @@ class Parser
 
         $nodes = [];
         while (! $this->tokenizer->consume('}')){
-            $nodes[] = $this->stmt();
+            $n = $this->stmt();
+            $n->addType();
+            $nodes[] = $n;
         }
 
         $node->body = $nodes;
@@ -184,6 +187,60 @@ class Parser
         }
     }
 
+    public function newAdd(Node $lhs, Node $rhs, Token $tok): Node
+    {
+        $lhs->addType();
+        $rhs->addType();
+
+        // num + num
+        if ($lhs->ty->isInteger() and $rhs->ty->isInteger()){
+            return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
+        }
+        if ($lhs->ty->base and $rhs->ty->base){
+            Console::errorTok($this->tokenizer->userInput, $tok, 'invalid operands');
+        }
+
+        // Canonicalize 'num + ptr' to 'ptr + num'.
+        if (! $lhs->ty->base and $rhs->ty->base){
+            $tmp = $lhs;
+            $lhs = $rhs;
+            $rhs = $tmp;
+        }
+
+        // ptr + num
+        $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum(8, $tok), $tok);
+        return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
+    }
+
+    public function newSub(Node $lhs, Node $rhs, Token $tok): Node
+    {
+        $lhs->addType();
+        $rhs->addType();
+
+        // num - num
+        if ($lhs->ty->isInteger() and $rhs->ty->isInteger()){
+            return Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
+        }
+
+        // ptr - num
+        if ($lhs->ty->base and $rhs->ty->isInteger()){
+            $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum(8, $tok), $tok);
+            $rhs->addType();
+            $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
+            $node->ty = $lhs->ty;
+            return $node;
+        }
+
+        // ptr - ptr
+        if ($lhs->ty->base and $rhs->ty->base){
+            $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
+            $node->ty = new Type(TypeKind::TY_INT);
+            return Node::newBinary(NodeKind::ND_DIV, $node, Node::newNum(8, $tok), $tok);
+        }
+
+        Console::errorTok($this->tokenizer->userInput, $tok, 'invalid operands');
+    }
+
     // add = mul ("+" mul | "-" mul)*
     public function add(): Node
     {
@@ -193,11 +250,11 @@ class Parser
             $start = $this->tokenizer->tokens[0];
 
             if ($this->tokenizer->consume('+')){
-                $node = Node::newBinary(NodeKind::ND_ADD, $node, $this->mul(), $start);
+                $node = $this->newAdd($node, $this->mul(), $start);
                 continue;
             }
             if ($this->tokenizer->consume('-')){
-                $node = Node::newBinary(NodeKind::ND_SUB, $node, $this->mul(), $start);
+                $node = $this->newSub($node, $this->mul(), $start);
                 continue;
             }
 

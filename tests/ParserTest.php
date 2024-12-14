@@ -110,4 +110,20 @@ class ParserTest extends TestCase
         $this->assertEquals(\Pcc\Ast\NodeKind::ND_BLOCK, $prog->body[0]->kind);
         $this->assertEquals(\Pcc\Ast\NodeKind::ND_BLOCK, $prog->body[0]->body[0]->kind);
     }
+
+    public function testPointer()
+    {
+        $tokenizer = new Tokenizer('{ x=3; y=5; return *(&x+1); }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+
+        $this->assertEquals(\Pcc\Ast\NodeKind::ND_ADD, $prog->body[0]->body[2]->lhs->lhs->kind);
+        $this->assertEquals(\Pcc\Ast\NodeKind::ND_VAR, $prog->body[0]->body[2]->lhs->lhs->lhs->lhs->kind);
+        $this->assertEquals('x', $prog->body[0]->body[2]->lhs->lhs->lhs->lhs->var->name);
+        $this->assertEquals(\Pcc\Ast\TypeKind::TY_PTR, $prog->body[0]->body[2]->lhs->lhs->lhs->ty->kind);
+        $this->assertEquals(\Pcc\Ast\NodeKind::ND_MUL, $prog->body[0]->body[2]->lhs->lhs->rhs->kind);
+        $this->assertEquals(1, $prog->body[0]->body[2]->lhs->lhs->rhs->lhs->val);
+        $this->assertEquals(8, $prog->body[0]->body[2]->lhs->lhs->rhs->rhs->val);
+    }
 }
