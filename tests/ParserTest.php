@@ -1,5 +1,7 @@
 <?php
 
+use Pcc\Ast\NodeKind;
+use Pcc\Ast\TypeKind;
 use Pcc\Tokenizer\Tokenizer;
 use PHPUnit\Framework\TestCase;
 
@@ -86,18 +88,18 @@ class ParserTest extends TestCase
         $this->assertEquals(20, $node->rhs->val);
     }
 
-    public function testAssign()
+    public function testDeclaration()
     {
-        $tokenizer = new Tokenizer('a=10');
+        $tokenizer = new Tokenizer('int a=10;');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
-        $expr = $parser->assign();
+        $declaration = $parser->declaration();
 
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_ASSIGN, $expr->kind);
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_VAR, $expr->lhs->kind);
-        $this->assertEquals('a', $expr->lhs->var->name);
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $expr->rhs->kind);
-        $this->assertEquals(10, $expr->rhs->val);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_ASSIGN, $declaration->body[0]->lhs->kind);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_VAR, $declaration->body[0]->lhs->lhs->kind);
+        $this->assertEquals('a', $declaration->body[0]->lhs->lhs->var->name);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $declaration->body[0]->lhs->rhs->kind);
+        $this->assertEquals(10, $declaration->body[0]->lhs->rhs->val);
     }
 
     public function testBlock()
@@ -107,23 +109,37 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(\Pcc\Ast\NodeKind::ND_BLOCK, $prog->body[0]->kind);
-        $this->assertEquals(\Pcc\Ast\NodeKind::ND_BLOCK, $prog->body[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_BLOCK, $prog->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_BLOCK, $prog->body[0]->body[0]->kind);
     }
 
     public function testPointer()
     {
-        $tokenizer = new Tokenizer('{ x=3; y=5; return *(&x+1); }');
+        $tokenizer = new Tokenizer('{ int x=3; int y=5; return *(&x+1); }');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(\Pcc\Ast\NodeKind::ND_ADD, $prog->body[0]->body[2]->lhs->lhs->kind);
-        $this->assertEquals(\Pcc\Ast\NodeKind::ND_VAR, $prog->body[0]->body[2]->lhs->lhs->lhs->lhs->kind);
-        $this->assertEquals('x', $prog->body[0]->body[2]->lhs->lhs->lhs->lhs->var->name);
-        $this->assertEquals(\Pcc\Ast\TypeKind::TY_PTR, $prog->body[0]->body[2]->lhs->lhs->lhs->ty->kind);
-        $this->assertEquals(\Pcc\Ast\NodeKind::ND_MUL, $prog->body[0]->body[2]->lhs->lhs->rhs->kind);
-        $this->assertEquals(1, $prog->body[0]->body[2]->lhs->lhs->rhs->lhs->val);
-        $this->assertEquals(8, $prog->body[0]->body[2]->lhs->lhs->rhs->rhs->val);
+        ray($prog);
+
+        $this->assertEquals(NodeKind::ND_ADD, $prog->body[0]->body[4]->lhs->lhs->kind);
+        $this->assertEquals(NodeKind::ND_VAR, $prog->body[0]->body[4]->lhs->lhs->lhs->lhs->kind);
+        $this->assertEquals('x', $prog->body[0]->body[4]->lhs->lhs->lhs->lhs->var->name);
+        $this->assertEquals(TypeKind::TY_PTR, $prog->body[0]->body[4]->lhs->lhs->lhs->ty->kind);
+        $this->assertEquals(NodeKind::ND_MUL, $prog->body[0]->body[4]->lhs->lhs->rhs->kind);
+        $this->assertEquals(1, $prog->body[0]->body[4]->lhs->lhs->rhs->lhs->val);
+        $this->assertEquals(8, $prog->body[0]->body[4]->lhs->lhs->rhs->rhs->val);
+    }
+
+    public function testVariableDefinition()
+    {
+        $tokenizer = new Tokenizer('{ int x=3; }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+
+        $this->assertEquals(NodeKind::ND_ASSIGN, $prog->body[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('x', $prog->body[0]->body[0]->body[0]->lhs->lhs->var->name);
+        $this->assertEquals(3, $prog->body[0]->body[0]->body[0]->lhs->rhs->val);
     }
 }

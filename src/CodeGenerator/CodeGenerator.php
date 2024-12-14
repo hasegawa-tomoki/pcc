@@ -10,7 +10,6 @@ use Pcc\Console;
 class CodeGenerator
 {
     public int $depth = 0;
-    public string $userInput;
 
     public function cnt(): int
     {
@@ -45,7 +44,7 @@ class CodeGenerator
                 return;
         }
 
-        Console::errorTok($this->userInput, $node->tok, 'not an lvalue');
+        Console::errorTok($node->tok, 'not an lvalue');
     }
 
     public function genExpr(Node $node): void
@@ -115,7 +114,7 @@ class CodeGenerator
                 return;
         }
 
-        Console::errorTok($this->userInput, $node->tok, 'invalid expression');
+        Console::errorTok($node->tok, 'invalid expression');
     }
 
     public function genStmt(Node $node): void
@@ -168,7 +167,7 @@ class CodeGenerator
                 return;
         }
 
-        Console::errorTok($this->userInput, $node->tok, 'invalid statement');
+        Console::errorTok($node->tok, 'invalid statement');
     }
 
     public function assignLVarOffsets(Func $prog): Func
@@ -184,7 +183,6 @@ class CodeGenerator
 
     public function gen(Func $prog): void
     {
-        $this->userInput = $prog->userInput;
         $prog = $this->assignLVarOffsets($prog);
         //ray($prog);
 

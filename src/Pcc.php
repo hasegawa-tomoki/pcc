@@ -13,6 +13,8 @@ class Pcc
             return 1;
         }
 
+        Console::$userInput = $argv[1];
+
         $tokenizer = new Tokenizer($argv[1]);
         $tokenizer->tokenize();
         $parser = new Ast\Parser($tokenizer);

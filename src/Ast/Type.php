@@ -2,10 +2,15 @@
 
 namespace Pcc\Ast;
 
+use Pcc\Tokenizer\Token;
+
 class Type
 {
     public TypeKind $kind;
+    // Pointer
     public ?Type $base;
+    // Declaration
+    public Token $name;
 
     public function __construct(TypeKind $kind, ?Type $base = null)
     {

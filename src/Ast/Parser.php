@@ -18,10 +18,72 @@ class Parser
     {
     }
 
-    public function newLvar(string $name): void
+    public function newLvar(string $name, Type $ty): LVar
     {
         $var = new LVar($name);
+        $var->ty = $ty;
         $this->locals[$name] = $var;
+        return $var;
+    }
+
+    public function getIdent(Token $tok): string
+    {
+        if ($tok->kind !== TokenKind::TK_IDENT){
+            Console::errorTok($tok, 'expected an identifier');
+        }
+        return $tok->str;
+    }
+
+    // declspec = "int"
+    public function declspec(): Type
+    {
+        $this->tokenizer->consume('int');
+        return new Type(TypeKind::TY_INT);
+    }
+
+    // declarator = "*"* ident
+    public function declarator(Type $ty): Type
+    {
+        while ($this->tokenizer->consume('*')){
+            $ty = new Type(TypeKind::TY_PTR, $ty);
+        }
+
+        if (! $this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
+            Console::errorTok($this->tokenizer->tokens[0], 'expected a variable name');
+        }
+
+        $ty->name = $this->tokenizer->getIdent();
+        return $ty;
+    }
+
+    // declaration = declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+    public function declaration(): Node
+    {
+        $basety = $this->declspec();
+
+        $i = 0;
+        $nodes = [];
+        while (! $this->tokenizer->equal(';')){
+            if ($i++ > 0){
+                $this->tokenizer->expect(',');
+            }
+
+            $ty = $this->declarator($basety);
+            $var = $this->newLvar($this->getIdent($ty->name), $ty);
+
+            if (! $this->tokenizer->consume('=')){
+                continue;
+            }
+
+            $lhs = Node::newVar($var, $ty->name);
+            $rhs = $this->assign();
+            $node = Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $rhs, $this->tokenizer->tokens[0]);
+            $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $node, $this->tokenizer->tokens[0]);
+        }
+
+        $node = Node::newNode(NodeKind::ND_BLOCK, $this->tokenizer->tokens[0]);
+        $node->body = $nodes;
+        return $node;
     }
 
     // stmt = "return" expr ";"
@@ -89,14 +151,18 @@ class Parser
         return $this->exprStmt();
     }
 
-    // compound-stmt = stmt* "}"
+    // compound-stmt = (declaration | stmt)* "}"
     public function compoundStmt(): Node
     {
         $node = Node::newNode(NodeKind::ND_BLOCK, $this->tokenizer->tokens[0]);
 
         $nodes = [];
         while (! $this->tokenizer->consume('}')){
-            $n = $this->stmt();
+            if ($this->tokenizer->consume('int')){
+                $n = $this->declaration();
+            } else {
+                $n = $this->stmt();
+            }
             $n->addType();
             $nodes[] = $n;
         }
@@ -197,7 +263,7 @@ class Parser
             return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
         }
         if ($lhs->ty->base and $rhs->ty->base){
-            Console::errorTok($this->tokenizer->userInput, $tok, 'invalid operands');
+            Console::errorTok($tok, 'invalid operands');
         }
 
         // Canonicalize 'num + ptr' to 'ptr + num'.
@@ -238,7 +304,7 @@ class Parser
             return Node::newBinary(NodeKind::ND_DIV, $node, Node::newNum(8, $tok), $tok);
         }
 
-        Console::errorTok($this->tokenizer->userInput, $tok, 'invalid operands');
+        Console::errorTok($tok, 'invalid operands');
     }
 
     // add = mul ("+" mul | "-" mul)*
@@ -314,7 +380,7 @@ class Parser
         if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
             $varName = $this->tokenizer->getIdent()->str;
             if (! isset($this->locals[$varName])){
-                $this->newLvar($varName);
+                Console::errorTok($this->tokenizer->tokens[0], 'undefined variable');
             }
 
             return Node::newVar($this->locals[$varName], $this->tokenizer->tokens[0]);
@@ -324,7 +390,7 @@ class Parser
             return Node::newNum($this->tokenizer->expectNumber(), $this->tokenizer->tokens[0]);
         }
 
-        Console::errorTok($this->tokenizer->userInput, $this->tokenizer->tokens[0], 'expected an expression');
+        Console::errorTok($this->tokenizer->tokens[0], 'expected an expression');
     }
 
     // program = stmt*
@@ -333,7 +399,6 @@ class Parser
         $this->tokenizer->expect('{');
 
         $prog = new Func();
-        $prog->userInput = $this->tokenizer->userInput;
         $prog->body = [$this->compoundStmt()];
         $prog->locals = $this->locals;
 

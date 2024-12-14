@@ -2,6 +2,7 @@
 
 namespace Pcc\Ast;
 
+use Pcc\Console;
 use Pcc\Tokenizer\Token;
 
 class Node
@@ -104,19 +105,20 @@ class Node
             case NodeKind::ND_NE:
             case NodeKind::ND_LT:
             case NodeKind::ND_LE:
-            case NodeKind::ND_VAR:
             case NodeKind::ND_NUM:
                 $this->ty = new Type(TypeKind::TY_INT);
+                return;
+            case NodeKind::ND_VAR:
+                $this->ty = $this->var->ty;
                 return;
             case NodeKind::ND_ADDR:
                 $this->ty = $this->pointerTo($this->lhs->ty);
                 return;
             case NodeKind::ND_DEREF:
-                if ($this->lhs->ty->kind === TypeKind::TY_PTR){
-                    $this->ty = $this->lhs->ty->base;
-                } else {
-                    $this->ty = new Type(TypeKind::TY_INT);
+                if ($this->lhs->ty->kind !== TypeKind::TY_PTR){
+                    Console::errorTok($this->tok, 'invalid pointer dereference');
                 }
+                $this->ty = $this->lhs->ty->base;
                 return;
         }
     }

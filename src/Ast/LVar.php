@@ -3,6 +3,7 @@ namespace Pcc\Ast;
 class LVar
 {
     public string $name;
+    public Type $ty;
     public int $offset;
     public int $len {
         get {

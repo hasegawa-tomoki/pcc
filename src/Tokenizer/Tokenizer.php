@@ -15,6 +15,7 @@ class Tokenizer
         'else',
         'for',
         'while',
+        'int',
     ];
 
     public function __construct(
@@ -50,7 +51,7 @@ class Tokenizer
         if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED ||
             strlen($op) != $this->tokens[0]->len ||
             $this->tokens[0]->str !== $op) {
-            Console::errorTok($this->userInput, $this->tokens[0], "expected '%s'", $op);
+            Console::errorTok($this->tokens[0], "expected '%s'", $op);
         }
         array_shift($this->tokens);
     }
@@ -58,7 +59,7 @@ class Tokenizer
     public function expectNumber(): int
     {
         if ($this->tokens[0]->kind !== TokenKind::TK_NUM) {
-            Console::errorTok($this->userInput, $this->tokens[0], "expected 'number'");
+            Console::errorTok($this->tokens[0], "expected 'number'");
         }
         $val = $this->tokens[0]->val;
         array_shift($this->tokens);
@@ -141,7 +142,7 @@ class Tokenizer
                 continue;
             }
 
-            Console::errorAt($this->userInput, $pos, "invalid token: %s\n", $this->userInput[$pos]);
+            Console::errorAt($pos, "invalid token: %s\n", $this->userInput[$pos]);
         }
 
         $tokens[] = new Token(TokenKind::TK_EOF, '', $pos);
