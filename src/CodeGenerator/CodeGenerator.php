@@ -2,7 +2,7 @@
 
 namespace Pcc\CodeGenerator;
 
-use Pcc\Ast\Func;
+use Pcc\Ast\Obj;
 use Pcc\Ast\Node;
 use Pcc\Ast\NodeKind;
 use Pcc\Ast\Type;
@@ -14,7 +14,7 @@ class CodeGenerator
     public int $depth = 0;
     /** @var string[]  */
     public array $argreg = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
-    public Func $currentFn;
+    public Obj $currentFn;
 
     public function cnt(): int
     {
@@ -206,12 +206,16 @@ class CodeGenerator
     }
 
     /**
-     * @param Func[] $funcs
-     * @return Func[]
+     * @param Obj[] $funcs
+     * @return Obj[]
      */
     public function assignLVarOffsets(array $funcs): array
     {
         foreach  ($funcs as $fn){
+            if (! $fn->isFunction){
+                continue;
+            }
+
             $offset = 0;
             foreach (array_reverse($fn->locals) as $var){
                 $offset += $var->ty->size;
@@ -224,7 +228,7 @@ class CodeGenerator
     }
 
     /**
-     * @param Func[] $funcs
+     * @param Obj[] $funcs
      * @return void
      */
     public function gen(array $funcs): void
@@ -232,7 +236,12 @@ class CodeGenerator
         $funcs = $this->assignLVarOffsets($funcs);
 
         foreach ($funcs as $fn){
+            if (! $fn->isFunction){
+                continue;
+            }
+
             printf("  .globl %s\n", $fn->name);
+            printf("  .text\n");
             printf("%s:\n", $fn->name);
             $this->currentFn = $fn;
 

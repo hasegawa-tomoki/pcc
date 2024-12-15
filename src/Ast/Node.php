@@ -33,7 +33,7 @@ class Node
     public array $args = [];
 
     // Used if kind == ND_VAR
-    public LVar $var;
+    public Obj $var;
     // Used if kind == ND_NUM
     public int $val;
 
@@ -67,7 +67,7 @@ class Node
         return $node;
     }
 
-    public static function newVar(LVar $var, Token $tok): Node
+    public static function newVar(Obj $var, Token $tok): Node
     {
         $node = self::newNode(NodeKind::ND_VAR, $tok);
         $node->var = $var;

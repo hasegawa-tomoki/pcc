@@ -9,8 +9,10 @@ use Pcc\Tokenizer\TokenKind;
 
 class Parser
 {
-    /** @var array<string, \Pcc\Ast\LVar> */
+    /** @var array<string, \Pcc\Ast\Obj> */
     public array $locals = [];
+    /** @var array<string, \Pcc\Ast\Obj> */
+    public array $globals = [];
 
     public function __construct(
         private readonly Tokenizer $tokenizer,
@@ -18,11 +20,27 @@ class Parser
     {
     }
 
-    public function newLvar(string $name, Type $ty): LVar
+    public function newVar(string $name, Type $ty): Obj
     {
-        $var = new LVar($name);
+        $var = new Obj($name);
         $var->ty = $ty;
+        return $var;
+    }
+
+    public function newLvar(string $name, Type $ty): Obj
+    {
+        $var = new Obj($name);
+        $var->ty = $ty;
+        $var->isLocal = true;
         $this->locals[$name] = $var;
+        return $var;
+    }
+
+    public function newGVar(string $name, Type $ty): Obj
+    {
+        $var = new Obj($name);
+        $var->ty = $ty;
+        $this->globals[] = $var;
         return $var;
     }
 
@@ -63,6 +81,7 @@ class Parser
             $params[] = $type;
         }
         $type = Type::funcType($ty);
+        $type->name = $ty->name;
         $type->params = $params;
         return $type;
     }
@@ -502,35 +521,35 @@ class Parser
         }
     }
 
-    public function func(): Func
+    public function func(Type $basety): void
     {
-        $ty = $this->declspec();
-        $ty = $this->declarator($ty);
+        $ty = $this->declarator($basety);
+        $fn = $this->newGVar($this->getIdent($ty->name), $ty);
+        $fn->isFunction = true;
+
         $this->locals = [];
 
-        $fn = new Func();
-        $fn->name = $ty->base->name->str;
         $this->createParamLVars($ty->params);
         $fn->params = $this->locals;
 
         $this->tokenizer->expect('{');
         $fn->body = [$this->compoundStmt()];
         $fn->locals = $this->locals;
-
-        return $fn;
     }
 
     /**
-     * program = function-definition*
-     * @return Func[]
+     * program = (function-definition | global-variable)*
+     *
+     * @return Obj[]
      */
     public function parse(): array
     {
-        $funcs = [];
+        $this->globals = [];
 
         while (! $this->tokenizer->atEOF()){
-            $funcs[] = $this->func();
+            $basety = $this->declspec();
+            $this->func($basety);
         }
-        return $funcs;
+        return $this->globals;
     }
 }
