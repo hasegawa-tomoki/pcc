@@ -224,6 +224,16 @@ class CodeGenerator
             printf("  mov %%rsp, %%rbp\n");
             printf("  sub \$%d, %%rsp\n", $fn->stackSize);
 
+            // Save passed-by-register arguments to the stack
+            $idx = 0;
+            foreach ($fn->params as $param){
+                if ($idx < count($this->argreg)){
+                    printf("  mov %s, %d(%%rbp)\n", $this->argreg[$idx], $param->offset);
+                }
+                $idx++;
+            }
+
+            // Emit code
             foreach ($fn->body as $node){
                 $this->genStmt($node);
             }

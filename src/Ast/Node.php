@@ -91,7 +91,11 @@ class Node
         foreach ($this->body as $node){
             $node->addType();
         }
+        foreach ($this->args as $node){
+            $node->addType();
+        }
 
+        /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($this->kind){
             case NodeKind::ND_ADD:
             case NodeKind::ND_SUB:

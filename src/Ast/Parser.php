@@ -41,13 +41,26 @@ class Parser
         return new Type(TypeKind::TY_INT);
     }
 
-    // type-suffix = ("(" func-params )?
+    // type-suffix = ("(" func-params? ")")?
+    // func-params = param (", param)*
+    // param = declspec declarator
     public function typeSuffix(Type $ty): Type
     {
         if ($this->tokenizer->consume('(')){
-            $this->tokenizer->expect(')');
-            return Type::funcType($ty);
+            $params = [];
+            while (! $this->tokenizer->consume(')')){
+                if (count($params) > 0){
+                    $this->tokenizer->expect(',');
+                }
+                $basety = $this->declspec();
+                $type = $this->declarator($basety);
+                $params[] = $type;
+            }
+            $type = Type::funcType($ty);
+            $type->params = $params;
+            return $type;
         }
+
         return $ty;
     }
 
@@ -435,6 +448,17 @@ class Parser
         return null;
     }
 
+    /**
+     * @param \Pcc\Ast\Type[] $params
+     * @return void
+     */
+    public function createParamLVars(array $params): void
+    {
+        foreach ($params as $param){
+            $this->newLvar($this->getIdent($param->name), $param);
+        }
+    }
+
     public function func(): Func
     {
         $ty = $this->declspec();
@@ -443,6 +467,8 @@ class Parser
 
         $fn = new Func();
         $fn->name = $ty->base->name->str;
+        $this->createParamLVars($ty->params);
+        $fn->params = $this->locals;
 
         $this->tokenizer->expect('{');
         $fn->body = [$this->compoundStmt()];

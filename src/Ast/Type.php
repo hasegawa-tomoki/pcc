@@ -13,6 +13,8 @@ class Type
     public Token $name;
     // Function type
     public ?Type $returnTy;
+    /** @var \Pcc\Ast\Type[] */
+    public array $params = [];
 
     public function __construct(TypeKind $kind, ?Type $base = null)
     {

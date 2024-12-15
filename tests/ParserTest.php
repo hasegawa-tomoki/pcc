@@ -177,4 +177,17 @@ class ParserTest extends TestCase
         $this->assertEquals(NodeKind::ND_NUM, $prog[0]->body[0]->body[0]->lhs->kind);
         $this->assertEquals(0, $prog[0]->body[0]->body[0]->lhs->val);
     }
+
+    public function testFunctionDefinitionUpTo6parameters()
+    {
+        $tokenizer = new Tokenizer('int main() { return add2(3,4); } int add2(int x, int y) { return x+y; }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+
+        $this->assertEquals('main', $prog[0]->name);
+        $this->assertEquals(NodeKind::ND_RETURN, $prog[0]->body[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_FUNCALL, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('add2', $prog[0]->body[0]->body[0]->lhs->funcname);
+    }
 }
