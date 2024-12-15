@@ -8,7 +8,6 @@ class Tokenizer
 {
     /** @var Token[] */
     public array $tokens;
-
     public array $keywords = [
         'return',
         'if',
@@ -18,6 +17,11 @@ class Tokenizer
         'int',
         'sizeof',
     ];
+    public Token $tok {
+        get {
+            return $this->tokens[0];
+        }
+    }
 
     public function __construct(
         public readonly string $userInput,
