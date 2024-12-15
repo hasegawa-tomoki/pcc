@@ -45,7 +45,7 @@ class Parser
     public function declarator(Type $ty): Type
     {
         while ($this->tokenizer->consume('*')){
-            $ty = new Type(TypeKind::TY_PTR, $ty);
+            $ty = Type::pointerTo($ty);
         }
 
         if (! $this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){

@@ -74,11 +74,6 @@ class Node
         return $node;
     }
 
-    public function pointerTo(Type $base): Type
-    {
-        return new Type(TypeKind::TY_PTR, $base);
-    }
-
     public function addType(): void
     {
         if ($this->ty){
@@ -118,7 +113,7 @@ class Node
                 $this->ty = $this->var->ty;
                 return;
             case NodeKind::ND_ADDR:
-                $this->ty = $this->pointerTo($this->lhs->ty);
+                $this->ty = Type::pointerTo($this->lhs->ty);
                 return;
             case NodeKind::ND_DEREF:
                 if ($this->lhs->ty->kind !== TypeKind::TY_PTR){

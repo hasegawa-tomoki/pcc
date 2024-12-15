@@ -22,4 +22,9 @@ class Type
     {
         return $this->kind === TypeKind::TY_INT;
     }
+
+    public static function pointerTo(Type $base):Type
+    {
+        return new Type(TypeKind::TY_PTR, $base);
+    }
 }
