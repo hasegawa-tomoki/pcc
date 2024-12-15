@@ -396,7 +396,7 @@ class Parser
         }
     }
 
-    // unary = ("+" | "-" | "*" | "&") unary | primary
+    // unary = ("+" | "-" | "*" | "&") unary | postfix
     public function unary(): Node
     {
         if ($this->tokenizer->consume('+')){
@@ -412,7 +412,23 @@ class Parser
             return Node::newUnary(NodeKind::ND_DEREF, $this->unary(), $this->tokenizer->tokens[0]);
         }
 
-        return $this->primary();
+        return $this->postfix();
+    }
+
+    // postfix = primary ("[" expr "]")*
+    public function postfix(): Node
+    {
+        $node = $this->primary();
+
+        while ($this->tokenizer->consume('[')){
+            // x[y] is short for *(x+y)
+            $start = $this->tokenizer->tokens[0];
+            $idx = $this->expr();
+            $this->tokenizer->expect(']');
+            $node = Node::newUnary(NodeKind::ND_DEREF, $this->newAdd($node, $idx, $start), $start);
+        }
+
+        return $node;
     }
 
     // funcall = ident "(" (assign ("," assign)*)? ")"
