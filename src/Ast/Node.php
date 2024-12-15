@@ -50,7 +50,7 @@ class Node
         return $node;
     }
 
-    public static function newUnary(NodeKind $nodeKind, Node $expr, Token $tok)
+    public static function newUnary(NodeKind $nodeKind, Node $expr, Token $tok): Node
     {
         $node = self::newNode($nodeKind, $tok);
         $node->lhs = $expr;
