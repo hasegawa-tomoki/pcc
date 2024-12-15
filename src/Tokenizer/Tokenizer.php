@@ -22,6 +22,7 @@ class Tokenizer
         public readonly string $userInput,
     )
     {
+        Console::$userInput = $userInput;
     }
 
     public function equal(string $op): bool
