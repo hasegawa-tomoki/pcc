@@ -16,6 +16,7 @@ class Tokenizer
         'for',
         'while',
         'int',
+        'sizeof',
     ];
 
     public function __construct(

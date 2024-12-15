@@ -453,14 +453,19 @@ class Parser
         return $node;
     }
 
-    // primary = "(" expr ")" | ident func-args? | number
-    // args = "(" ")"
+    // primary = "(" expr ")" | "sizeof" unary | ident func-args? | number
     public function primary(): ?Node
     {
         if ($this->tokenizer->consume('(')){
             $node = $this->expr();
             $this->tokenizer->expect(')');
             return $node;
+        }
+
+        if ($this->tokenizer->consume('sizeof')){
+            $node = $this->unary();
+            $node->addType();
+            return Node::newNum($node->ty->size, $this->tokenizer->tokens[0]);
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
