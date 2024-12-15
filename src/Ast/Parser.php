@@ -41,7 +41,17 @@ class Parser
         return new Type(TypeKind::TY_INT);
     }
 
-    // declarator = "*"* ident
+    // type-suffix = ("(" func-params )?
+    public function typeSuffix(Type $ty): Type
+    {
+        if ($this->tokenizer->consume('(')){
+            $this->tokenizer->expect(')');
+            return Type::funcType($ty);
+        }
+        return $ty;
+    }
+
+    // declarator = "*"* ident type-suffix
     public function declarator(Type $ty): Type
     {
         while ($this->tokenizer->consume('*')){
@@ -53,6 +63,7 @@ class Parser
         }
 
         $ty->name = $this->tokenizer->getIdent();
+        $ty = $this->typeSuffix($ty);
         return $ty;
     }
 
@@ -424,15 +435,33 @@ class Parser
         return null;
     }
 
-    // program = stmt*
-    public function parse(): Func
+    public function func(): Func
     {
+        $ty = $this->declspec();
+        $ty = $this->declarator($ty);
+        $this->locals = [];
+
+        $fn = new Func();
+        $fn->name = $ty->base->name->str;
+
         $this->tokenizer->expect('{');
+        $fn->body = [$this->compoundStmt()];
+        $fn->locals = $this->locals;
 
-        $prog = new Func();
-        $prog->body = [$this->compoundStmt()];
-        $prog->locals = $this->locals;
+        return $fn;
+    }
 
-        return $prog;
+    /**
+     * program = function-definition*
+     * @return Func[]
+     */
+    public function parse(): array
+    {
+        $funcs = [];
+
+        while (! $this->tokenizer->atEOF()){
+            $funcs[] = $this->func();
+        }
+        return $funcs;
     }
 }

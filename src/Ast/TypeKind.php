@@ -6,4 +6,5 @@ enum TypeKind
 {
     case TY_INT;
     case TY_PTR;
+    case TY_FUNC;
 }

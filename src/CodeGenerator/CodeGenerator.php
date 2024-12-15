@@ -12,6 +12,7 @@ class CodeGenerator
     public int $depth = 0;
     /** @var string[]  */
     public array $argreg = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
+    public Func $currentFn;
 
     public function cnt(): int
     {
@@ -177,7 +178,7 @@ class CodeGenerator
                 return;
             case NodeKind::ND_RETURN:
                 $this->genExpr($node->lhs);
-                printf("  jmp .L.return\n");
+                printf("  jmp .L.return.%s\n", $this->currentFn->name);
                 return;
             case NodeKind::ND_EXPR_STMT:
                 $this->genExpr($node->lhs);
@@ -187,38 +188,52 @@ class CodeGenerator
         Console::errorTok($node->tok, 'invalid statement');
     }
 
-    public function assignLVarOffsets(Func $prog): Func
+    /**
+     * @param Func[] $funcs
+     * @return Func[]
+     */
+    public function assignLVarOffsets(array $funcs): array
     {
-        $offset = 0;
-        foreach (array_reverse($prog->locals) as $var){
-            $offset += 8;
-            $var->offset = -1 * $offset;
+        foreach  ($funcs as $fn){
+            $offset = 0;
+            foreach (array_reverse($fn->locals) as $var){
+                $offset += 8;
+                $var->offset = -1 * $offset;
+            }
+            $fn->stackSize = $this->alignTo($offset, 16);
         }
-        $prog->stackSize = $this->alignTo($offset, 16);
-        return $prog;
+
+        return $funcs;
     }
 
-    public function gen(Func $prog): void
+    /**
+     * @param Func[] $funcs
+     * @return void
+     */
+    public function gen(array $funcs): void
     {
-        $prog = $this->assignLVarOffsets($prog);
-        //ray($prog);
+        $funcs = $this->assignLVarOffsets($funcs);
 
-        printf("  .globl main\n");
-        printf("main:\n");
+        foreach ($funcs as $fn){
+            printf("  .globl %s\n", $fn->name);
+            printf("%s:\n", $fn->name);
+            $this->currentFn = $fn;
 
-        // Prologue
-        printf("  push %%rbp\n");
-        printf("  mov %%rsp, %%rbp\n");
-        printf("  sub \$%d, %%rsp\n", $prog->stackSize);
+            // Prologue
+            printf("  push %%rbp\n");
+            printf("  mov %%rsp, %%rbp\n");
+            printf("  sub \$%d, %%rsp\n", $fn->stackSize);
 
-        foreach ($prog->body as $node){
-            $this->genStmt($node);
+            foreach ($fn->body as $node){
+                $this->genStmt($node);
+            }
             assert($this->depth == 0);
-        }
 
-        printf(".L.return:\n");
-        printf("  mov %%rbp, %%rsp\n");
-        printf("  pop %%rbp\n");
-        printf("  ret\n");
+            // Epilogue
+            printf(".L.return.%s:\n", $fn->name);
+            printf("  mov %%rbp, %%rsp\n");
+            printf("  pop %%rbp\n");
+            printf("  ret\n");
+        }
     }
 }

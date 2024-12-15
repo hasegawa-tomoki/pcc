@@ -11,6 +11,8 @@ class Type
     public ?Type $base;
     // Declaration
     public Token $name;
+    // Function type
+    public ?Type $returnTy;
 
     public function __construct(TypeKind $kind, ?Type $base = null)
     {
@@ -26,5 +28,10 @@ class Type
     public static function pointerTo(Type $base):Type
     {
         return new Type(TypeKind::TY_PTR, $base);
+    }
+
+    public static function funcType(Type $returnTy): Type
+    {
+        return new Type(TypeKind::TY_FUNC, $returnTy);
     }
 }

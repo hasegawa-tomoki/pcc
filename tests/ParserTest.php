@@ -104,66 +104,77 @@ class ParserTest extends TestCase
 
     public function testBlock()
     {
-        $tokenizer = new Tokenizer('{ {1; {2;} return 3;} }');
+        $tokenizer = new Tokenizer('int main() { {1; {2;} return 3;} }');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_BLOCK, $prog->body[0]->kind);
-        $this->assertEquals(NodeKind::ND_BLOCK, $prog->body[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_BLOCK, $prog[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_BLOCK, $prog[0]->body[0]->body[0]->kind);
     }
 
     public function testPointer()
     {
-        $tokenizer = new Tokenizer('{ int x=3; int y=5; return *(&x+1); }');
+        $tokenizer = new Tokenizer('int main() { int x=3; int y=5; return *(&x+1); }');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        ray($prog);
-
-        $this->assertEquals(NodeKind::ND_ADD, $prog->body[0]->body[4]->lhs->lhs->kind);
-        $this->assertEquals(NodeKind::ND_VAR, $prog->body[0]->body[4]->lhs->lhs->lhs->lhs->kind);
-        $this->assertEquals('x', $prog->body[0]->body[4]->lhs->lhs->lhs->lhs->var->name);
-        $this->assertEquals(TypeKind::TY_PTR, $prog->body[0]->body[4]->lhs->lhs->lhs->ty->kind);
-        $this->assertEquals(NodeKind::ND_MUL, $prog->body[0]->body[4]->lhs->lhs->rhs->kind);
-        $this->assertEquals(1, $prog->body[0]->body[4]->lhs->lhs->rhs->lhs->val);
-        $this->assertEquals(8, $prog->body[0]->body[4]->lhs->lhs->rhs->rhs->val);
+        $this->assertEquals(NodeKind::ND_ADD, $prog[0]->body[0]->body[4]->lhs->lhs->kind);
+        $this->assertEquals(NodeKind::ND_VAR, $prog[0]->body[0]->body[4]->lhs->lhs->lhs->lhs->kind);
+        $this->assertEquals('x', $prog[0]->body[0]->body[4]->lhs->lhs->lhs->lhs->var->name);
+        $this->assertEquals(TypeKind::TY_PTR, $prog[0]->body[0]->body[4]->lhs->lhs->lhs->ty->kind);
+        $this->assertEquals(NodeKind::ND_MUL, $prog[0]->body[0]->body[4]->lhs->lhs->rhs->kind);
+        $this->assertEquals(1, $prog[0]->body[0]->body[4]->lhs->lhs->rhs->lhs->val);
+        $this->assertEquals(8, $prog[0]->body[0]->body[4]->lhs->lhs->rhs->rhs->val);
     }
 
     public function testVariableDefinition()
     {
-        $tokenizer = new Tokenizer('{ int x=3; }');
+        $tokenizer = new Tokenizer('int main() { int x=3; }');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_ASSIGN, $prog->body[0]->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('x', $prog->body[0]->body[0]->body[0]->lhs->lhs->var->name);
-        $this->assertEquals(3, $prog->body[0]->body[0]->body[0]->lhs->rhs->val);
+        $this->assertEquals(NodeKind::ND_ASSIGN, $prog[0]->body[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('x', $prog[0]->body[0]->body[0]->body[0]->lhs->lhs->var->name);
+        $this->assertEquals(3, $prog[0]->body[0]->body[0]->body[0]->lhs->rhs->val);
     }
 
     public function testZeroArityFunctionCall()
     {
-        $tokenizer = new Tokenizer('{ return ret3(); }');
+        $tokenizer = new Tokenizer('int main() { return ret3(); }');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_FUNCALL, $prog->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('ret3', $prog->body[0]->body[0]->lhs->funcname);
+        $this->assertEquals(NodeKind::ND_FUNCALL, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('ret3', $prog[0]->body[0]->body[0]->lhs->funcname);
     }
 
     public function testFunctionCallWithUpTo6arguments()
     {
-        $tokenizer = new Tokenizer('{ return add(3, 5); }');
+        $tokenizer = new Tokenizer('int main() { return add(3, 5); }');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_FUNCALL, $prog->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('add', $prog->body[0]->body[0]->lhs->funcname);
-        $this->assertEquals(3, $prog->body[0]->body[0]->lhs->args[0]->val);
-        $this->assertEquals(5, $prog->body[0]->body[0]->lhs->args[1]->val);
+        $this->assertEquals(NodeKind::ND_FUNCALL, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('add', $prog[0]->body[0]->body[0]->lhs->funcname);
+        $this->assertEquals(3, $prog[0]->body[0]->body[0]->lhs->args[0]->val);
+        $this->assertEquals(5, $prog[0]->body[0]->body[0]->lhs->args[1]->val);
+    }
+
+    public function testZeroArityFunctionDefinition()
+    {
+        $tokenizer = new Tokenizer('int main(){ return 0; }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+        
+        $this->assertEquals('main', $prog[0]->name);
+        $this->assertEquals(NodeKind::ND_RETURN, $prog[0]->body[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_NUM, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals(0, $prog[0]->body[0]->body[0]->lhs->val);
     }
 }
