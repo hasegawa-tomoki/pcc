@@ -25,9 +25,9 @@ class Tokenizer
         Console::$userInput = $userInput;
     }
 
-    public function equal(string $op): bool
+    public function equal(string $op, int $offset = 0): bool
     {
-        return $this->tokens[0]->str === $op;
+        return $this->tokens[$offset]->str === $op;
     }
 
     public function consume(string $op): bool

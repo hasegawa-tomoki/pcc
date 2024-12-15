@@ -27,6 +27,8 @@ class Node
      */
     public array $body = [];
 
+    public ?string $funcname = null;
+
     // Used if kind == ND_VAR
     public LVar $var;
     // Used if kind == ND_NUM
@@ -106,6 +108,7 @@ class Node
             case NodeKind::ND_LT:
             case NodeKind::ND_LE:
             case NodeKind::ND_NUM:
+            case NodeKind::ND_FUNCALL:
                 $this->ty = new Type(TypeKind::TY_INT);
                 return;
             case NodeKind::ND_VAR:

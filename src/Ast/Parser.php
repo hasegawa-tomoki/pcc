@@ -368,7 +368,8 @@ class Parser
         return $this->primary();
     }
 
-    // primary = "(" expr ")" | ident | number
+    // primary = "(" expr ")" | ident args? | number
+    // args = "(" ")"
     public function primary(): Node
     {
         if ($this->tokenizer->consume('(')){
@@ -378,6 +379,16 @@ class Parser
         }
 
         if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
+            // Function call
+            if ($this->tokenizer->equal('(', 1)){
+                $node = Node::newNode(NodeKind::ND_FUNCALL, $this->tokenizer->tokens[0]);
+                $node->funcname = $this->tokenizer->getIdent()->str;
+                $this->tokenizer->expect('(');
+                $this->tokenizer->expect(')');
+                return $node;
+            }
+
+            // Variable
             $varName = $this->tokenizer->getIdent()->str;
             if (! isset($this->locals[$varName])){
                 Console::errorTok($this->tokenizer->tokens[0], 'undefined variable');

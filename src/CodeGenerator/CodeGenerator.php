@@ -49,6 +49,7 @@ class CodeGenerator
 
     public function genExpr(Node $node): void
     {
+        /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
             case NodeKind::ND_NUM:
                 printf("  mov \$%d, %%rax\n", $node->val);
@@ -75,6 +76,10 @@ class CodeGenerator
                 $this->pop('%rdi');
                 printf("  mov %%rax, (%%rdi)\n");
                 return;
+            case NodeKind::ND_FUNCALL:
+                printf("  mov $0, %%rax\n");
+                printf("  call %s\n", $node->funcname);
+                return;
         }
 
         $this->genExpr($node->rhs);
@@ -82,6 +87,7 @@ class CodeGenerator
         $this->genExpr($node->lhs);
         $this->pop('%rdi');
 
+        /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
             case NodeKind::ND_ADD:
                 printf("  add %%rdi, %%rax\n");
@@ -119,6 +125,7 @@ class CodeGenerator
 
     public function genStmt(Node $node): void
     {
+        /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_IF: {
                 $c = $this->cnt();
