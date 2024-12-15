@@ -190,4 +190,23 @@ class ParserTest extends TestCase
         $this->assertEquals(NodeKind::ND_FUNCALL, $prog[0]->body[0]->body[0]->lhs->kind);
         $this->assertEquals('add2', $prog[0]->body[0]->body[0]->lhs->funcname);
     }
+
+    public function testOneDimensionalArray()
+    {
+        $tokenizer = new Tokenizer('int main() { int x[2]; int *y=&x; *y=3; return *x; }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+
+        $this->assertEquals(NodeKind::ND_ASSIGN, $prog[0]->body[0]->body[2]->body[0]->lhs->kind);
+        $this->assertEquals(NodeKind::ND_VAR, $prog[0]->body[0]->body[2]->body[0]->lhs->lhs->kind);
+        $this->assertEquals(TypeKind::TY_PTR, $prog[0]->body[0]->body[2]->body[0]->lhs->lhs->ty->kind);
+        $this->assertEquals('y', $prog[0]->body[0]->body[2]->body[0]->lhs->lhs->var->name);
+        $this->assertEquals(NodeKind::ND_ADDR, $prog[0]->body[0]->body[2]->body[0]->lhs->rhs->kind);
+        $this->assertEquals(TypeKind::TY_PTR, $prog[0]->body[0]->body[2]->body[0]->lhs->rhs->ty->kind);
+        $this->assertEquals(NodeKind::ND_VAR, $prog[0]->body[0]->body[2]->body[0]->lhs->rhs->lhs->kind);
+        $this->assertEquals('x', $prog[0]->body[0]->body[2]->body[0]->lhs->rhs->lhs->var->name);
+        $this->assertEquals(TypeKind::TY_ARRAY, $prog[0]->body[0]->body[2]->body[0]->lhs->rhs->lhs->var->ty->kind);
+        $this->assertEquals(2, $prog[0]->body[0]->body[2]->body[0]->lhs->rhs->lhs->var->ty->arrayLen);
+    }
 }

@@ -5,6 +5,8 @@ namespace Pcc\CodeGenerator;
 use Pcc\Ast\Func;
 use Pcc\Ast\Node;
 use Pcc\Ast\NodeKind;
+use Pcc\Ast\Type;
+use Pcc\Ast\TypeKind;
 use Pcc\Console;
 
 class CodeGenerator
@@ -38,6 +40,7 @@ class CodeGenerator
     }
     public function genAddr(Node $node): void
     {
+        /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_VAR:
                 printf("  lea %d(%%rbp), %%rax\n", $node->var->offset);
@@ -48,6 +51,21 @@ class CodeGenerator
         }
 
         Console::errorTok($node->tok, 'not an lvalue');
+    }
+
+    // Load a value from where %rax is pointing to.
+    public function load(Type $ty): void
+    {
+        if ($ty->kind === TypeKind::TY_ARRAY){
+            return;
+        }
+        printf("  mov (%%rax), %%rax\n");
+    }
+
+    public function store(): void
+    {
+        $this->pop('%rdi');
+        printf("  mov %%rax, (%%rdi)\n");
     }
 
     public function genExpr(Node $node): void
@@ -63,11 +81,11 @@ class CodeGenerator
                 return;
             case NodeKind::ND_VAR:
                 $this->genAddr($node);
-                printf("  mov (%%rax), %%rax\n");
+                $this->load($node->ty);
                 return;
             case NodeKind::ND_DEREF:
                 $this->genExpr($node->lhs);
-                printf("  mov (%%rax), %%rax\n");
+                $this->load($node->ty);
                 return;
             case NodeKind::ND_ADDR:
                 $this->genAddr($node->lhs);
@@ -76,8 +94,7 @@ class CodeGenerator
                 $this->genAddr($node->lhs);
                 $this->push();
                 $this->genExpr($node->rhs);
-                $this->pop('%rdi');
-                printf("  mov %%rax, (%%rdi)\n");
+                $this->store();
                 return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){
@@ -197,7 +214,7 @@ class CodeGenerator
         foreach  ($funcs as $fn){
             $offset = 0;
             foreach (array_reverse($fn->locals) as $var){
-                $offset += 8;
+                $offset += $var->ty->size;
                 $var->offset = -1 * $offset;
             }
             $fn->stackSize = $this->alignTo($offset, 16);

@@ -102,7 +102,12 @@ class Node
             case NodeKind::ND_MUL:
             case NodeKind::ND_DIV:
             case NodeKind::ND_NEG:
+                $this->ty = $this->lhs->ty;
+                return;
             case NodeKind::ND_ASSIGN:
+                if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){
+                    Console::errorTok($this->tok, 'not an lvalue');
+                }
                 $this->ty = $this->lhs->ty;
                 return;
             case NodeKind::ND_EQ:
@@ -111,16 +116,20 @@ class Node
             case NodeKind::ND_LE:
             case NodeKind::ND_NUM:
             case NodeKind::ND_FUNCALL:
-                $this->ty = new Type(TypeKind::TY_INT);
+                $this->ty = Type::tyInt();
                 return;
             case NodeKind::ND_VAR:
                 $this->ty = $this->var->ty;
                 return;
             case NodeKind::ND_ADDR:
-                $this->ty = Type::pointerTo($this->lhs->ty);
+                if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){
+                    $this->ty = Type::pointerTo($this->lhs->ty->base);
+                } else {
+                    $this->ty = Type::pointerTo($this->lhs->ty);
+                }
                 return;
             case NodeKind::ND_DEREF:
-                if ($this->lhs->ty->kind !== TypeKind::TY_PTR){
+                if (! $this->lhs->ty->base){
                     Console::errorTok($this->tok, 'invalid pointer dereference');
                 }
                 $this->ty = $this->lhs->ty->base;

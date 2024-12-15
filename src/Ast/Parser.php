@@ -34,31 +34,52 @@ class Parser
         return $tok->str;
     }
 
+    public function getNumber(Token $tok): int
+    {
+        if ($tok->kind !== TokenKind::TK_NUM){
+            Console::errorTok($tok, 'expected a number');
+        }
+        return $tok->val;
+    }
+
     // declspec = "int"
     public function declspec(): Type
     {
         $this->tokenizer->consume('int');
-        return new Type(TypeKind::TY_INT);
+        return Type::tyInt();
     }
 
-    // type-suffix = ("(" func-params? ")")?
-    // func-params = param (", param)*
+    // func-params = (param ("," param)*)? ")"
     // param = declspec declarator
+    public function funcParams(Type $ty): Type
+    {
+        $params = [];
+        while (! $this->tokenizer->consume(')')){
+            if (count($params) > 0){
+                $this->tokenizer->expect(',');
+            }
+            $basety = $this->declspec();
+            $type = $this->declarator($basety);
+            $params[] = $type;
+        }
+        $type = Type::funcType($ty);
+        $type->params = $params;
+        return $type;
+    }
+
+    // type-suffix = "(" func-params
+    //             | "[" num "]"
+    //             | ε
     public function typeSuffix(Type $ty): Type
     {
         if ($this->tokenizer->consume('(')){
-            $params = [];
-            while (! $this->tokenizer->consume(')')){
-                if (count($params) > 0){
-                    $this->tokenizer->expect(',');
-                }
-                $basety = $this->declspec();
-                $type = $this->declarator($basety);
-                $params[] = $type;
-            }
-            $type = Type::funcType($ty);
-            $type->params = $params;
-            return $type;
+            return $this->funcParams($ty);
+        }
+
+        if ($this->tokenizer->consume('[')){
+            $sz = $this->tokenizer->expectNumber();
+            $this->tokenizer->expect(']');
+            return Type::arrayOf($ty, $sz);
         }
 
         return $ty;
@@ -182,7 +203,7 @@ class Parser
 
         $nodes = [];
         while (! $this->tokenizer->consume('}')){
-            if ($this->tokenizer->consume('int')){
+            if ($this->tokenizer->equal('int')){
                 $n = $this->declaration();
             } else {
                 $n = $this->stmt();
@@ -298,7 +319,7 @@ class Parser
         }
 
         // ptr + num
-        $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum(8, $tok), $tok);
+        $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum($lhs->ty->base->size, $tok), $tok);
         return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
     }
 
@@ -314,7 +335,7 @@ class Parser
 
         // ptr - num
         if ($lhs->ty->base and $rhs->ty->isInteger()){
-            $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum(8, $tok), $tok);
+            $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum($lhs->ty->base->size, $tok), $tok);
             $rhs->addType();
             $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
             $node->ty = $lhs->ty;
@@ -324,8 +345,8 @@ class Parser
         // ptr - ptr
         if ($lhs->ty->base and $rhs->ty->base){
             $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
-            $node->ty = new Type(TypeKind::TY_INT);
-            return Node::newBinary(NodeKind::ND_DIV, $node, Node::newNum(8, $tok), $tok);
+            $node->ty = Type::tyInt();
+            return Node::newBinary(NodeKind::ND_DIV, $node, Node::newNum($lhs->ty->base->size, $tok), $tok);
         }
 
         Console::errorTok($tok, 'invalid operands');
