@@ -68,7 +68,7 @@ class Parser
     }
 
     // type-suffix = "(" func-params
-    //             | "[" num "]"
+    //             | "[" num "]" type-suffix
     //             | ε
     public function typeSuffix(Type $ty): Type
     {
@@ -79,6 +79,7 @@ class Parser
         if ($this->tokenizer->consume('[')){
             $sz = $this->tokenizer->expectNumber();
             $this->tokenizer->expect(']');
+            $ty = $this->typeSuffix($ty);
             return Type::arrayOf($ty, $sz);
         }
 
