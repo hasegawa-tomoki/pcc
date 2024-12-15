@@ -27,7 +27,10 @@ class Node
      */
     public array $body = [];
 
+    // Function call
     public ?string $funcname = null;
+    /** @var Node[] */
+    public array $args = [];
 
     // Used if kind == ND_VAR
     public LVar $var;

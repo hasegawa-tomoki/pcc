@@ -10,6 +10,8 @@ use Pcc\Console;
 class CodeGenerator
 {
     public int $depth = 0;
+    /** @var string[]  */
+    public array $argreg = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
 
     public function cnt(): int
     {
@@ -77,6 +79,14 @@ class CodeGenerator
                 printf("  mov %%rax, (%%rdi)\n");
                 return;
             case NodeKind::ND_FUNCALL:
+                foreach ($node->args as $arg){
+                    $this->genExpr($arg);
+                    $this->push();
+                }
+                for ($i = count($node->args) - 1; $i >= 0; $i--){
+                    $this->pop($this->argreg[$i]);
+                }
+
                 printf("  mov $0, %%rax\n");
                 printf("  call %s\n", $node->funcname);
                 return;

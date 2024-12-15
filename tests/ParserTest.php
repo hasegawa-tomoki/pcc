@@ -153,4 +153,17 @@ class ParserTest extends TestCase
         $this->assertEquals(NodeKind::ND_FUNCALL, $prog->body[0]->body[0]->lhs->kind);
         $this->assertEquals('ret3', $prog->body[0]->body[0]->lhs->funcname);
     }
+
+    public function testFunctionCallWithUpTo6arguments()
+    {
+        $tokenizer = new Tokenizer('{ return add(3, 5); }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+
+        $this->assertEquals(NodeKind::ND_FUNCALL, $prog->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('add', $prog->body[0]->body[0]->lhs->funcname);
+        $this->assertEquals(3, $prog->body[0]->body[0]->lhs->args[0]->val);
+        $this->assertEquals(5, $prog->body[0]->body[0]->lhs->args[1]->val);
+    }
 }

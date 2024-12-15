@@ -368,7 +368,29 @@ class Parser
         return $this->primary();
     }
 
-    // primary = "(" expr ")" | ident args? | number
+    // funcall = ident "(" (assign ("," assign)*)? ")"
+    public function funcall(): Node
+    {
+        $start = $this->tokenizer->tokens[0];
+
+        $funcname = $this->tokenizer->getIdent()->str;
+        $this->tokenizer->expect('(');
+
+        $nodes = [];
+        while(! $this->tokenizer->consume(')')){
+            if (count($nodes) > 0){
+                $this->tokenizer->expect(',');
+            }
+            $nodes[] = $this->assign();
+        }
+
+        $node = Node::newNode(NodeKind::ND_FUNCALL, $start);
+        $node->funcname = $funcname;
+        $node->args = $nodes;
+        return $node;
+    }
+
+    // primary = "(" expr ")" | ident func-args? | number
     // args = "(" ")"
     public function primary(): Node
     {
@@ -381,11 +403,7 @@ class Parser
         if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
             // Function call
             if ($this->tokenizer->equal('(', 1)){
-                $node = Node::newNode(NodeKind::ND_FUNCALL, $this->tokenizer->tokens[0]);
-                $node->funcname = $this->tokenizer->getIdent()->str;
-                $this->tokenizer->expect('(');
-                $this->tokenizer->expect(')');
-                return $node;
+                return $this->funcall();
             }
 
             // Variable
