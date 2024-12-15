@@ -278,7 +278,7 @@ class Parser
         return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
     }
 
-    public function newSub(Node $lhs, Node $rhs, Token $tok): Node
+    public function newSub(Node $lhs, Node $rhs, Token $tok): ?Node
     {
         $lhs->addType();
         $rhs->addType();
@@ -305,6 +305,7 @@ class Parser
         }
 
         Console::errorTok($tok, 'invalid operands');
+        return null;
     }
 
     // add = mul ("+" mul | "-" mul)*
@@ -392,7 +393,7 @@ class Parser
 
     // primary = "(" expr ")" | ident func-args? | number
     // args = "(" ")"
-    public function primary(): Node
+    public function primary(): ?Node
     {
         if ($this->tokenizer->consume('(')){
             $node = $this->expr();
@@ -420,6 +421,7 @@ class Parser
         }
 
         Console::errorTok($this->tokenizer->tokens[0], 'expected an expression');
+        return null;
     }
 
     // program = stmt*
