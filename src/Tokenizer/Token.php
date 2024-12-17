@@ -4,6 +4,7 @@ namespace Pcc\Tokenizer;
 class Token
 {
     public TokenKind $kind;
+    public Token $next;
     public int $val;
     public string $str;
     public int $pos;
@@ -18,5 +19,10 @@ class Token
         $this->kind = $kind;
         $this->str = $str;
         $this->pos = $pos;
+    }
+
+    public function isKind(TokenKind $kind): bool
+    {
+        return $this->kind === $kind;
     }
 }

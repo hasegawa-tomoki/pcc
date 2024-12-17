@@ -20,6 +20,27 @@ class Parser
     {
     }
 
+    public function findVar(Token $tok): ?Obj
+    {
+        $name = $tok->str;
+        if (isset($this->locals[$name])){
+            return $this->locals[$name];
+        }
+        if (isset($this->globals[$name])){
+            return $this->globals[$name];
+        }
+
+        return null;
+    }
+
+    public function newNode(NodeKind $kind, Token $tok): Node
+    {
+        $node = new Node();
+        $node->kind = $kind;
+        $node->tok = $tok;
+        return $node;
+    }
+
     public function newVar(string $name, Type $ty): Obj
     {
         $var = new Obj($name);
@@ -40,281 +61,366 @@ class Parser
     {
         $var = new Obj($name);
         $var->ty = $ty;
-        $this->globals[] = $var;
+        $this->globals[$name] = $var;
         return $var;
     }
 
     public function getIdent(Token $tok): string
     {
         if ($tok->kind !== TokenKind::TK_IDENT){
-            Console::errorTok($tok, 'expected an identifier');
+            Console::errorTok($tok, "expected an identifier");
         }
         return $tok->str;
     }
 
     public function getNumber(Token $tok): int
     {
-        if ($tok->kind !== TokenKind::TK_NUM){
-            Console::errorTok($tok, 'expected a number');
+        if ($tok->kind !== TokenKind::TK_NUM) {
+            Console::errorTok($tok, "expected a number");
         }
         return $tok->val;
     }
 
-    // declspec = "int"
-    public function declspec(): Type
+    /**
+     * declspec = "int"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function declspec(Token $rest, Token $tok): array
     {
-        $this->tokenizer->consume('int');
-        return Type::tyInt();
+        $rest = $this->tokenizer->skip($tok, 'int');
+        return [Type::tyInt(), $rest];
     }
 
-    // func-params = (param ("," param)*)? ")"
-    // param = declspec declarator
-    public function funcParams(Type $ty): Type
+    /**
+     * func-params = (param ("," param)*)? ")"
+     * param = declspec declarator
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function funcParams(Token $rest, Token $tok, Type $ty): array
     {
         $params = [];
-        while (! $this->tokenizer->consume(')')){
+        while (! $this->tokenizer->equal($tok, ')')){
             if (count($params) > 0){
-                $this->tokenizer->expect(',');
+                $tok = $this->tokenizer->skip($tok, ',');
             }
-            $basety = $this->declspec();
-            $type = $this->declarator($basety);
+            [$basety, $tok] = $this->declspec($tok, $tok);
+            [$type, $tok] = $this->declarator($tok, $tok, $basety);
             $params[] = $type;
         }
-        $type = Type::funcType($ty);
-        $type->name = $ty->name;
-        $type->params = $params;
-        return $type;
+
+        $ty = Type::funcType($ty);
+        $ty->params = $params;
+
+        return [$ty, $tok->next];
     }
 
-    // type-suffix = "(" func-params
-    //             | "[" num "]" type-suffix
-    //             | ε
-    public function typeSuffix(Type $ty): Type
+    /**
+     * type-suffix = "(" func-params
+     *             | "[" num "]" type-suffix
+     *             | ε
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function typeSuffix(Token $rest, Token $tok, Type $ty): array
     {
-        if ($this->tokenizer->consume('(')){
-            return $this->funcParams($ty);
+        if ($this->tokenizer->equal($tok, '(')){
+            return $this->funcParams($rest, $tok->next, $ty);
         }
 
-        if ($this->tokenizer->consume('[')){
-            $sz = $this->tokenizer->expectNumber();
-            $this->tokenizer->expect(']');
-            $ty = $this->typeSuffix($ty);
-            return Type::arrayOf($ty, $sz);
+        if ($this->tokenizer->equal($tok, '[')){
+            $sz = $this->getNumber($tok->next);
+            $tok = $this->tokenizer->skip($tok->next->next, ']');
+            [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
+            return [Type::arrayOf($ty, $sz), $rest];
         }
 
-        return $ty;
+        return [$ty, $tok];
     }
 
-    // declarator = "*"* ident type-suffix
-    public function declarator(Type $ty): Type
+    /**
+     * declarator = "*"* ident type-suffix
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function declarator(Token $rest, Token $tok, Type $ty): array
     {
-        while ($this->tokenizer->consume('*')){
+        while (
+            [$consumed, $tok] = $this->tokenizer->consume($tok, '*') and
+            $consumed
+        ){
             $ty = Type::pointerTo($ty);
         }
 
-        if (! $this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
-            Console::errorTok($this->tokenizer->tok, 'expected a variable name');
+        if (! $tok->isKind(TokenKind::TK_IDENT)){
+            Console::errorTok($tok, 'expected a variable name');
         }
 
-        $ty->name = $this->tokenizer->getIdent();
-        $ty = $this->typeSuffix($ty);
-        return $ty;
+        [$ty, $rest] = $this->typeSuffix($rest, $tok->next, $ty);
+        $ty->name = $tok;
+        return [$ty, $rest];
     }
 
-    // declaration = declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
-    public function declaration(): Node
+    /**
+     * declaration = declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function declaration(Token $rest, Token $tok): array
     {
-        $basety = $this->declspec();
+        [$basety, $tok] = $this->declspec($tok, $tok);
 
         $i = 0;
         $nodes = [];
-        while (! $this->tokenizer->equal(';')){
+        while (! $this->tokenizer->equal($tok, ';')){
             if ($i++ > 0){
-                $this->tokenizer->expect(',');
+                $tok = $this->tokenizer->skip($tok, ',');
             }
 
-            $ty = $this->declarator($basety);
+            [$ty, $tok] = $this->declarator($tok, $tok, $basety);
             $var = $this->newLvar($this->getIdent($ty->name), $ty);
 
-            if (! $this->tokenizer->consume('=')){
+            if (! $this->tokenizer->equal($tok, '=')){
                 continue;
             }
 
-            $lhs = Node::newVar($var, $ty->name);
-            $rhs = $this->assign();
-            $node = Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $rhs, $this->tokenizer->tok);
-            $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $node, $this->tokenizer->tok);
+            $lhs = Node::newVarNode($var, $ty->name);
+            [$rhs, $tok] = $this->assign($tok, $tok->next);
+            $node = Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $rhs, $tok);
+            $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $node, $tok);
         }
 
-        $node = Node::newNode(NodeKind::ND_BLOCK, $this->tokenizer->tok);
+        $node = Node::newNode(NodeKind::ND_BLOCK, $tok);
         $node->body = $nodes;
-        return $node;
+        return [$node, $tok->next];
     }
 
-    // stmt = "return" expr ";"
-    //        | "if" "(" expr ")" stmt ("else" stmt)?
-    //        | "for" "(" expr-stmt expr? ";" expr? ")" stmt
-    //        | "while" "(" expr ")" stmt
-    //        | "{" compound-stmt
-    //        | expr-stmt
-    public function stmt(): Node
+    /**
+     * stmt = "return" expr ";"
+     *      | "if" "(" expr ")" stmt ("else" stmt)?
+     *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
+     *      | "while" "(" expr ")" stmt
+     *      | "{" compound-stmt
+     *      | expr-stmt
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function stmt(Token $rest, Token $tok): array
     {
-        if ($this->tokenizer->consume('return')){
-            $node = Node::newNode(NodeKind::ND_RETURN, $this->tokenizer->tok);
-            $node->lhs = $this->expr();
-            $this->tokenizer->expect(';');
-            return $node;
+        if ($this->tokenizer->equal($tok, 'return')){
+            $node = Node::newNode(NodeKind::ND_RETURN, $tok);
+            [$node->lhs, $tok] = $this->expr($tok, $tok->next);
+            $rest = $this->tokenizer->skip($tok, ';');
+            return [$node, $rest];
         }
 
-        if ($this->tokenizer->consume('if')){
-            $node = Node::newNode(NodeKind::ND_IF, $this->tokenizer->tok);
-            $this->tokenizer->expect('(');
-            $node->cond = $this->expr();
-            $this->tokenizer->expect(')');
-            $node->then = $this->stmt();
-            if ($this->tokenizer->consume('else')){
-                $node->els = $this->stmt();
+        if ($this->tokenizer->equal($tok,'if')){
+            $node = Node::newNode(NodeKind::ND_IF, $tok);
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$node->cond, $tok] = $this->expr($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ')');
+            [$node->then, $tok] = $this->stmt($tok, $tok);
+            if ($this->tokenizer->equal($tok, 'else')){
+                [$node->els, $tok] = $this->stmt($tok, $tok->next);
             }
-            return $node;
+            return [$node, $tok];
         }
 
-        // "for" "(" expr-stmt expr? ";" expr? ")" stmt
-        if ($this->tokenizer->consume('for')){
-            $node = Node::newNode(NodeKind::ND_FOR, $this->tokenizer->tok);
-            $this->tokenizer->expect('(');
-            $node->init = $this->exprStmt();
+        if ($this->tokenizer->equal($tok, 'for')){
+            $node = Node::newNode(NodeKind::ND_FOR, $tok);
+            $tok = $this->tokenizer->skip($tok->next, '(');
 
-            if (! $this->tokenizer->consume(';')){
-                $node->cond = $this->expr();
-                $this->tokenizer->expect(';');
+            [$node->init, $tok] = $this->exprStmt($tok, $tok);
+
+            if (! $this->tokenizer->equal($tok, ';')){
+                [$node->cond, $tok] = $this->expr($tok, $tok);
             }
+            $tok =$this->tokenizer->skip($tok, ';');
 
-            if (! $this->tokenizer->consume(')')){
-                $node->inc = $this->expr();
-                $this->tokenizer->expect(')');
+            if (! $this->tokenizer->equal($tok, ')')){
+                [$node->inc, $tok] = $this->expr($tok, $tok);
             }
+            $tok = $this->tokenizer->skip($tok, ')');
 
-            $node->then = $this->stmt();
+            [$node->then, $rest] = $this->stmt($rest, $tok);
 
-            return $node;
+            return [$node, $rest];
         }
 
         // "while" "(" expr ")" stmt
-        if ($this->tokenizer->consume('while')){
-            $node = Node::newNode(NodeKind::ND_FOR, $this->tokenizer->tok);
-            $this->tokenizer->expect('(');
-            $node->cond = $this->expr();
-            $this->tokenizer->expect(')');
-            $node->then = $this->stmt();
-            return $node;
+        if ($this->tokenizer->equal($tok, 'while')){
+            $node = Node::newNode(NodeKind::ND_FOR, $tok);
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$node->cond, $tok] = $this->expr($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ')');
+            [$node->then, $rest] = $this->stmt($rest, $tok);
+            return [$node, $rest];
         }
 
-        if ($this->tokenizer->consume('{')){
-            return $this->compoundStmt();
+        if ($this->tokenizer->equal($tok, '{')){
+            return $this->compoundStmt($rest, $tok->next);
         }
 
-        return $this->exprStmt();
+        return $this->exprStmt($rest, $tok);
     }
 
-    // compound-stmt = (declaration | stmt)* "}"
-    public function compoundStmt(): Node
+    /**
+     * compound-stmt = (declaration | stmt)* "}"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function compoundStmt(Token $rest, Token $tok): array
     {
-        $node = Node::newNode(NodeKind::ND_BLOCK, $this->tokenizer->tok);
+        $node = Node::newNode(NodeKind::ND_BLOCK, $tok);
 
         $nodes = [];
-        while (! $this->tokenizer->consume('}')){
-            if ($this->tokenizer->equal('int')){
-                $n = $this->declaration();
+        while (! $this->tokenizer->equal($tok, '}')){
+            if ($this->tokenizer->equal($tok, 'int')){
+                [$n, $tok] = $this->declaration($tok, $tok);
             } else {
-                $n = $this->stmt();
+                [$n, $tok] = $this->stmt($tok, $tok);
             }
             $n->addType();
             $nodes[] = $n;
         }
 
         $node->body = $nodes;
-        return $node;
+        return [$node, $tok->next];
     }
 
-    // expr-stmt = expr? ";"
-    public function exprStmt(): Node
+    /**
+     * expr-stmt = expr? ";"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function exprStmt(Token $rest, Token $tok): array
     {
-        if ($this->tokenizer->consume(';')){
-            return Node::newNode(NodeKind::ND_BLOCK, $this->tokenizer->tok);
+        if ($this->tokenizer->equal($tok, ';')){
+            return [Node::newNode(NodeKind::ND_BLOCK, $tok), $tok->next];
         }
 
-        $node = Node::newNode(NodeKind::ND_EXPR_STMT, $this->tokenizer->tok);
-        $node->lhs = $this->expr();
-        $this->tokenizer->expect(';');
-        return $node;
+        $node = Node::newNode(NodeKind::ND_EXPR_STMT, $tok);
+        [$node->lhs, $tok] = $this->expr($tok, $tok);
+        $rest = $this->tokenizer->skip($tok, ';');
+        return [$node, $rest];
     }
 
-    // expr = assign
-    public function expr(): Node
+    /**
+     * expr = assign
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function expr(Token $rest, Token $tok): array
     {
-        return $this->assign();
+        return $this->assign($rest, $tok);
     }
 
-    // assign = equality ("=" assign)?
-    public function assign(): Node
+    /**
+     * assign = equality ("=" assign)?
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function assign(Token $rest, Token $tok): array
     {
-        $node = $this->equality();
+        [$node, $tok] = $this->equality($tok, $tok);
 
-        if ($this->tokenizer->equal('=')){
-            $this->tokenizer->consume('=');
-            return Node::newBinary(NodeKind::ND_ASSIGN, $node, $this->assign(), $this->tokenizer->tok);
+        if ($this->tokenizer->equal($tok, '=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [Node::newBinary(NodeKind::ND_ASSIGN, $node, $assign, $tok), $rest];
         }
 
-        return $node;
+        return [$node, $tok];
     }
 
-    // equality = relational ("==" relational | "!=" relational)*
-    public function equality(): Node
+    /**
+     * equality = relational ("==" relational | "!=" relational)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function equality(Token $rest, Token $tok): array
     {
-        $node = $this->relational();
+        [$node, $tok] = $this->relational($tok, $tok);
 
         for (;;){
-            $start = $this->tokenizer->tok;
+            $start = $tok;
 
-            if ($this->tokenizer->consume('==')){
-                $node = Node::newBinary(NodeKind::ND_EQ, $node, $this->relational(), $start);
+            if ($this->tokenizer->equal($tok, '==')){
+                [$relational, $tok] = $this->relational($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_EQ, $node, $relational, $start);
                 continue;
             }
-            if ($this->tokenizer->consume('!=')){
-                $node = Node::newBinary(NodeKind::ND_NE, $node, $this->relational(), $start);
+            if ($this->tokenizer->equal($tok, '!=')){
+                [$relational, $tok] = $this->relational($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_NE, $node, $relational, $start);
                 continue;
             }
 
-            return $node;
+            return [$node, $tok];
         }
     }
 
-    // relational = add ("<" add | "<=" add | ">" add | ">=" add)*
-    public function relational(): Node
+    /**
+     * relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function relational(Token $rest, Token $tok): array
     {
-        $node = $this->add();
+        [$node, $tok] = $this->add($tok, $tok);
 
         for (;;){
-            $start = $this->tokenizer->tok;
+            $start = $tok;
 
-            if ($this->tokenizer->consume('<')){
-                $node = Node::newBinary(NodeKind::ND_LT, $node, $this->add(), $start);
+            if ($this->tokenizer->equal($tok, '<')){
+                [$add, $tok] = $this->add($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LT, $node, $add, $start);
                 continue;
             }
-            if ($this->tokenizer->consume('<=')){
-                $node = Node::newBinary(NodeKind::ND_LE, $node, $this->add(), $start);
+            if ($this->tokenizer->equal($tok, '<=')){
+                [$add, $tok] = $this->add($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LE, $node, $add, $start);
                 continue;
             }
-            if ($this->tokenizer->consume('>')){
-                $node = Node::newBinary(NodeKind::ND_LT, $this->add(), $node, $start);
+            if ($this->tokenizer->equal($tok, '>')){
+                [$add, $tok] = $this->add($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LT, $add, $node, $start);
                 continue;
             }
-            if ($this->tokenizer->consume('>=')){
-                $node = Node::newBinary(NodeKind::ND_LE, $this->add(), $node, $start);
+            if ($this->tokenizer->equal($tok, '>=')){
+                [$add, $tok] = $this->add($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LE, $add, $node, $start);
                 continue;
             }
 
-            return $node;
+            return [$node, $tok];
         }
     }
 
@@ -373,141 +479,184 @@ class Parser
         return null;
     }
 
-    // add = mul ("+" mul | "-" mul)*
-    public function add(): Node
+    /**
+     * add = mul ("+" mul | "-" mul)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function add(Token $rest, Token $tok): array
     {
-        $node = $this->mul();
+        [$node, $tok] = $this->mul($tok, $tok);
 
         for (;;){
-            $start = $this->tokenizer->tok;
+            $start = $tok;
 
-            if ($this->tokenizer->consume('+')){
-                $node = $this->newAdd($node, $this->mul(), $start);
+            if ($this->tokenizer->equal($tok, '+')){
+                [$mul, $tok] = $this->mul($tok, $tok->next);
+                $node = $this->newAdd($node, $mul, $start);
                 continue;
             }
-            if ($this->tokenizer->consume('-')){
-                $node = $this->newSub($node, $this->mul(), $start);
+            if ($this->tokenizer->equal($tok, '-')){
+                [$mul, $tok] = $this->mul($tok, $tok->next);
+                $node = $this->newSub($node, $mul, $start);
                 continue;
             }
 
-            return $node;
+            return [$node, $tok];
         }
     }
 
-    // mul = unary ("*" unary | "/" unary)*
-    public function mul(): Node
+    /**
+     * mul = unary ("*" unary | "/" unary)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function mul(Token $rest, Token $tok): array
     {
-        $node = $this->unary();
+        [$node, $tok] = $this->unary($tok, $tok);
 
         for (;;){
-            $start = $this->tokenizer->tok;
+            $start = $tok;
 
-            if ($this->tokenizer->consume('*')){
-                $node = Node::newBinary(NodeKind::ND_MUL, $node, $this->unary(), $start);
+            if ($this->tokenizer->equal($tok, '*')){
+                [$unary, $tok] = $this->unary($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_MUL, $node, $unary, $start);
                 continue;
             }
-            if ($this->tokenizer->consume('/')){
-                $node = Node::newBinary(NodeKind::ND_DIV, $node, $this->unary(), $start);
+            if ($this->tokenizer->equal($tok, '/')){
+                [$unary, $tok] = $this->unary($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_DIV, $node, $unary, $start);
                 continue;
             }
 
-            return $node;
+            return [$node, $tok];
         }
     }
 
-    // unary = ("+" | "-" | "*" | "&") unary | postfix
-    public function unary(): Node
+    /**
+     * unary = ("+" | "-" | "*" | "&") unary | postfix
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function unary(Token $rest, Token $tok): array
     {
-        if ($this->tokenizer->consume('+')){
-            return $this->unary();
+        if ($this->tokenizer->equal($tok, '+')){
+            return $this->unary($rest, $tok->next);
         }
-        if ($this->tokenizer->consume('-')){
-            return Node::newUnary(NodeKind::ND_NEG, $this->unary(), $this->tokenizer->tok);
+        if ($this->tokenizer->equal($tok, '-')){
+            [$unary, $rest] = $this->unary($rest, $tok->next);
+            return [Node::newUnary(NodeKind::ND_NEG, $unary, $tok), $rest];
         }
-        if ($this->tokenizer->consume('&')){
-            return Node::newUnary(NodeKind::ND_ADDR, $this->unary(), $this->tokenizer->tok);
+        if ($this->tokenizer->equal($tok, '&')){
+            [$unary, $rest] = $this->unary($rest, $tok->next);
+            return [Node::newUnary(NodeKind::ND_ADDR, $unary, $tok), $rest];
         }
-        if ($this->tokenizer->consume('*')){
-            return Node::newUnary(NodeKind::ND_DEREF, $this->unary(), $this->tokenizer->tok);
+        if ($this->tokenizer->equal($tok, '*')){
+            [$unary, $rest] = $this->unary($rest, $tok->next);
+            return [Node::newUnary(NodeKind::ND_DEREF, $unary, $tok), $rest];
         }
 
-        return $this->postfix();
+        return $this->postfix($rest, $tok);
     }
 
-    // postfix = primary ("[" expr "]")*
-    public function postfix(): Node
+    /**
+     * postfix = primary ("[" expr "]")*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function postfix(Token $rest, Token $tok): array
     {
-        $node = $this->primary();
+        [$node, $tok] = $this->primary($tok, $tok);
 
-        while ($this->tokenizer->consume('[')){
+        while ($this->tokenizer->equal($tok, '[')){
             // x[y] is short for *(x+y)
-            $start = $this->tokenizer->tok;
-            $idx = $this->expr();
-            $this->tokenizer->expect(']');
+            $start = $tok;
+            [$idx, $tok] = $this->expr($tok, $tok->next);
+            $tok = $this->tokenizer->skip($tok, ']');
             $node = Node::newUnary(NodeKind::ND_DEREF, $this->newAdd($node, $idx, $start), $start);
         }
 
-        return $node;
+        return [$node, $tok];
     }
 
-    // funcall = ident "(" (assign ("," assign)*)? ")"
-    public function funcall(): Node
+    /**
+     * funcall = ident "(" (assign ("," assign)*)? ")"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function funcall(Token $rest, Token $tok): array
     {
-        $start = $this->tokenizer->tok;
-
-        $funcname = $this->tokenizer->getIdent()->str;
-        $this->tokenizer->expect('(');
+        $start = $tok;
+        $tok = $tok->next->next;
 
         $nodes = [];
-        while(! $this->tokenizer->consume(')')){
+        while(! $this->tokenizer->equal($tok, ')')){
             if (count($nodes) > 0){
-                $this->tokenizer->expect(',');
+                $tok = $this->tokenizer->skip($tok, ',');
             }
-            $nodes[] = $this->assign();
+            [$assign, $tok] = $this->assign($tok, $tok);
+            $nodes[] = $assign;
         }
+
+        $rest = $this->tokenizer->skip($tok, ')');
 
         $node = Node::newNode(NodeKind::ND_FUNCALL, $start);
-        $node->funcname = $funcname;
+        $node->funcname = $start->str;
         $node->args = $nodes;
-        return $node;
+        return [$node, $rest];
     }
 
-    // primary = "(" expr ")" | "sizeof" unary | ident func-args? | number
-    public function primary(): ?Node
+    /**
+     * primary = "(" expr ")" | "sizeof" unary | ident func-args? | number
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function primary(Token $rest, Token $tok): array
     {
-        if ($this->tokenizer->consume('(')){
-            $node = $this->expr();
-            $this->tokenizer->expect(')');
-            return $node;
+        if ($this->tokenizer->equal($tok, '(')){
+            [$node, $tok] = $this->expr($tok, $tok->next);
+            $rest = $this->tokenizer->skip($tok, ')');
+            return [$node, $rest];
         }
 
-        if ($this->tokenizer->consume('sizeof')){
-            $node = $this->unary();
+        if ($this->tokenizer->equal($tok, 'sizeof')){
+            [$node, $rest] = $this->unary($rest, $tok->next);
             $node->addType();
-            return Node::newNum($node->ty->size, $this->tokenizer->tok);
+            return [Node::newNum($node->ty->size, $tok), $rest];
         }
 
-        if ($this->tokenizer->isTokenKind(TokenKind::TK_IDENT)){
+        if ($tok->isKind(TokenKind::TK_IDENT)){
             // Function call
-            if ($this->tokenizer->equal('(', 1)){
-                return $this->funcall();
+            if ($this->tokenizer->equal($tok->next, '(')){
+                return $this->funcall($rest, $tok);
             }
 
             // Variable
-            $varName = $this->tokenizer->getIdent()->str;
-            if (! isset($this->locals[$varName])){
-                Console::errorTok($this->tokenizer->tok, 'undefined variable');
+            if (! $var = $this->findVar($tok)){
+                Console::errorTok($tok, 'undefined variable');
             }
 
-            return Node::newVar($this->locals[$varName], $this->tokenizer->tok);
+            return [Node::newVarNode($var, $tok), $tok->next];
         }
 
-        if ($this->tokenizer->isTokenKind(TokenKind::TK_NUM)){
-            return Node::newNum($this->tokenizer->expectNumber(), $this->tokenizer->tok);
+        if ($tok->isKind(TokenKind::TK_NUM)){
+            return [Node::newNum($tok->val, $tok), $tok->next];
         }
 
-        Console::errorTok($this->tokenizer->tok, 'expected an expression');
-        return null;
+        Console::errorTok($tok, 'expected an expression');
+        return [];
     }
 
     /**
@@ -521,9 +670,9 @@ class Parser
         }
     }
 
-    public function func(Type $basety): void
+    public function func(Token $tok, Type $basety): Token
     {
-        $ty = $this->declarator($basety);
+        [$ty, $tok] = $this->declarator($tok, $tok, $basety);
         $fn = $this->newGVar($this->getIdent($ty->name), $ty);
         $fn->isFunction = true;
 
@@ -532,9 +681,39 @@ class Parser
         $this->createParamLVars($ty->params);
         $fn->params = $this->locals;
 
-        $this->tokenizer->expect('{');
-        $fn->body = [$this->compoundStmt()];
+        $tok = $this->tokenizer->skip($tok, '{');
+        [$compoundStmt, $tok] = $this->compoundStmt($tok, $tok);
+        $fn->body = [$compoundStmt];
         $fn->locals = $this->locals;
+
+        return $tok;
+    }
+
+    public function globalVariable(Token $tok, Type $basety): Token
+    {
+        $first = true;
+
+        while ([$consumed, $tok] = $this->tokenizer->consume($tok, ';') and (! $consumed)){
+            if (! $first){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+            $first = false;
+
+            [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            $this->newGVar($this->getIdent($ty->name), $ty);
+        }
+
+        return $tok;
+    }
+
+    public function isFunction(Token $tok): bool
+    {
+        if ($this->tokenizer->equal($tok, ';')){
+            return false;
+        }
+        $dummy = Type::tyInt();
+        [$ty, $tok] = $this->declarator($tok, $tok, $dummy);
+        return $ty->kind === TypeKind::TY_FUNC;
     }
 
     /**
@@ -544,11 +723,19 @@ class Parser
      */
     public function parse(): array
     {
+        $tok = $this->tokenizer->tokens[0];
         $this->globals = [];
 
-        while (! $this->tokenizer->atEOF()){
-            $basety = $this->declspec();
-            $this->func($basety);
+        while (! $tok->isKind(TokenKind::TK_EOF)){
+            [$basety, $tok] = $this->declspec($tok, $tok);
+            // Function
+            if ($this->isFunction($tok)){
+                $tok = $this->func($tok, $basety);
+                continue;
+            }
+
+            // Global variable
+            $tok = $this->globalVariable($tok, $basety);
         }
         return $this->globals;
     }

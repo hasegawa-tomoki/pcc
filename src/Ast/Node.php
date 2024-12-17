@@ -8,6 +8,7 @@ use Pcc\Tokenizer\Token;
 class Node
 {
     public NodeKind $kind;
+
     public ?Type $ty = null;
     public Token $tok;
 
@@ -67,7 +68,7 @@ class Node
         return $node;
     }
 
-    public static function newVar(Obj $var, Token $tok): Node
+    public static function newVarNode(Obj $var, Token $tok): Node
     {
         $node = self::newNode(NodeKind::ND_VAR, $tok);
         $node->var = $var;
@@ -106,7 +107,7 @@ class Node
                 return;
             case NodeKind::ND_ASSIGN:
                 if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){
-                    Console::errorTok($this->tok, 'not an lvalue');
+                    Console::errorTok($this->lhs->tok, 'not an lvalue');
                 }
                 $this->ty = $this->lhs->ty;
                 return;

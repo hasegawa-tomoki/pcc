@@ -53,7 +53,6 @@ class Type
         $ty = new Type(TypeKind::TY_ARRAY, $base);
         $ty->size = $base->size * $len;
         $ty->arrayLen = $len;
-        $ty->name = $base->name;
         return $ty;
     }
 }

@@ -30,56 +30,30 @@ class Tokenizer
         Console::$userInput = $userInput;
     }
 
-    public function equal(string $op, int $offset = 0): bool
+    public function equal(Token $tok, string $op): bool
     {
-        return $this->tokens[$offset]->str === $op;
+        return $tok->str === $op;
     }
 
-    public function consume(string $op): bool
+    public function skip(Token $tok, string $op): Token
     {
-        if (! $this->equal($op)){
-            return false;
+        if ($tok->str !== $op) {
+            Console::errorTok($tok, "expected '%s'", $op);
         }
-        array_shift($this->tokens);
-        return true;
+        return $tok->next;
     }
 
-    public function getIdent(): ?Token
+    /**
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param string $op
+     * @return array{0: bool, 1: \Pcc\Tokenizer\Token}
+     */
+    public function consume(Token $tok, string $op): array
     {
-        if ($this->tokens[0]->kind !== TokenKind::TK_IDENT){
-            return null;
+        if ($this->equal($tok, $op)){
+            return [true, $tok->next];
         }
-        return array_shift($this->tokens);
-    }
-
-    public function expect(string $op): void
-    {
-        if ($this->tokens[0]->kind !== TokenKind::TK_RESERVED ||
-            strlen($op) != $this->tokens[0]->len ||
-            $this->tokens[0]->str !== $op) {
-            Console::errorTok($this->tokens[0], "expected '%s'", $op);
-        }
-        array_shift($this->tokens);
-    }
-
-    public function expectNumber(): int
-    {
-        if ($this->tokens[0]->kind !== TokenKind::TK_NUM) {
-            Console::errorTok($this->tokens[0], "expected 'number'");
-        }
-        $val = $this->tokens[0]->val;
-        array_shift($this->tokens);
-        return $val;
-    }
-
-    public function isTokenKind(TokenKind $kind): bool
-    {
-        return $this->tokens[0]->kind === $kind;
-    }
-
-    public function atEof(): bool
-    {
-        return $this->tokens[0]->kind === TokenKind::TK_EOF;
+        return [false, $tok];
     }
 
     public function isIdent1(string $c): bool
@@ -153,7 +127,9 @@ class Tokenizer
 
         $tokens[] = new Token(TokenKind::TK_EOF, '', $pos);
         $this->tokens = $tokens;
-
+        for ($i = 0; $i < count($this->tokens) - 1; $i++){
+            $this->tokens[$i]->next = $this->tokens[$i + 1];
+        }
         $this->convertKeywords();
     }
 }

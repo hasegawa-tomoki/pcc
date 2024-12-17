@@ -43,8 +43,15 @@ class CodeGenerator
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_VAR:
-                printf("  lea %d(%%rbp), %%rax\n", $node->var->offset);
-                return;
+                if ($node->var->isLocal){
+                    // Local variable
+                    printf("  lea %d(%%rbp), %%rax\n", $node->var->offset);
+                    return;
+                } else {
+                    // Global variable
+                    printf("  lea %s(%%rip), %%rax\n", $node->var->name);
+                    return;
+                }
             case NodeKind::ND_DEREF:
                 $this->genExpr($node->lhs);
                 return;
@@ -228,14 +235,30 @@ class CodeGenerator
     }
 
     /**
-     * @param Obj[] $funcs
+     * @param Obj[] $prog
      * @return void
      */
-    public function gen(array $funcs): void
+    public function emitData(array $prog): void
     {
-        $funcs = $this->assignLVarOffsets($funcs);
+        foreach ($prog as $var){
+            if ($var->isFunction){
+                continue;
+            }
 
-        foreach ($funcs as $fn){
+            printf("  .data\n");
+            printf("  .globl %s\n", $var->name);
+            printf("%s:\n", $var->name);
+            printf("  .zero %d\n", $var->ty->size);
+        }
+    }
+
+    /**
+     * @param Obj[] $prog
+     * @return void
+     */
+    public function emitText(array $prog): void
+    {
+        foreach ($prog as $fn){
             if (! $fn->isFunction){
                 continue;
             }
@@ -271,5 +294,16 @@ class CodeGenerator
             printf("  pop %%rbp\n");
             printf("  ret\n");
         }
+    }
+
+    /**
+     * @param Obj[] $funcs
+     * @return void
+     */
+    public function gen(array $funcs): void
+    {
+        $funcs = $this->assignLVarOffsets($funcs);
+        $this->emitData($funcs);
+        $this->emitText($funcs);
     }
 }
