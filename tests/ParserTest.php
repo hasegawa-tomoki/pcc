@@ -224,4 +224,14 @@ class ParserTest extends TestCase
         $this->assertEquals('x', $prog['x']->name);
         $this->assertFalse($prog['x']->isFunction);
     }
+
+    public function testEscapeSequence()
+    {
+        $tokenizer = new Tokenizer('int main() { return "\\a"[0]; }');
+        $tokenizer->tokenize();
+        $parser = new Pcc\Ast\Parser($tokenizer);
+        $prog = $parser->parse();
+
+        $this->assertEquals(chr(7), $prog['.L..0']->initData);
+    }
 }

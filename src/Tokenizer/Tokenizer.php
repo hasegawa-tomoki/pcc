@@ -24,12 +24,24 @@ class Tokenizer
             return $this->tokens[0];
         }
     }
+    public array $escapeChars = [];
 
     public function __construct(
         public readonly string $userInput,
     )
     {
         Console::$userInput = $userInput;
+
+        $this->escapeChars = [
+            '\a' => chr(7),
+            '\b' => chr(8),
+            '\t' => "\t",
+            '\n' => "\n",
+            '\v' => "\v",
+            '\f' => "\f",
+            '\r' => "\r",
+            '\e' => chr(27),
+        ];
     }
 
     public function equal(Token $tok, string $op): bool
@@ -68,7 +80,11 @@ class Tokenizer
         return $this->isIdent1($c) or preg_match('/^[0-9]/', $c);
     }
 
-    public function readStringLiteral(int $start): Token
+    /**
+     * @param int $start
+     * @return array{0: \Pcc\Tokenizer\Token, 1: int}
+     */
+    public function readStringLiteral(int $start): array
     {
         $pos = $start + 1;
         while ($pos < strlen($this->userInput) and $this->userInput[$pos] !== '"'){
@@ -80,9 +96,16 @@ class Tokenizer
         if ($pos >= strlen($this->userInput)){
             Console::errorAt($pos, "unclosed string literal");
         }
-        $tok = new Token(TokenKind::TK_STR, substr($this->userInput, $start + 1, $pos - $start - 1), $pos + 1);
+        $str =substr($this->userInput, $start + 1, $pos - $start - 1);
+        $tok = new Token(TokenKind::TK_STR, $str, $pos + 1);
+
+        foreach ($this->escapeChars as $key => $val){
+            $tok->str = str_replace($key, $val, $tok->str);
+        }
+        $tok->str = preg_replace('/\\\\(.)/', '$1', $tok->str);
+
         $tok->ty = Type::arrayOf(Type::tyChar(), strlen($tok->str) + 1);
-        return $tok;
+        return [$tok, $pos + 1];
     }
 
     public function convertKeywords(): void
@@ -121,8 +144,7 @@ class Tokenizer
 
             // String literal
             if ($this->userInput[$pos] === '"') {
-                $token = $this->readStringLiteral($pos);
-                $pos += $token->len + 2;
+                [$token, $pos] = $this->readStringLiteral($pos);
                 $tokens[] = $token;
                 continue;
             }
