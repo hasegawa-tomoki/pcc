@@ -99,9 +99,13 @@ class Tokenizer
         $str =substr($this->userInput, $start + 1, $pos - $start - 1);
         $tok = new Token(TokenKind::TK_STR, $str, $pos + 1);
 
+        // Octal number
+        $tok->str = preg_replace_callback('/\\\\([0-7]{1, 3})/', fn($matches) => chr(octdec($matches[1])), $tok->str);
+        // Escape chars
         foreach ($this->escapeChars as $key => $val){
             $tok->str = str_replace($key, $val, $tok->str);
         }
+        // Single char
         $tok->str = preg_replace('/\\\\(.)/', '$1', $tok->str);
 
         $tok->ty = Type::arrayOf(Type::tyChar(), strlen($tok->str) + 1);
