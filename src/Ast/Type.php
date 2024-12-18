@@ -25,16 +25,23 @@ class Type
         $this->base = $base;
     }
 
-    public function isInteger(): bool
-    {
-        return $this->kind === TypeKind::TY_INT;
-    }
-
     public static function tyInt(): Type
     {
         $ty = new Type(TypeKind::TY_INT);
         $ty->size = 8;
         return $ty;
+    }
+
+    public static function tyChar(): Type
+    {
+        $ty = new Type(TypeKind::TY_CHAR);
+        $ty->size = 1;
+        return $ty;
+    }
+
+    public function isInteger(): bool
+    {
+        return $this->kind === TypeKind::TY_CHAR or $this->kind === TypeKind::TY_INT;
     }
 
     public static function pointerTo(Type $base):Type

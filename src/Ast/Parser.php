@@ -82,7 +82,7 @@ class Parser
     }
 
     /**
-     * declspec = "int"
+     * declspec = "char" | "int"
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -90,8 +90,11 @@ class Parser
      */
     public function declspec(Token $rest, Token $tok): array
     {
-        $rest = $this->tokenizer->skip($tok, 'int');
-        return [Type::tyInt(), $rest];
+        if ($this->tokenizer->equal($tok, 'char')){
+            return [Type::tyChar(), $tok->next];
+        }
+
+        return [Type::tyInt(), $this->tokenizer->skip($tok, 'int')];
     }
 
     /**
@@ -293,7 +296,7 @@ class Parser
 
         $nodes = [];
         while (! $this->tokenizer->equal($tok, '}')){
-            if ($this->tokenizer->equal($tok, 'int')){
+            if ($tok->isTypeName()){
                 [$n, $tok] = $this->declaration($tok, $tok);
             } else {
                 [$n, $tok] = $this->stmt($tok, $tok);

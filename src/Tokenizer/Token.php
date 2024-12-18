@@ -25,4 +25,9 @@ class Token
     {
         return $this->kind === $kind;
     }
+
+    public function isTypeName(): bool
+    {
+        return in_array($this->str, ['int', 'char']);
+    }
 }

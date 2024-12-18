@@ -12,8 +12,10 @@ use Pcc\Console;
 class CodeGenerator
 {
     public int $depth = 0;
+    /** @var string[] */
+    public array $argreg8 = ['%dil', '%sil', '%dl', '%cl', '%r8b', '%r9b'];
     /** @var string[]  */
-    public array $argreg = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
+    public array $argreg64 = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
     public Obj $currentFn;
 
     public function cnt(): int
@@ -66,13 +68,23 @@ class CodeGenerator
         if ($ty->kind === TypeKind::TY_ARRAY){
             return;
         }
-        printf("  mov (%%rax), %%rax\n");
+
+        if ($ty->size == 1){
+            printf("  movsbq (%%rax), %%rax\n");
+        } else {
+            printf("  mov (%%rax), %%rax\n");
+        }
     }
 
-    public function store(): void
+    public function store(Type $ty): void
     {
         $this->pop('%rdi');
-        printf("  mov %%rax, (%%rdi)\n");
+
+        if ($ty->size == 1){
+            printf("  mov %%al, (%%rdi)\n");
+        } else {
+            printf("  mov %%rax, (%%rdi)\n");
+        }
     }
 
     public function genExpr(Node $node): void
@@ -101,7 +113,7 @@ class CodeGenerator
                 $this->genAddr($node->lhs);
                 $this->push();
                 $this->genExpr($node->rhs);
-                $this->store();
+                $this->store($node->ty);
                 return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){
@@ -109,7 +121,7 @@ class CodeGenerator
                     $this->push();
                 }
                 for ($i = count($node->args) - 1; $i >= 0; $i--){
-                    $this->pop($this->argreg[$i]);
+                    $this->pop($this->argreg64[$i]);
                 }
 
                 printf("  mov $0, %%rax\n");
@@ -276,8 +288,12 @@ class CodeGenerator
             // Save passed-by-register arguments to the stack
             $idx = 0;
             foreach ($fn->params as $param){
-                if ($idx < count($this->argreg)){
-                    printf("  mov %s, %d(%%rbp)\n", $this->argreg[$idx], $param->offset);
+                if ($idx < count($this->argreg64)){
+                    if ($param->ty->size === 1){
+                        printf("  mov %s, %d(%%rbp)\n", $this->argreg8[$idx], $param->offset);
+                    } else {
+                        printf("  mov %s, %d(%%rbp)\n", $this->argreg64[$idx], $param->offset);
+                    }
                 }
                 $idx++;
             }

@@ -16,6 +16,7 @@ class Tokenizer
         'while',
         'int',
         'sizeof',
+        'char',
     ];
     public Token $tok {
         get {
