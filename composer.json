@@ -15,6 +15,7 @@
         "phpunit/phpunit": "^11.5"
     },
     "require": {
-        "spatie/ray": "^1.41"
+        "spatie/ray": "^1.41",
+        "ext-ctype": "*"
     }
 }
