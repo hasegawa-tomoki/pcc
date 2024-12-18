@@ -65,6 +65,24 @@ class Parser
         return $var;
     }
 
+    public function newUniqueName(): string
+    {
+        static $id = 0;
+        return sprintf('.L..%d', $id++);
+    }
+
+    public function newAnonGVar(Type $ty): Obj
+    {
+        return $this->newGVar($this->newUniqueName(), $ty);
+    }
+
+    public function newStringLiteral(string $p, Type $ty): Obj
+    {
+        $var = $this->newAnonGVar($ty);
+        $var->initData = $p;
+        return $var;
+    }
+
     public function getIdent(Token $tok): string
     {
         if ($tok->kind !== TokenKind::TK_IDENT){
@@ -620,7 +638,7 @@ class Parser
     }
 
     /**
-     * primary = "(" expr ")" | "sizeof" unary | ident func-args? | number
+     * primary = "(" expr ")" | "sizeof" unary | ident func-args? | str | number
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -651,6 +669,11 @@ class Parser
                 Console::errorTok($tok, 'undefined variable');
             }
 
+            return [Node::newVarNode($var, $tok), $tok->next];
+        }
+
+        if ($tok->isKind(TokenKind::TK_STR)){
+            $var = $this->newStringLiteral($tok->str, $tok->ty);
             return [Node::newVarNode($var, $tok), $tok->next];
         }
 

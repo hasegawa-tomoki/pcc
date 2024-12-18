@@ -1,6 +1,8 @@
 <?php
 namespace Pcc\Tokenizer;
 
+use Pcc\Ast\Type;
+
 class Token
 {
     public TokenKind $kind;
@@ -13,6 +15,7 @@ class Token
             return strlen($this->str);
         }
     }
+    public Type $ty;
 
     public function __construct(TokenKind $kind, string $str, int $pos)
     {

@@ -260,7 +260,14 @@ class CodeGenerator
             printf("  .data\n");
             printf("  .globl %s\n", $var->name);
             printf("%s:\n", $var->name);
-            printf("  .zero %d\n", $var->ty->size);
+
+            if ($var->initData){
+                for ($i = 0; $i < strlen($var->initData); $i++){
+                    printf("  .byte %d\n", ord($var->initData[$i]));
+                }
+            } else {
+                printf("  .zero %d\n", $var->ty->size);
+            }
         }
     }
 

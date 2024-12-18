@@ -13,6 +13,9 @@ class Obj
     // Global variable or function
     public bool $isFunction = false;
 
+    // Global variable
+    public ?string $initData = null;
+
     // Function
     /** @var \Pcc\Ast\Obj[] */
     public array $params;

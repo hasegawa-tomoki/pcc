@@ -2,6 +2,7 @@
 
 namespace Pcc\Tokenizer;
 
+use Pcc\Ast\Type;
 use Pcc\Console;
 
 class Tokenizer
@@ -67,6 +68,23 @@ class Tokenizer
         return $this->isIdent1($c) or preg_match('/^[0-9]/', $c);
     }
 
+    public function readStringLiteral(int $start): Token
+    {
+        $pos = $start + 1;
+        while ($pos < strlen($this->userInput) and $this->userInput[$pos] !== '"'){
+            if ($this->userInput[$pos] === "\n"){
+                Console::errorAt($pos, "unclosed string literal");
+            }
+            $pos++;
+        }
+        if ($pos >= strlen($this->userInput)){
+            Console::errorAt($pos, "unclosed string literal");
+        }
+        $tok = new Token(TokenKind::TK_STR, substr($this->userInput, $start + 1, $pos - $start - 1), $pos + 1);
+        $tok->ty = Type::arrayOf(Type::tyChar(), strlen($tok->str) + 1);
+        return $tok;
+    }
+
     public function convertKeywords(): void
     {
         foreach ($this->tokens as $idx => $token){
@@ -97,6 +115,14 @@ class Tokenizer
                 }
                 $token->str = $valStr;
                 $token->val = intval($valStr);
+                $tokens[] = $token;
+                continue;
+            }
+
+            // String literal
+            if ($this->userInput[$pos] === '"') {
+                $token = $this->readStringLiteral($pos);
+                $pos += $token->len + 2;
                 $tokens[] = $token;
                 continue;
             }
