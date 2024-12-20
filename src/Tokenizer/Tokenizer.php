@@ -101,6 +101,8 @@ class Tokenizer
 
         // Octal number
         $tok->str = preg_replace_callback('/\\\\([0-7]{1, 3})/', fn($matches) => chr(octdec($matches[1])), $tok->str);
+        // Hexadecimal number
+        $tok->str = preg_replace_callback('/\\\\x([0-9a-fA-F]+)/', fn($matches) => chr(hexdec($matches[1])), $tok->str);
         // Escape chars
         foreach ($this->escapeChars as $key => $val){
             $tok->str = str_replace($key, $val, $tok->str);
