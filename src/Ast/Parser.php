@@ -638,7 +638,12 @@ class Parser
     }
 
     /**
-     * primary = "(" expr ")" | "sizeof" unary | ident func-args? | str | number
+     * primary = "(" "{" stmt+ "}" ")"
+     *         | "(" expr ")"
+     *         | "sizeof" unary
+     *         | ident func-args?
+     *         | str
+     *         | number
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -646,6 +651,15 @@ class Parser
      */
     public function primary(Token $rest, Token $tok): array
     {
+        if ($this->tokenizer->equal($tok, '(') and $this->tokenizer->equal($tok->next, '{')){
+            // This is a GNU statement expression
+            $node = Node::newNode(NodeKind::ND_STMT_EXPR, $tok);
+            [$compoundStmt, $tok] = $this->compoundStmt($tok, $tok->next->next);
+            $node->body = $compoundStmt->body;
+            $rest = $this->tokenizer->skip($tok, ')');
+            return [$node, $rest];
+        }
+
         if ($this->tokenizer->equal($tok, '(')){
             [$node, $tok] = $this->expr($tok, $tok->next);
             $rest = $this->tokenizer->skip($tok, ')');

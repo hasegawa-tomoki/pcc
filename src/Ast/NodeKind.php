@@ -22,6 +22,7 @@ enum NodeKind
     case ND_BLOCK;
     case ND_FUNCALL;
     case ND_EXPR_STMT;
+    case ND_STMT_EXPR;
     case ND_VAR;
     case ND_NUM;
 }

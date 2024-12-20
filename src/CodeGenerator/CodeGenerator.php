@@ -115,6 +115,11 @@ class CodeGenerator
                 $this->genExpr($node->rhs);
                 $this->store($node->ty);
                 return;
+            case NodeKind::ND_STMT_EXPR:
+                foreach ($node->body as $node){
+                    $this->genStmt($node);
+                }
+                return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){
                     $this->genExpr($arg);

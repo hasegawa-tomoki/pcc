@@ -23,7 +23,7 @@ class Node
     public ?Node $inc = null;
 
     /**
-     * block
+     * Block or statement expression
      * @var Node[]
      */
     public array $body = [];
@@ -134,6 +134,16 @@ class Node
                     Console::errorTok($this->tok, 'invalid pointer dereference');
                 }
                 $this->ty = $this->lhs->ty->base;
+                return;
+            case NodeKind::ND_STMT_EXPR:
+                if ($this->body){
+                    $stmt = end($this->body);
+                    if ($stmt->kind === NodeKind::ND_EXPR_STMT){
+                        $this->ty = $stmt->lhs->ty;
+                        return;
+                    }
+                }
+                Console::errorTok($this->tok, 'statement expression returning void is not supported');
                 return;
         }
     }
