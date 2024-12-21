@@ -25,12 +25,26 @@ class Tokenizer
         }
     }
     public array $escapeChars = [];
+    public string $currentInput;
 
     public function __construct(
-        public readonly string $userInput,
+        public readonly string $currentFilename,
     )
     {
-        Console::$userInput = $userInput;
+        if ($currentFilename === '-'){
+            $this->currentInput = file_get_contents('php://stdin');
+        } else {
+            if (! is_file($currentFilename)){
+                Console::error("cannot open: %s", $currentFilename);
+            }
+            $this->currentInput = file_get_contents($currentFilename);
+        }
+        if (! str_ends_with($this->currentInput, "\n")){
+            $this->currentInput .= "\n";
+        }
+
+        Console::$currentFilename = $currentFilename;
+        Console::$currentInput = $this->currentInput;
 
         $this->escapeChars = [
             '\a' => chr(7),
@@ -87,16 +101,16 @@ class Tokenizer
     public function readStringLiteral(int $start): array
     {
         $pos = $start + 1;
-        while ($pos < strlen($this->userInput) and $this->userInput[$pos] !== '"'){
-            if ($this->userInput[$pos] === "\n"){
+        while ($pos < strlen($this->currentInput) and $this->currentInput[$pos] !== '"'){
+            if ($this->currentInput[$pos] === "\n"){
                 Console::errorAt($pos, "unclosed string literal");
             }
             $pos++;
         }
-        if ($pos >= strlen($this->userInput)){
+        if ($pos >= strlen($this->currentInput)){
             Console::errorAt($pos, "unclosed string literal");
         }
-        $str =substr($this->userInput, $start + 1, $pos - $start - 1);
+        $str =substr($this->currentInput, $start + 1, $pos - $start - 1);
         $tok = new Token(TokenKind::TK_STR, $str, $pos + 1);
 
         // Octal number
@@ -127,19 +141,19 @@ class Tokenizer
     {
         $pos = 0;
         $tokens = [];
-        while ($pos < strlen($this->userInput)) {
+        while ($pos < strlen($this->currentInput)) {
             // Skip whitespace characters
-            if (ctype_space($this->userInput[$pos])) {
+            if (ctype_space($this->currentInput[$pos])) {
                 $pos++;
                 continue;
             }
 
             // Numeric literal
-            if (ctype_digit($this->userInput[$pos])) {
-                $token = new Token(TokenKind::TK_NUM, $this->userInput[$pos], $pos);
+            if (ctype_digit($this->currentInput[$pos])) {
+                $token = new Token(TokenKind::TK_NUM, $this->currentInput[$pos], $pos);
                 $valStr = '';
-                while ($pos < strlen($this->userInput) && ctype_digit($this->userInput[$pos])) {
-                    $valStr .= $this->userInput[$pos];
+                while ($pos < strlen($this->currentInput) && ctype_digit($this->currentInput[$pos])) {
+                    $valStr .= $this->currentInput[$pos];
                     $pos++;
                 }
                 $token->str = $valStr;
@@ -149,35 +163,35 @@ class Tokenizer
             }
 
             // String literal
-            if ($this->userInput[$pos] === '"') {
+            if ($this->currentInput[$pos] === '"') {
                 [$token, $pos] = $this->readStringLiteral($pos);
                 $tokens[] = $token;
                 continue;
             }
 
             // Identifier or keyword
-            if ($this->isIdent1($this->userInput[$pos])){
+            if ($this->isIdent1($this->currentInput[$pos])){
                 $start = $pos;
-                while ($pos < strlen($this->userInput) && $this->isIdent2($this->userInput[$pos])){
+                while ($pos < strlen($this->currentInput) && $this->isIdent2($this->currentInput[$pos])){
                     $pos++;
                 }
-                $tokens[] = new Token(TokenKind::TK_IDENT, substr($this->userInput, $start, $pos - $start), $pos);
+                $tokens[] = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $start, $pos - $start), $pos);
                 continue;
             }
 
             // Punctuators
-            if (in_array($token = substr($this->userInput, $pos, 2), ['==', '!=', '<=', '>='])) {
+            if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>='])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $pos += 2;
                 continue;
             }
-            if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->userInput[$pos])) {
-                $tokens[] = new Token(TokenKind::TK_RESERVED, $this->userInput[$pos], $pos);
+            if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->currentInput[$pos])) {
+                $tokens[] = new Token(TokenKind::TK_RESERVED, $this->currentInput[$pos], $pos);
                 $pos++;
                 continue;
             }
 
-            Console::errorAt($pos, "invalid token: %s\n", $this->userInput[$pos]);
+            Console::errorAt($pos, "invalid token: %s\n", $this->currentInput[$pos]);
         }
 
         $tokens[] = new Token(TokenKind::TK_EOF, '', $pos);

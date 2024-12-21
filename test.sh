@@ -14,7 +14,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  php pcc.php "$input" > tmp.s
+  echo "$input" | php pcc.php - > tmp.s
   gcc -static -Wa,--noexecstack -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"

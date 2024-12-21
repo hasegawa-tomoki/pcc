@@ -5,11 +5,12 @@ use Pcc\Tokenizer\Token;
 
 class Console
 {
-    public static string $userInput = '';
+    public static string $currentInput = '';
+    public static string $currentFilename = '';
 
     public static function errorAt(int $pos, string $format, ...$args): void
     {
-        printf(Console::$userInput.PHP_EOL);
+        printf(Console::$currentInput.PHP_EOL);
         printf(str_repeat(" ", $pos));
         printf("^ ");
         printf($format.PHP_EOL, ...$args);
