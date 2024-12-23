@@ -26,13 +26,13 @@ class CodeGenerator
 
     public function push(): void
     {
-        printf("  push %%rax\n");
+        Console::out("  push %%rax");
         $this->depth++;
     }
 
     public function pop(string $arg): void
     {
-        printf("  pop %s\n", $arg);
+        Console::out("  pop %s", $arg);
         $this->depth--;
     }
 
@@ -47,11 +47,11 @@ class CodeGenerator
             case NodeKind::ND_VAR:
                 if ($node->var->isLocal){
                     // Local variable
-                    printf("  lea %d(%%rbp), %%rax\n", $node->var->offset);
+                    Console::out("  lea %d(%%rbp), %%rax", $node->var->offset);
                     return;
                 } else {
                     // Global variable
-                    printf("  lea %s(%%rip), %%rax\n", $node->var->name);
+                    Console::out("  lea %s(%%rip), %%rax", $node->var->name);
                     return;
                 }
             case NodeKind::ND_DEREF:
@@ -70,9 +70,9 @@ class CodeGenerator
         }
 
         if ($ty->size == 1){
-            printf("  movsbq (%%rax), %%rax\n");
+            Console::out("  movsbq (%%rax), %%rax");
         } else {
-            printf("  mov (%%rax), %%rax\n");
+            Console::out("  mov (%%rax), %%rax");
         }
     }
 
@@ -81,9 +81,9 @@ class CodeGenerator
         $this->pop('%rdi');
 
         if ($ty->size == 1){
-            printf("  mov %%al, (%%rdi)\n");
+            Console::out("  mov %%al, (%%rdi)");
         } else {
-            printf("  mov %%rax, (%%rdi)\n");
+            Console::out("  mov %%rax, (%%rdi)");
         }
     }
 
@@ -92,11 +92,11 @@ class CodeGenerator
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
             case NodeKind::ND_NUM:
-                printf("  mov \$%d, %%rax\n", $node->val);
+                Console::out("  mov \$%d, %%rax", $node->val);
                 return;
             case NodeKind::ND_NEG:
                 $this->genExpr($node->lhs);
-                printf("  neg %%rax\n");
+                Console::out("  neg %%rax");
                 return;
             case NodeKind::ND_VAR:
                 $this->genAddr($node);
@@ -129,8 +129,8 @@ class CodeGenerator
                     $this->pop($this->argreg64[$i]);
                 }
 
-                printf("  mov $0, %%rax\n");
-                printf("  call %s\n", $node->funcname);
+                Console::out("  mov $0, %%rax");
+                Console::out("  call %s", $node->funcname);
                 return;
         }
 
@@ -142,33 +142,33 @@ class CodeGenerator
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
             case NodeKind::ND_ADD:
-                printf("  add %%rdi, %%rax\n");
+                Console::out("  add %%rdi, %%rax");
                 return;
             case NodeKind::ND_SUB:
-                printf("  sub %%rdi, %%rax\n");
+                Console::out("  sub %%rdi, %%rax");
                 return;
             case NodeKind::ND_MUL:
-                printf("  imul %%rdi, %%rax\n");
+                Console::out("  imul %%rdi, %%rax");
                 return;
             case NodeKind::ND_DIV:
-                printf("  cqo\n");
-                printf("  idiv %%rdi\n");
+                Console::out("  cqo");
+                Console::out("  idiv %%rdi");
                 return;
             case NodeKind::ND_EQ:
             case NodeKind::ND_NE:
             case NodeKind::ND_LT:
             case NodeKind::ND_LE:
-                printf("  cmp %%rdi, %%rax\n");
+                Console::out("  cmp %%rdi, %%rax");
                 if ($node->kind == NodeKind::ND_EQ) {
-                    printf("  sete %%al\n");
+                    Console::out("  sete %%al");
                 } elseif ($node->kind == NodeKind::ND_NE) {
-                    printf("  setne %%al\n");
+                    Console::out("  setne %%al");
                 } elseif ($node->kind == NodeKind::ND_LT) {
-                    printf("  setl %%al\n");
+                    Console::out("  setl %%al");
                 } elseif ($node->kind == NodeKind::ND_LE) {
-                    printf("  setle %%al\n");
+                    Console::out("  setle %%al");
                 }
-                printf("  movzb %%al, %%rax\n");
+                Console::out("  movzb %%al, %%rax");
                 return;
         }
 
@@ -182,15 +182,15 @@ class CodeGenerator
             case NodeKind::ND_IF: {
                 $c = $this->cnt();
                 $this->genExpr($node->cond);
-                printf("  cmp \$0, %%rax\n");
-                printf("  je  .L.else.%d\n", $c);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  je  .L.else.%d", $c);
                 $this->genStmt($node->then);
-                printf("  jmp .L.end.%d\n", $c);
-                printf(".L.else.%d:\n", $c);
+                Console::out("  jmp .L.end.%d", $c);
+                Console::out(".L.else.%d:", $c);
                 if ($node->els) {
                     $this->genStmt($node->els);
                 }
-                printf(".L.end.%d:\n", $c);
+                Console::out(".L.end.%d:", $c);
                 return;
             }
             case NodeKind::ND_FOR: {
@@ -198,18 +198,18 @@ class CodeGenerator
                 if ($node->init){
                     $this->genStmt($node->init);
                 }
-                printf(".L.begin.%d:\n", $c);
+                Console::out(".L.begin.%d:", $c);
                 if ($node->cond) {
                     $this->genExpr($node->cond);
-                    printf("  cmp \$0, %%rax\n");
-                    printf("  je  .L.end.%d\n", $c);
+                    Console::out("  cmp \$0, %%rax");
+                    Console::out("  je  .L.end.%d", $c);
                 }
                 $this->genStmt($node->then);
                 if ($node->inc) {
                     $this->genExpr($node->inc);
                 }
-                printf("  jmp .L.begin.%d\n", $c);
-                printf(".L.end.%d:\n", $c);
+                Console::out("  jmp .L.begin.%d", $c);
+                Console::out(".L.end.%d:", $c);
                 return;
             }
             case NodeKind::ND_BLOCK:
@@ -219,7 +219,7 @@ class CodeGenerator
                 return;
             case NodeKind::ND_RETURN:
                 $this->genExpr($node->lhs);
-                printf("  jmp .L.return.%s\n", $this->currentFn->name);
+                Console::out("  jmp .L.return.%s", $this->currentFn->name);
                 return;
             case NodeKind::ND_EXPR_STMT:
                 $this->genExpr($node->lhs);
@@ -262,16 +262,16 @@ class CodeGenerator
                 continue;
             }
 
-            printf("  .data\n");
-            printf("  .globl %s\n", $var->name);
-            printf("%s:\n", $var->name);
+            Console::out("  .data");
+            Console::out("  .globl %s", $var->name);
+            Console::out("%s:", $var->name);
 
             if ($var->initData){
                 for ($i = 0; $i < strlen($var->initData); $i++){
-                    printf("  .byte %d\n", ord($var->initData[$i]));
+                    Console::out("  .byte %d", ord($var->initData[$i]));
                 }
             } else {
-                printf("  .zero %d\n", $var->ty->size);
+                Console::out("  .zero %d", $var->ty->size);
             }
         }
     }
@@ -287,24 +287,24 @@ class CodeGenerator
                 continue;
             }
 
-            printf("  .globl %s\n", $fn->name);
-            printf("  .text\n");
-            printf("%s:\n", $fn->name);
+            Console::out("  .globl %s", $fn->name);
+            Console::out("  .text");
+            Console::out("%s:", $fn->name);
             $this->currentFn = $fn;
 
             // Prologue
-            printf("  push %%rbp\n");
-            printf("  mov %%rsp, %%rbp\n");
-            printf("  sub \$%d, %%rsp\n", $fn->stackSize);
+            Console::out("  push %%rbp");
+            Console::out("  mov %%rsp, %%rbp");
+            Console::out("  sub \$%d, %%rsp", $fn->stackSize);
 
             // Save passed-by-register arguments to the stack
             $idx = 0;
             foreach ($fn->params as $param){
                 if ($idx < count($this->argreg64)){
                     if ($param->ty->size === 1){
-                        printf("  mov %s, %d(%%rbp)\n", $this->argreg8[$idx], $param->offset);
+                        Console::out("  mov %s, %d(%%rbp)", $this->argreg8[$idx], $param->offset);
                     } else {
-                        printf("  mov %s, %d(%%rbp)\n", $this->argreg64[$idx], $param->offset);
+                        Console::out("  mov %s, %d(%%rbp)", $this->argreg64[$idx], $param->offset);
                     }
                 }
                 $idx++;
@@ -317,10 +317,10 @@ class CodeGenerator
             assert($this->depth == 0);
 
             // Epilogue
-            printf(".L.return.%s:\n", $fn->name);
-            printf("  mov %%rbp, %%rsp\n");
-            printf("  pop %%rbp\n");
-            printf("  ret\n");
+            Console::out(".L.return.%s:", $fn->name);
+            Console::out("  mov %%rbp, %%rsp");
+            Console::out("  pop %%rbp");
+            Console::out("  ret");
         }
     }
 
