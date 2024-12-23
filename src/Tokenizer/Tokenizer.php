@@ -148,6 +148,25 @@ class Tokenizer
                 continue;
             }
 
+            // Skip line comments
+            if (substr($this->currentInput, $pos, 2) === '//') {
+                $pos += 2;
+                while ($this->currentInput[$pos] !== "\n") {
+                    $pos++;
+                }
+                continue;
+            }
+
+            // Skip block comments
+            if (substr($this->currentInput, $pos, 2) === '/*') {
+                $pos += 2;
+                while (substr($this->currentInput, $pos, 2) !== '*/') {
+                    $pos++;
+                }
+                $pos += 2;
+                continue;
+            }
+
             // Numeric literal
             if (ctype_digit($this->currentInput[$pos])) {
                 $token = new Token(TokenKind::TK_NUM, $this->currentInput[$pos], $pos);
