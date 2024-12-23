@@ -9,14 +9,16 @@ class ParserTest extends TestCase
 {
     public function testUnary()
     {
-        $tokenizer = new Tokenizer('5');
+        file_put_contents('tmp.c', '5');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->unary($tokenizer->tok, $tokenizer->tok);
         $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->kind);
         $this->assertEquals(5, $node->val);
 
-        $tokenizer = new Tokenizer('-5');
+        file_put_contents('tmp.c', '-5');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->unary($tokenizer->tok, $tokenizer->tok);
@@ -26,7 +28,8 @@ class ParserTest extends TestCase
 
     public function testMul()
     {
-        $tokenizer = new Tokenizer('5 * 2');
+        file_put_contents('tmp.c', '5 * 2');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->mul($tokenizer->tok, $tokenizer->tok);
@@ -36,7 +39,8 @@ class ParserTest extends TestCase
         $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->rhs->kind);
         $this->assertEquals(2, $node->rhs->val);
 
-        $tokenizer = new Tokenizer('5 / 2');
+        file_put_contents('tmp.c', '5 / 2');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->mul($tokenizer->tok, $tokenizer->tok);
@@ -49,14 +53,16 @@ class ParserTest extends TestCase
 
     public function testPrimaryWithBrackets()
     {
-        $tokenizer = new Tokenizer('(5)');
+        file_put_contents('tmp.c', '(5)');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->primary($tokenizer->tok, $tokenizer->tok);
         $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->kind);
         $this->assertEquals(5, $node->val);
 
-        $tokenizer = new Tokenizer('(5 + 2)');
+        file_put_contents('tmp.c', '(5 + 2)');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->primary($tokenizer->tok, $tokenizer->tok);
@@ -69,7 +75,8 @@ class ParserTest extends TestCase
 
     public function testExpr()
     {
-        $tokenizer = new Tokenizer('5 + 2');
+        file_put_contents('tmp.c', '5 + 2');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->expr($tokenizer->tok, $tokenizer->tok);
@@ -82,7 +89,8 @@ class ParserTest extends TestCase
 
     public function testExprWithNegativeValue()
     {
-        $tokenizer = new Tokenizer('-10 + 20');
+        file_put_contents('tmp.c', '-10 + 20');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->expr($tokenizer->tok, $tokenizer->tok);
@@ -97,7 +105,8 @@ class ParserTest extends TestCase
 
     public function testDeclaration()
     {
-        $tokenizer = new Tokenizer('int a=10;');
+        file_put_contents('tmp.c', 'int a=10;');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$declaration, $tok] = $declaration = $parser->declaration($tokenizer->tok, $tokenizer->tok);
@@ -111,7 +120,8 @@ class ParserTest extends TestCase
 
     public function testBlock()
     {
-        $tokenizer = new Tokenizer('int main() { {1; {2;} return 3;} }');
+        file_put_contents('tmp.c', 'int main() { {1; {2;} return 3;} }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -122,7 +132,8 @@ class ParserTest extends TestCase
 
     public function testPointer()
     {
-        $tokenizer = new Tokenizer('int main() { int x=3; int y=5; return *(&x+1); }');
+        file_put_contents('tmp.c', 'int main() { int x=3; int y=5; return *(&x+1); }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -138,7 +149,8 @@ class ParserTest extends TestCase
 
     public function testVariableDefinition()
     {
-        $tokenizer = new Tokenizer('int main() { int x=3; }');
+        file_put_contents('tmp.c', 'int main() { int x=3; }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -150,7 +162,8 @@ class ParserTest extends TestCase
 
     public function testZeroArityFunctionCall()
     {
-        $tokenizer = new Tokenizer('int main() { return ret3(); }');
+        file_put_contents('tmp.c', 'int main() { return ret3(); }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -161,7 +174,8 @@ class ParserTest extends TestCase
 
     public function testFunctionCallWithUpTo6arguments()
     {
-        $tokenizer = new Tokenizer('int main() { return add(3, 5); }');
+        file_put_contents('tmp.c', 'int main() { return add(3, 5); }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -174,7 +188,8 @@ class ParserTest extends TestCase
 
     public function testZeroArityFunctionDefinition()
     {
-        $tokenizer = new Tokenizer('int main(){ return 0; }');
+        file_put_contents('tmp.c', 'int main(){ return 0; }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -187,7 +202,8 @@ class ParserTest extends TestCase
 
     public function testFunctionDefinitionUpTo6parameters()
     {
-        $tokenizer = new Tokenizer('int main() { return add2(3,4); } int add2(int x, int y) { return x+y; }');
+        file_put_contents('tmp.c', 'int main() { return add2(3,4); } int add2(int x, int y) { return x+y; }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -200,7 +216,8 @@ class ParserTest extends TestCase
 
     public function testOneDimensionalArray()
     {
-        $tokenizer = new Tokenizer('int main() { int x[2]; int *y=&x; *y=3; return *x; }');
+        file_put_contents('tmp.c', 'int main() { int x[2]; int *y=&x; *y=3; return *x; }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -215,7 +232,8 @@ class ParserTest extends TestCase
 
     public function testGVar()
     {
-        $tokenizer = new Tokenizer('int x; int main() { return x; }');
+        file_put_contents('tmp.c', 'int x; int main() { return x; }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -227,7 +245,8 @@ class ParserTest extends TestCase
 
     public function testEscapeSequence()
     {
-        $tokenizer = new Tokenizer('int main() { return "\\a"[0]; }');
+        file_put_contents('tmp.c', 'int main() { return "\\a"[0]; }');
+        $tokenizer = new Tokenizer('tmp.c');
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
