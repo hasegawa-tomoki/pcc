@@ -8,6 +8,8 @@ class Console
 {
     public static string $currentInput = '';
     public static string $currentFilename = '';
+    /** @var resource */
+    public static $outputFile;
 
     /**
      * Reports an error message in the following format and exit.
@@ -52,6 +54,6 @@ class Console
 
     public static function out(string $format, ...$args): void
     {
-        printf($format.PHP_EOL, ...$args);
+        fprintf(self::$outputFile, $format.PHP_EOL, ...$args);
     }
 }

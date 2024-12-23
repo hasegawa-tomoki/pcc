@@ -14,7 +14,7 @@ assert() {
   expected="$1"
   input="$2"
 
-  echo "$input" | php pcc.php - > tmp.s
+  echo "$input" | php pcc.php -o tmp.s - || exit
   gcc -static -Wa,--noexecstack -o tmp tmp.s tmp2.o
   ./tmp
   actual="$?"
@@ -26,6 +26,8 @@ assert() {
     exit 1
   fi
 }
+
+./test-driver.sh
 
 assert 0 'int main() { return 0; }'
 assert 42 'int main() { return 42; }'
