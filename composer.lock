@@ -2566,7 +2566,9 @@
     "stability-flags": {},
     "prefer-stable": false,
     "prefer-lowest": false,
-    "platform": {},
+    "platform": {
+        "ext-ctype": "*"
+    },
     "platform-dev": {},
     "plugin-api-version": "2.6.0"
 }
