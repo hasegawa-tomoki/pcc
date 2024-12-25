@@ -19,7 +19,7 @@ reload:
 .PHONY: reload
 
 test:
-	docker compose run --rm php ./test.sh
+	docker compose run --rm php ./vendor/bin/phpunit
 .PHONY: test
 
 clean:

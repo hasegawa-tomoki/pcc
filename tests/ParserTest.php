@@ -126,8 +126,8 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_BLOCK, $prog['main']->body[0]->kind);
-        $this->assertEquals(NodeKind::ND_BLOCK, $prog['main']->body[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_BLOCK, $prog[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_BLOCK, $prog[0]->body[0]->body[0]->kind);
     }
 
     public function testPointer()
@@ -138,13 +138,13 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_ADD, $prog['main']->body[0]->body[2]->lhs->lhs->kind);
-        $this->assertEquals(NodeKind::ND_VAR, $prog['main']->body[0]->body[2]->lhs->lhs->lhs->lhs->kind);
-        $this->assertEquals('x', $prog['main']->body[0]->body[2]->lhs->lhs->lhs->lhs->var->name);
-        $this->assertEquals(TypeKind::TY_PTR, $prog['main']->body[0]->body[2]->lhs->lhs->lhs->ty->kind);
-        $this->assertEquals(NodeKind::ND_MUL, $prog['main']->body[0]->body[2]->lhs->lhs->rhs->kind);
-        $this->assertEquals(1, $prog['main']->body[0]->body[2]->lhs->lhs->rhs->lhs->val);
-        $this->assertEquals(8, $prog['main']->body[0]->body[2]->lhs->lhs->rhs->rhs->val);
+        $this->assertEquals(NodeKind::ND_ADD, $prog[0]->body[0]->body[2]->lhs->lhs->kind);
+        $this->assertEquals(NodeKind::ND_VAR, $prog[0]->body[0]->body[2]->lhs->lhs->lhs->lhs->kind);
+        $this->assertEquals('x', $prog[0]->body[0]->body[2]->lhs->lhs->lhs->lhs->var->name);
+        $this->assertEquals(TypeKind::TY_PTR, $prog[0]->body[0]->body[2]->lhs->lhs->lhs->ty->kind);
+        $this->assertEquals(NodeKind::ND_MUL, $prog[0]->body[0]->body[2]->lhs->lhs->rhs->kind);
+        $this->assertEquals(1, $prog[0]->body[0]->body[2]->lhs->lhs->rhs->lhs->val);
+        $this->assertEquals(8, $prog[0]->body[0]->body[2]->lhs->lhs->rhs->rhs->val);
     }
 
     public function testVariableDefinition()
@@ -155,9 +155,9 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_ASSIGN, $prog['main']->body[0]->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('x', $prog['main']->body[0]->body[0]->body[0]->lhs->lhs->var->name);
-        $this->assertEquals(3, $prog['main']->body[0]->body[0]->body[0]->lhs->rhs->val);
+        $this->assertEquals(NodeKind::ND_ASSIGN, $prog[0]->body[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('x', $prog[0]->body[0]->body[0]->body[0]->lhs->lhs->var->name);
+        $this->assertEquals(3, $prog[0]->body[0]->body[0]->body[0]->lhs->rhs->val);
     }
 
     public function testZeroArityFunctionCall()
@@ -168,8 +168,8 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_FUNCALL, $prog['main']->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('ret3', $prog['main']->body[0]->body[0]->lhs->funcname);
+        $this->assertEquals(NodeKind::ND_FUNCALL, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('ret3', $prog[0]->body[0]->body[0]->lhs->funcname);
     }
 
     public function testFunctionCallWithUpTo6arguments()
@@ -180,10 +180,10 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_FUNCALL, $prog['main']->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('add', $prog['main']->body[0]->body[0]->lhs->funcname);
-        $this->assertEquals(3, $prog['main']->body[0]->body[0]->lhs->args[0]->val);
-        $this->assertEquals(5, $prog['main']->body[0]->body[0]->lhs->args[1]->val);
+        $this->assertEquals(NodeKind::ND_FUNCALL, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('add', $prog[0]->body[0]->body[0]->lhs->funcname);
+        $this->assertEquals(3, $prog[0]->body[0]->body[0]->lhs->args[0]->val);
+        $this->assertEquals(5, $prog[0]->body[0]->body[0]->lhs->args[1]->val);
     }
 
     public function testZeroArityFunctionDefinition()
@@ -194,10 +194,10 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
         
-        $this->assertEquals('main', $prog['main']->name);
-        $this->assertEquals(NodeKind::ND_RETURN, $prog['main']->body[0]->body[0]->kind);
-        $this->assertEquals(NodeKind::ND_NUM, $prog['main']->body[0]->body[0]->lhs->kind);
-        $this->assertEquals(0, $prog['main']->body[0]->body[0]->lhs->val);
+        $this->assertEquals('main', $prog[0]->name);
+        $this->assertEquals(NodeKind::ND_RETURN, $prog[0]->body[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_NUM, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals(0, $prog[0]->body[0]->body[0]->lhs->val);
     }
 
     public function testFunctionDefinitionUpTo6parameters()
@@ -208,10 +208,10 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals('main', $prog['main']->name);
-        $this->assertEquals(NodeKind::ND_RETURN, $prog['main']->body[0]->body[0]->kind);
-        $this->assertEquals(NodeKind::ND_FUNCALL, $prog['main']->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('add2', $prog['main']->body[0]->body[0]->lhs->funcname);
+        $this->assertEquals('main', $prog[0]->name);
+        $this->assertEquals(NodeKind::ND_RETURN, $prog[0]->body[0]->body[0]->kind);
+        $this->assertEquals(NodeKind::ND_FUNCALL, $prog[0]->body[0]->body[0]->lhs->kind);
+        $this->assertEquals('add2', $prog[0]->body[0]->body[0]->lhs->funcname);
     }
 
     public function testOneDimensionalArray()
@@ -222,12 +222,12 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_ASSIGN, $prog['main']->body[0]->body[2]->lhs->kind);
-        $this->assertEquals(NodeKind::ND_DEREF, $prog['main']->body[0]->body[2]->lhs->lhs->kind);
-        $this->assertEquals(TypeKind::TY_PTR, $prog['main']->body[0]->body[2]->lhs->lhs->lhs->ty->kind);
-        $this->assertEquals('y', $prog['main']->body[0]->body[2]->lhs->lhs->lhs->var->name);
-        $this->assertEquals(NodeKind::ND_NUM, $prog['main']->body[0]->body[2]->lhs->rhs->kind);
-        $this->assertEquals(3, $prog['main']->body[0]->body[2]->lhs->rhs->val);
+        $this->assertEquals(NodeKind::ND_ASSIGN, $prog[0]->body[0]->body[2]->lhs->kind);
+        $this->assertEquals(NodeKind::ND_DEREF, $prog[0]->body[0]->body[2]->lhs->lhs->kind);
+        $this->assertEquals(TypeKind::TY_PTR, $prog[0]->body[0]->body[2]->lhs->lhs->lhs->ty->kind);
+        $this->assertEquals('y', $prog[0]->body[0]->body[2]->lhs->lhs->lhs->var->name);
+        $this->assertEquals(NodeKind::ND_NUM, $prog[0]->body[0]->body[2]->lhs->rhs->kind);
+        $this->assertEquals(3, $prog[0]->body[0]->body[2]->lhs->rhs->val);
     }
 
     public function testGVar()
@@ -238,9 +238,9 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(TypeKind::TY_INT, $prog['x']->ty->kind);
-        $this->assertEquals('x', $prog['x']->name);
-        $this->assertFalse($prog['x']->isFunction);
+        $this->assertEquals(TypeKind::TY_INT, $prog[0]->ty->kind);
+        $this->assertEquals('x', $prog[0]->name);
+        $this->assertFalse($prog[0]->isFunction);
     }
 
     public function testEscapeSequence()
@@ -251,6 +251,6 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(chr(7), $prog['.L..0']->initData);
+        $this->assertEquals(chr(7), $prog[1]->initData);
     }
 }
