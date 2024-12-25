@@ -257,7 +257,7 @@ class CodeGenerator
      */
     public function emitData(array $prog): void
     {
-        foreach ($prog as $var){
+        foreach (array_reverse($prog) as $var){
             if ($var->isFunction){
                 continue;
             }
@@ -266,10 +266,11 @@ class CodeGenerator
             Console::out("  .globl %s", $var->name);
             Console::out("%s:", $var->name);
 
-            if ($var->initData){
+            if (! is_null($var->initData)){
                 for ($i = 0; $i < strlen($var->initData); $i++){
                     Console::out("  .byte %d", ord($var->initData[$i]));
                 }
+                Console::out("  .byte 0");
             } else {
                 Console::out("  .zero %d", $var->ty->size);
             }

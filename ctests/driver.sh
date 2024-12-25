@@ -14,12 +14,12 @@ check() {
 
 # -o
 rm -f $tmp/out
-php pcc.php -o $tmp/out $tmp/empty.c
+php ../pcc.php -o $tmp/out $tmp/empty.c
 [ -f $tmp/out ]
 check -o
 
 # --help
-php pcc.php --help 2>&1 | grep -q pcc
+php ../pcc.php --help 2>&1 | grep -q pcc
 check --help
 
 echo OK

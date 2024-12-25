@@ -25,3 +25,11 @@ test:
 clean:
 	docker compose down
 .PHONY: clean
+
+ctest:
+	docker compose run --rm php ./ctest.sh test
+.PHONY: ctest
+
+cclean:
+	docker compose run --rm php ./ctest.sh clean
+.PHONY: cclean
