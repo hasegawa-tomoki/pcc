@@ -24,7 +24,6 @@ class Tokenizer
             return $this->tokens[0];
         }
     }
-    public array $escapeChars = [];
     public string $currentInput;
 
     public function __construct(
@@ -45,17 +44,6 @@ class Tokenizer
 
         Console::$currentFilename = $currentFilename;
         Console::$currentInput = $this->currentInput;
-
-        $this->escapeChars = [
-            '\a' => chr(7),
-            '\b' => chr(8),
-            '\t' => "\t",
-            '\n' => "\n",
-            '\v' => "\v",
-            '\f' => "\f",
-            '\r' => "\r",
-            '\e' => chr(27),
-        ];
     }
 
     public function equal(Token $tok, string $op): bool
@@ -94,38 +82,62 @@ class Tokenizer
         return $this->isIdent1($c) or preg_match('/^[0-9]/', $c);
     }
 
+    public function stringLiteralEndPos(int $pos): int
+    {
+        for ($i = $pos; $i < strlen($this->currentInput); $i++){
+            if ($this->currentInput[$i] === '"'){
+                return $i;
+            }
+            if ($this->currentInput[$i] === '\\'){
+                $i++;
+            }
+        }
+        Console::errorAt($pos, "unclosed string literal");
+    }
+
     /**
      * @param int $start
      * @return array{0: \Pcc\Tokenizer\Token, 1: int}
      */
     public function readStringLiteral(int $start): array
     {
-        $pos = $start + 1;
-        while ($pos < strlen($this->currentInput) and $this->currentInput[$pos] !== '"'){
-            if ($this->currentInput[$pos] === "\n"){
-                Console::errorAt($pos, "unclosed string literal");
+        $endPos = $this->stringLiteralEndPos($start + 1);
+
+        $str = '';
+        for ($i = $start + 1; $i < $endPos; $i++){
+            if ($this->currentInput[$i] === '\\'){
+                // Octal number
+                if (preg_match('/\\\\([0-7]{1, 3})/', substr($this->currentInput, $i, 4), $matches)){
+                    $str .= chr(octdec($matches[1]));
+                    $i += strlen($matches[1]) + 1;
+                    continue;
+                }
+                // Hexadecimal number
+                if (preg_match('/\\\\x([0-9a-fA-F]+)/', substr($this->currentInput, $i, 4), $matches)){
+                    $str .= chr(hexdec($matches[1]));
+                    $i += strlen($matches[1]) + 2;
+                    continue;
+                }
+                $i++;
+                $str .= match ($this->currentInput[$i]){
+                    'a' => chr(7),
+                    'b' => chr(8),
+                    't' => "\t",
+                    'n' => "\n",
+                    'v' => "\v",
+                    'f' => "\f",
+                    'r' => "\r",
+                    'e' => chr(27),
+                    default => $this->currentInput[$i],
+                };
+            } else {
+                $str .= $this->currentInput[$i];
             }
-            $pos++;
         }
-        if ($pos >= strlen($this->currentInput)){
-            Console::errorAt($pos, "unclosed string literal");
-        }
-        $str =substr($this->currentInput, $start + 1, $pos - $start - 1);
-        $tok = new Token(TokenKind::TK_STR, $str, $pos + 1);
 
-        // Octal number
-        $tok->str = preg_replace_callback('/\\\\([0-7]{1, 3})/', fn($matches) => chr(octdec($matches[1])), $tok->str);
-        // Hexadecimal number
-        $tok->str = preg_replace_callback('/\\\\x([0-9a-fA-F]+)/', fn($matches) => chr(hexdec($matches[1])), $tok->str);
-        // Escape chars
-        foreach ($this->escapeChars as $key => $val){
-            $tok->str = str_replace($key, $val, $tok->str);
-        }
-        // Single char
-        $tok->str = preg_replace('/\\\\(.)/', '$1', $tok->str);
-
+        $tok = new Token(TokenKind::TK_STR, $str, $endPos + 1);
         $tok->ty = Type::arrayOf(Type::tyChar(), strlen($tok->str) + 1);
-        return [$tok, $pos + 1];
+        return [$tok, $endPos + 1];
     }
 
     public function convertKeywords(): void
