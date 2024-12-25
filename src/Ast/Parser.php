@@ -9,10 +9,13 @@ use Pcc\Tokenizer\TokenKind;
 
 class Parser
 {
-    /** @var array<string, \Pcc\Ast\Obj> */
+    /** @var array<int, \Pcc\Ast\Obj> */
     public array $locals = [];
-    /** @var array<string, \Pcc\Ast\Obj> */
+    /** @var array<int, \Pcc\Ast\Obj> */
     public array $globals = [];
+    /** @var array<int, \Pcc\Ast\VarScope> */
+    public array $varScopes = [];
+    public int $scopeDepth = 0;
 
     public function __construct(
         private readonly Tokenizer $tokenizer,
@@ -20,14 +23,25 @@ class Parser
     {
     }
 
+    public function enterScope(): void
+    {
+        $this->scopeDepth++;
+    }
+
+    public function leaveScope(): void
+    {
+        $this->scopeDepth--;
+        while (count($this->varScopes) > 0 and $this->varScopes[0]->depth > $this->scopeDepth){
+            array_shift($this->varScopes);
+        }
+    }
+
     public function findVar(Token $tok): ?Obj
     {
-        $name = $tok->str;
-        if (isset($this->locals[$name])){
-            return $this->locals[$name];
-        }
-        if (isset($this->globals[$name])){
-            return $this->globals[$name];
+        foreach ($this->varScopes as $sc){
+            if ($sc->var->name === $tok->str){
+                return $sc->var;
+            }
         }
 
         return null;
@@ -41,27 +55,38 @@ class Parser
         return $node;
     }
 
+    public function pushScope(string $name, Obj $var): VarScope
+    {
+        $sc = new VarScope();
+        $sc->name = $name;
+        $sc->var = $var;
+        $sc->depth = $this->scopeDepth;
+
+        array_unshift($this->varScopes, $sc);
+        return $sc;
+    }
+
     public function newVar(string $name, Type $ty): Obj
     {
         $var = new Obj($name);
         $var->ty = $ty;
+        $this->pushScope($name, $var);
         return $var;
     }
 
     public function newLvar(string $name, Type $ty): Obj
     {
-        $var = new Obj($name);
-        $var->ty = $ty;
+        $var = $this->newVar($name, $ty);
         $var->isLocal = true;
-        $this->locals[$name] = $var;
+        $this->locals[] = $var;
         return $var;
     }
 
     public function newGVar(string $name, Type $ty): Obj
     {
-        $var = new Obj($name);
-        $var->ty = $ty;
-        $this->globals[$name] = $var;
+        $var = $this->newVar($name, $ty);
+        $var->isLocal = false;
+        $this->globals[] = $var;
         return $var;
     }
 
@@ -312,6 +337,8 @@ class Parser
     {
         $node = Node::newNode(NodeKind::ND_BLOCK, $tok);
 
+        $this->enterScope();
+
         $nodes = [];
         while (! $this->tokenizer->equal($tok, '}')){
             if ($tok->isTypeName()){
@@ -322,6 +349,8 @@ class Parser
             $n->addType();
             $nodes[] = $n;
         }
+
+        $this->leaveScope();
 
         $node->body = $nodes;
         return [$node, $tok->next];
@@ -717,6 +746,7 @@ class Parser
         $fn->isFunction = true;
 
         $this->locals = [];
+        $this->enterScope();
 
         $this->createParamLVars($ty->params);
         $fn->params = $this->locals;
@@ -724,7 +754,9 @@ class Parser
         $tok = $this->tokenizer->skip($tok, '{');
         [$compoundStmt, $tok] = $this->compoundStmt($tok, $tok);
         $fn->body = [$compoundStmt];
+
         $fn->locals = $this->locals;
+        $this->leaveScope();
 
         return $tok;
     }
