@@ -526,7 +526,6 @@ class Parser
         }
 
         Console::errorTok($tok, 'invalid operands');
-        return null;
     }
 
     /**
@@ -725,7 +724,6 @@ class Parser
         }
 
         Console::errorTok($tok, 'expected an expression');
-        return [];
     }
 
     /**
