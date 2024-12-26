@@ -10,6 +10,7 @@ class Token
     public int $val;
     public string $str;
     public int $pos;
+    public int $lineNo;
     public int $len {
         get {
             return strlen($this->str);

@@ -149,6 +149,21 @@ class Tokenizer
         }
     }
 
+    public function addLineNumbers(): void
+    {
+        $tok = $this->tokens[0];
+        $lineNo = 1;
+        for ($pos = 0; $pos < strlen($this->currentInput); $pos++){
+            if ($pos === $tok->pos){
+                $tok->lineNo = $lineNo;
+                $tok = $tok->next;
+            }
+            if ($this->currentInput[$pos] === "\n") {
+                $lineNo++;
+            }
+        }
+    }
+
     public function tokenize(): void
     {
         $pos = 0;
@@ -206,7 +221,7 @@ class Tokenizer
                 while ($pos < strlen($this->currentInput) && $this->isIdent2($this->currentInput[$pos])){
                     $pos++;
                 }
-                $tokens[] = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $start, $pos - $start), $pos);
+                $tokens[] = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $start, $pos - $start), $start);
                 continue;
             }
 
@@ -230,6 +245,7 @@ class Tokenizer
         for ($i = 0; $i < count($this->tokens) - 1; $i++){
             $this->tokens[$i]->next = $this->tokens[$i + 1];
         }
+        $this->addLineNumbers();
         $this->convertKeywords();
     }
 }
