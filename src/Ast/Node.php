@@ -119,7 +119,7 @@ class Node
             case NodeKind::ND_LE:
             case NodeKind::ND_NUM:
             case NodeKind::ND_FUNCALL:
-                $this->ty = Type::tyInt();
+                $this->ty = Type::tyLong();
                 return;
             case NodeKind::ND_VAR:
                 $this->ty = $this->var->ty;

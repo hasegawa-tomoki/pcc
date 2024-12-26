@@ -153,7 +153,7 @@ class Parser
     }
 
     /**
-     * typespec = "char" | "int" | struct-decl
+     * typespec = "char" | "short" | "int" | "long" | struct-decl | union-decl
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -167,6 +167,10 @@ class Parser
 
         if ($this->tokenizer->equal($tok, 'int')){
             return [Type::tyInt(), $tok->next];
+        }
+
+        if ($this->tokenizer->equal($tok, 'long')){
+            return [Type::tyLong(), $tok->next];
         }
 
         if ($this->tokenizer->equal($tok, 'struct')){

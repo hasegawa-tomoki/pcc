@@ -113,7 +113,7 @@ class CodeGenerator
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
             case NodeKind::ND_NUM:
-                Console::out("  mov \$%d, %%rax", $node->val);
+                Console::out("  mov \$%ld, %%rax", $node->val);
                 return;
             case NodeKind::ND_NEG:
                 $this->genExpr($node->lhs);

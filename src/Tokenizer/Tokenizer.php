@@ -10,16 +10,8 @@ class Tokenizer
     /** @var Token[] */
     public array $tokens;
     public array $keywords = [
-        'return',
-        'if',
-        'else',
-        'for',
-        'while',
-        'int',
-        'sizeof',
-        'char',
-        'struct',
-        'union',
+        'return', 'if', 'else', 'for', 'while', 'int', 'sizeof', 'char',
+        'struct', 'union', 'short', 'long',
     ];
     public Token $tok {
         get {

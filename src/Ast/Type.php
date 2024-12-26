@@ -44,6 +44,14 @@ class Type
         return $ty;
     }
 
+    public static function tyLong(): Type
+    {
+        $ty = new Type(TypeKind::TY_LONG);
+        $ty->size = 8;
+        $ty->align = 8;
+        return $ty;
+    }
+
     public static function tyChar(): Type
     {
         $ty = new Type(TypeKind::TY_CHAR);
@@ -54,7 +62,7 @@ class Type
 
     public function isInteger(): bool
     {
-        return $this->kind === TypeKind::TY_CHAR or $this->kind === TypeKind::TY_INT;
+        return $this->kind === TypeKind::TY_CHAR or $this->kind === TypeKind::TY_INT or $this->kind === TypeKind::TY_LONG;
     }
 
     public static function pointerTo(Type $base):Type
