@@ -38,7 +38,7 @@ class Pcc
         $prog = $parser->parse();
 
         $codeGenerator = new CodeGenerator();
-        $codeGenerator->gen($prog, $fpOut);
+        $codeGenerator->gen($prog);
 
         return 0;
     }
