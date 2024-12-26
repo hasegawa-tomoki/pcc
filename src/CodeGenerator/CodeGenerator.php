@@ -16,6 +16,8 @@ class CodeGenerator
     /** @var string[] */
     public array $argreg8 = ['%dil', '%sil', '%dl', '%cl', '%r8b', '%r9b'];
     /** @var string[] */
+    public array $argreg16 = ['%di', '%si', '%dx', '%cx', '%r8w', '%r9w'];
+    /** @var string[] */
     public array $argreg32 = ['%edi', '%esi', '%edx', '%ecx', '%r8d', '%r9d'];
     /** @var string[]  */
     public array $argreg64 = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
@@ -76,9 +78,11 @@ class CodeGenerator
             return;
         }
 
-        if ($ty->size == 1) {
+        if ($ty->size === 1) {
             Console::out("  movsbq (%%rax), %%rax");
-        } elseif ($ty->size == 4) {
+        } elseif ($ty->size === 2) {
+            Console::out("  movswq (%%rax), %%rax");
+        } elseif ($ty->size === 4) {
             Console::out("  movsxd (%%rax), %%rax");
         } else {
             Console::out("  mov (%%rax), %%rax");
@@ -97,9 +101,11 @@ class CodeGenerator
             return;
         }
 
-        if ($ty->size == 1){
+        if ($ty->size === 1){
             Console::out("  mov %%al, (%%rdi)");
-        } elseif ($ty->size == 4){
+        } elseif ($ty->size === 2){
+            Console::out("  mov %%ax, (%%rdi)");
+        } elseif ($ty->size === 4){
             Console::out("  mov %%eax, (%%rdi)");
         } else {
             Console::out("  mov %%rax, (%%rdi)");
@@ -311,6 +317,9 @@ class CodeGenerator
         switch($sz){
             case 1:
                 Console::out("  mov %s, %d(%%rbp)", $this->argreg8[$r], $offset);
+                return;
+            case 2:
+                Console::out("  mov %s, %d(%%rbp)", $this->argreg16[$r], $offset);
                 return;
             case 4:
                 Console::out("  mov %s, %d(%%rbp)", $this->argreg32[$r], $offset);

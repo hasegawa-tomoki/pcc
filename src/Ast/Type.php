@@ -28,11 +28,19 @@ class Type
         $this->base = $base;
     }
 
-    public static function newType(TypeKind $kind, int $size, int $align): Type
+    public static function tyChar(): Type
     {
-        $ty = new Type($kind);
-        $ty->size = $size;
-        $ty->align = $align;
+        $ty = new Type(TypeKind::TY_CHAR);
+        $ty->size = 1;
+        $ty->align = 1;
+        return $ty;
+    }
+
+    public static function tyShort(): Type
+    {
+        $ty = new Type(TypeKind::TY_SHORT);
+        $ty->size = 2;
+        $ty->align = 2;
         return $ty;
     }
 
@@ -52,17 +60,23 @@ class Type
         return $ty;
     }
 
-    public static function tyChar(): Type
+    public static function newType(TypeKind $kind, int $size, int $align): Type
     {
-        $ty = new Type(TypeKind::TY_CHAR);
-        $ty->size = 1;
-        $ty->align = 1;
+        $ty = new Type($kind);
+        $ty->size = $size;
+        $ty->align = $align;
         return $ty;
     }
 
     public function isInteger(): bool
     {
-        return $this->kind === TypeKind::TY_CHAR or $this->kind === TypeKind::TY_INT or $this->kind === TypeKind::TY_LONG;
+        $intTypes = [
+            TypeKind::TY_CHAR,
+            TypeKind::TY_SHORT,
+            TypeKind::TY_INT,
+            TypeKind::TY_LONG,
+        ];
+        return in_array($this->kind, $intTypes);
     }
 
     public static function pointerTo(Type $base):Type

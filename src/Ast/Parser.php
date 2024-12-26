@@ -165,6 +165,10 @@ class Parser
             return [Type::tyChar(), $tok->next];
         }
 
+        if ($this->tokenizer->equal($tok, 'short')){
+            return [Type::tyShort(), $tok->next];
+        }
+
         if ($this->tokenizer->equal($tok, 'int')){
             return [Type::tyInt(), $tok->next];
         }
