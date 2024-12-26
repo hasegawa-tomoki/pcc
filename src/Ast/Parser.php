@@ -2,6 +2,9 @@
 
 namespace Pcc\Ast;
 
+use Pcc\Ast\Scope\Scope;
+use Pcc\Ast\Scope\TagScope;
+use Pcc\Ast\Scope\VarScope;
 use Pcc\Console;
 use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\Tokenizer;
@@ -13,34 +16,49 @@ class Parser
     public array $locals = [];
     /** @var array<int, \Pcc\Ast\Obj> */
     public array $globals = [];
-    /** @var array<int, \Pcc\Ast\VarScope> */
-    public array $varScopes = [];
+    /** @var array<int, \Pcc\Ast\Scope\Scope> */
+    public array $scopes = [];
     public int $scopeDepth = 0;
 
     public function __construct(
         private readonly Tokenizer $tokenizer,
     )
     {
+        $this->scopes[] = new Scope();
     }
 
     public function enterScope(): void
     {
+        array_unshift($this->scopes, new Scope());
         $this->scopeDepth++;
     }
 
     public function leaveScope(): void
     {
+        array_shift($this->scopes);
         $this->scopeDepth--;
-        while (count($this->varScopes) > 0 and $this->varScopes[0]->depth > $this->scopeDepth){
-            array_shift($this->varScopes);
-        }
     }
 
     public function findVar(Token $tok): ?Obj
     {
-        foreach ($this->varScopes as $sc){
-            if ($sc->var->name === $tok->str){
-                return $sc->var;
+        foreach ($this->scopes as $sc){
+            foreach ($sc->vars as $vsc){
+                if ($vsc->name === $tok->str){
+                    return $vsc->var;
+                    }
+            }
+        }
+
+        return null;
+    }
+
+    public function findTag(Token $tok): ?TagScope
+    {
+        foreach ($this->scopes as $sc){
+            foreach ($sc->tags as $tsc){
+                if ($tsc->name === $tok->str){
+                    return $tsc;
+                }
             }
         }
 
@@ -62,7 +80,7 @@ class Parser
         $sc->var = $var;
         $sc->depth = $this->scopeDepth;
 
-        array_unshift($this->varScopes, $sc);
+        array_unshift($this->scopes[0]->vars, $sc);
         return $sc;
     }
 
@@ -122,6 +140,16 @@ class Parser
             Console::errorTok($tok, "expected a number");
         }
         return $tok->val;
+    }
+
+    public function pushTagScope(Token $tok, Type $ty): void
+    {
+        $sc = new TagScope();
+        $sc->name = $tok->str;
+        $sc->depth = $this->scopeDepth;
+        $sc->ty = $ty;
+
+        array_unshift($this->scopes[0]->tags, $sc);
     }
 
     /**
@@ -667,10 +695,22 @@ class Parser
      */
     public function structDecl(Token $rest, Token $tok): array
     {
-        $tok = $this->tokenizer->skip($tok, '{');
+        $tag = null;
+        if ($tok->isKind(TokenKind::TK_IDENT)){
+            $tag = $tok;
+            $tok = $tok->next;
+        }
+
+        if ($tag and (! $this->tokenizer->equal($tok, '{'))){
+            $sc = $this->findTag($tag);
+            if (! $sc){
+                Console::errorTok($tag, 'unknown struct type');
+            }
+            return [$sc->ty, $tok];
+        }
 
         $ty = new Type(TypeKind::TY_STRUCT);
-        $rest = $this->structMembers($rest, $tok, $ty);
+        $rest = $this->structMembers($rest, $tok->next, $ty);
         $ty->align = 1;
 
         $offset = 0;
@@ -684,6 +724,10 @@ class Parser
             }
         }
         $ty->size = Align::alignTo($offset, $ty->align);
+
+        if ($tag){
+            $this->pushTagScope($tag, $ty);
+        }
 
         return [$ty, $rest];
     }

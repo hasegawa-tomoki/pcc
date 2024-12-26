@@ -1,5 +1,7 @@
 <?php
-namespace Pcc\Ast;
+namespace Pcc\Ast\Scope;
+
+use Pcc\Ast\Obj;
 
 class VarScope
 {
