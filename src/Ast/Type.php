@@ -8,6 +8,7 @@ class Type
 {
     public TypeKind $kind;
     public int $size;
+    public int $align;
     // Pointer
     public ?Type $base;
     // Declaration
@@ -27,10 +28,19 @@ class Type
         $this->base = $base;
     }
 
+    public static function newType(TypeKind $kind, int $size, int $align): Type
+    {
+        $ty = new Type($kind);
+        $ty->size = $size;
+        $ty->align = $align;
+        return $ty;
+    }
+
     public static function tyInt(): Type
     {
         $ty = new Type(TypeKind::TY_INT);
         $ty->size = 8;
+        $ty->align = 8;
         return $ty;
     }
 
@@ -38,6 +48,7 @@ class Type
     {
         $ty = new Type(TypeKind::TY_CHAR);
         $ty->size = 1;
+        $ty->align = 1;
         return $ty;
     }
 
@@ -50,6 +61,7 @@ class Type
     {
         $type = new Type(TypeKind::TY_PTR, $base);
         $type->size = 8;
+        $type->align = 8;
         return $type;
     }
 
@@ -60,8 +72,8 @@ class Type
 
     public static function arrayOf(Type $base, int $len): Type
     {
-        $ty = new Type(TypeKind::TY_ARRAY, $base);
-        $ty->size = $base->size * $len;
+        $ty = self::newType(TypeKind::TY_ARRAY, $base->size * $len, $base->align);
+        $ty->base = $base;
         $ty->arrayLen = $len;
         return $ty;
     }

@@ -671,13 +671,19 @@ class Parser
 
         $ty = new Type(TypeKind::TY_STRUCT);
         $rest = $this->structMembers($rest, $tok, $ty);
+        $ty->align = 1;
 
         $offset = 0;
         foreach ($ty->members as $mem){
+            $offset = Align::alignTo($offset, $mem->ty->align);
             $mem->offset = $offset;
             $offset += $mem->ty->size;
+
+            if ($ty->align < $mem->ty->align){
+                $ty->align = $mem->ty->align;
+            }
         }
-        $ty->size = $offset;
+        $ty->size = Align::alignTo($offset, $ty->align);
 
         return [$ty, $rest];
     }

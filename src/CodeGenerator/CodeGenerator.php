@@ -2,6 +2,7 @@
 
 namespace Pcc\CodeGenerator;
 
+use Pcc\Ast\Align;
 use Pcc\Ast\Obj;
 use Pcc\Ast\Node;
 use Pcc\Ast\NodeKind;
@@ -36,10 +37,6 @@ class CodeGenerator
         $this->depth--;
     }
 
-    public function alignTo(int $n, int $align): int
-    {
-        return intval(($n + $align - 1) / $align) * $align;
-    }
     public function genAddr(Node $node): void
     {
         /** @noinspection PhpUncoveredEnumCasesInspection */
@@ -262,7 +259,7 @@ class CodeGenerator
                 $offset += $var->ty->size;
                 $var->offset = -1 * $offset;
             }
-            $fn->stackSize = $this->alignTo($offset, 16);
+            $fn->stackSize = Align::alignTo($offset, 16);
         }
 
         return $funcs;
