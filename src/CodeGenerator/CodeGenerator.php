@@ -257,6 +257,7 @@ class CodeGenerator
             $offset = 0;
             foreach (array_reverse($fn->locals) as $var){
                 $offset += $var->ty->size;
+                $offset = Align::alignTo($offset, $var->ty->align);
                 $var->offset = -1 * $offset;
             }
             $fn->stackSize = Align::alignTo($offset, 16);
