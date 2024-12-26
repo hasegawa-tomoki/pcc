@@ -376,7 +376,7 @@ class Parser
     }
 
     /**
-     * expr = assign
+     * expr = assign ("," expr)?
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -384,7 +384,15 @@ class Parser
      */
     public function expr(Token $rest, Token $tok): array
     {
-        return $this->assign($rest, $tok);
+        [$node, $tok] = $this->assign($tok, $tok);
+
+        if ($this->tokenizer->equal($tok, ',')){
+            [$expr, $rest] = $this->expr($rest, $tok->next);
+            $node = Node::newBinary(NodeKind::ND_COMMA, $node, $expr, $tok);
+            return [$node, $rest];
+        }
+        $rest = $tok;
+        return [$node, $rest];
     }
 
     /**

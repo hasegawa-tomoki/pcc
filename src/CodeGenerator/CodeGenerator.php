@@ -57,6 +57,10 @@ class CodeGenerator
             case NodeKind::ND_DEREF:
                 $this->genExpr($node->lhs);
                 return;
+            case NodeKind::ND_COMMA:
+                $this->genExpr($node->lhs);
+                $this->genAddr($node->rhs);
+                return;
         }
 
         Console::errorTok($node->tok, 'not an lvalue');
@@ -121,6 +125,10 @@ class CodeGenerator
                 foreach ($node->body as $node){
                     $this->genStmt($node);
                 }
+                return;
+            case NodeKind::ND_COMMA:
+                $this->genExpr($node->lhs);
+                $this->genExpr($node->rhs);
                 return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){

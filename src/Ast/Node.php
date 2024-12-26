@@ -122,6 +122,9 @@ class Node
             case NodeKind::ND_VAR:
                 $this->ty = $this->var->ty;
                 return;
+            case NodeKind::ND_COMMA:
+                $this->ty = $this->rhs->ty;
+                return;
             case NodeKind::ND_ADDR:
                 if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){
                     $this->ty = Type::pointerTo($this->lhs->ty->base);
