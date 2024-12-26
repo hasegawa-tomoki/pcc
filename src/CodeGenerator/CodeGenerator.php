@@ -70,7 +70,7 @@ class CodeGenerator
     // Load a value from where %rax is pointing to.
     public function load(Type $ty): void
     {
-        if ($ty->kind === TypeKind::TY_ARRAY){
+        if ($ty->kind === TypeKind::TY_ARRAY || $ty->kind === TypeKind::TY_STRUCT || $ty->kind === TypeKind::TY_UNION){
             return;
         }
 
@@ -84,6 +84,14 @@ class CodeGenerator
     public function store(Type $ty): void
     {
         $this->pop('%rdi');
+
+        if ($ty->kind === TypeKind::TY_STRUCT || $ty->kind === TypeKind::TY_UNION){
+            for ($i = 0; $i < $ty->size; $i++){
+                Console::out("  mov %d(%%rax), %%r8b", $i);
+                Console::out("  mov %%r8b, %d(%%rdi)", $i);
+            }
+            return;
+        }
 
         if ($ty->size == 1){
             Console::out("  mov %%al, (%%rdi)");
