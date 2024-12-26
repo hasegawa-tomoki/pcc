@@ -338,7 +338,7 @@ class CodeGenerator
     public function emitText(array $prog): void
     {
         foreach ($prog as $fn){
-            if (! $fn->isFunction){
+            if ((! $fn->isFunction) or (! $fn->isDefinition)){
                 continue;
             }
 

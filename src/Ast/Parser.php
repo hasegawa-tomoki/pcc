@@ -962,8 +962,15 @@ class Parser
     public function func(Token $tok, Type $basety): Token
     {
         [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+
         $fn = $this->newGVar($this->getIdent($ty->name), $ty);
         $fn->isFunction = true;
+        [$consumed, $tok] = $this->tokenizer->consume($tok, ';');
+        $fn->isDefinition = (! $consumed);
+
+        if (! $fn->isDefinition){
+            return $tok;
+        }
 
         $this->locals = [];
         $this->enterScope();
