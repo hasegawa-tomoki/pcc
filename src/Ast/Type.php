@@ -14,6 +14,8 @@ class Type
     public Token $name;
     // Array
     public int $arrayLen;
+    /** @var \Pcc\Ast\Member[] */
+    public array $members;
     // Function type
     public ?Type $returnTy;
     /** @var \Pcc\Ast\Type[] */

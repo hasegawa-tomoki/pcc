@@ -61,6 +61,10 @@ class CodeGenerator
                 $this->genExpr($node->lhs);
                 $this->genAddr($node->rhs);
                 return;
+            case NodeKind::ND_MEMBER:
+                $this->genAddr($node->lhs);
+                Console::out("  add $%d, %%rax", $node->member->offset);
+                return;
         }
 
         Console::errorTok($node->tok, 'not an lvalue');
@@ -105,6 +109,7 @@ class CodeGenerator
                 Console::out("  neg %%rax");
                 return;
             case NodeKind::ND_VAR:
+            case NodeKind::ND_MEMBER:
                 $this->genAddr($node);
                 $this->load($node->ty);
                 return;

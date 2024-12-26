@@ -125,19 +125,27 @@ class Parser
     }
 
     /**
-     * declspec = "char" | "int"
+     * typespec = "char" | "int" | struct-decl
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
      */
-    public function declspec(Token $rest, Token $tok): array
+    public function typespec(Token $rest, Token $tok): array
     {
         if ($this->tokenizer->equal($tok, 'char')){
             return [Type::tyChar(), $tok->next];
         }
 
-        return [Type::tyInt(), $this->tokenizer->skip($tok, 'int')];
+        if ($this->tokenizer->equal($tok, 'int')){
+            return [Type::tyInt(), $tok->next];
+        }
+
+        if ($this->tokenizer->equal($tok, 'struct')){
+            return $this->structDecl($rest, $tok->next);
+        }
+
+        Console::errorTok($tok, 'typename expected');
     }
 
     /**
@@ -156,7 +164,7 @@ class Parser
             if (count($params) > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
-            [$basety, $tok] = $this->declspec($tok, $tok);
+            [$basety, $tok] = $this->typespec($tok, $tok);
             [$type, $tok] = $this->declarator($tok, $tok, $basety);
             $params[] = $type;
         }
@@ -228,7 +236,7 @@ class Parser
      */
     public function declaration(Token $rest, Token $tok): array
     {
-        [$basety, $tok] = $this->declspec($tok, $tok);
+        [$basety, $tok] = $this->typespec($tok, $tok);
 
         $i = 0;
         $nodes = [];
@@ -622,8 +630,82 @@ class Parser
         return $this->postfix($rest, $tok);
     }
 
+    // struct-members = (typespec declarator (","  declarator)* ";")*
+    public function structMembers(Token $rest, Token $tok, Type $ty): Token
+    {
+        $members = [];
+
+        while (! $this->tokenizer->equal($tok, '}')){
+            [$basety, $tok] = $this->typespec($tok, $tok);
+            $i = 0;
+            while (
+                [$consumed, $tok] = $this->tokenizer->consume($tok, ';') and
+                (! $consumed)
+            ){
+                if ($i++){
+                    $tok = $this->tokenizer->skip($tok, ',');
+                }
+
+                [$declarator, $tok] = $this->declarator($tok, $tok, $basety);
+
+                $mem = new Member();
+                $mem->ty = $declarator;
+                $mem->name = $mem->ty->name;
+                $members[] = $mem;
+            }
+        }
+        $ty->members = $members;
+        return $tok->next;
+    }
+
     /**
-     * postfix = primary ("[" expr "]")*
+     * struct-decl = "{" struct-members
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function structDecl(Token $rest, Token $tok): array
+    {
+        $tok = $this->tokenizer->skip($tok, '{');
+
+        $ty = new Type(TypeKind::TY_STRUCT);
+        $rest = $this->structMembers($rest, $tok, $ty);
+
+        $offset = 0;
+        foreach ($ty->members as $mem){
+            $mem->offset = $offset;
+            $offset += $mem->ty->size;
+        }
+        $ty->size = $offset;
+
+        return [$ty, $rest];
+    }
+
+    public function getStructMember(Type $ty, Token $tok): Member
+    {
+        foreach ($ty->members as $mem){
+            if ($mem->name->str === $tok->str){
+                return $mem;
+            }
+        }
+        Console::errorTok($tok, 'no such member');
+    }
+
+    public function structRef(Node $lhs, Token $tok): Node
+    {
+        $lhs->addType();
+        if ($lhs->ty->kind !== TypeKind::TY_STRUCT){
+            Console::errorTok($tok, 'not a struct');
+        }
+
+        $node = Node::newUnary(NodeKind::ND_MEMBER, $lhs, $tok);
+        $node->member = $this->getStructMember($lhs->ty, $tok);
+        return $node;
+    }
+
+    /**
+     * postfix = primary ("[" expr "]") | "." ident)*
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -633,15 +715,24 @@ class Parser
     {
         [$node, $tok] = $this->primary($tok, $tok);
 
-        while ($this->tokenizer->equal($tok, '[')){
-            // x[y] is short for *(x+y)
-            $start = $tok;
-            [$idx, $tok] = $this->expr($tok, $tok->next);
-            $tok = $this->tokenizer->skip($tok, ']');
-            $node = Node::newUnary(NodeKind::ND_DEREF, $this->newAdd($node, $idx, $start), $start);
-        }
+        for (;;){
+            if ($this->tokenizer->equal($tok, '[')){
+                // x[y] is short for *(x+y)
+                $start = $tok;
+                [$idx, $tok] = $this->expr($tok, $tok->next);
+                $tok = $this->tokenizer->skip($tok, ']');
+                $node = Node::newUnary(NodeKind::ND_DEREF, $this->newAdd($node, $idx, $start), $start);
+                continue;
+            }
 
-        return [$node, $tok];
+            if ($this->tokenizer->equal($tok, '.')){
+                $node = $this->structRef($node, $tok->next);
+                $tok = $tok->next->next;
+                continue;
+            }
+
+            return [$node, $tok];
+        }
     }
 
     /**
@@ -805,7 +896,7 @@ class Parser
         $this->globals = [];
 
         while (! $tok->isKind(TokenKind::TK_EOF)){
-            [$basety, $tok] = $this->declspec($tok, $tok);
+            [$basety, $tok] = $this->typespec($tok, $tok);
             // Function
             if ($this->isFunction($tok)){
                 $tok = $this->func($tok, $basety);

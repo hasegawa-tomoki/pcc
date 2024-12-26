@@ -28,6 +28,8 @@ class Node
      */
     public array $body = [];
 
+    public ?Member $member = null;
+
     // Function call
     public ?string $funcname = null;
     /** @var Node[] */
@@ -124,6 +126,9 @@ class Node
                 return;
             case NodeKind::ND_COMMA:
                 $this->ty = $this->rhs->ty;
+                return;
+            case NodeKind::ND_MEMBER:
+                $this->ty = $this->member->ty;
                 return;
             case NodeKind::ND_ADDR:
                 if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){
