@@ -144,7 +144,6 @@ class Node
                     }
                 }
                 Console::errorTok($this->tok, 'statement expression returning void is not supported');
-                return;
         }
     }
 }
