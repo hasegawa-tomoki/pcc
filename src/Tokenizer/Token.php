@@ -32,6 +32,6 @@ class Token
 
     public function isTypeName(): bool
     {
-        return in_array($this->str, ['int', 'char', 'struct', ]);
+        return in_array($this->str, ['int', 'char', 'struct', 'union', ]);
     }
 }

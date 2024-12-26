@@ -19,6 +19,7 @@ class Tokenizer
         'sizeof',
         'char',
         'struct',
+        'union',
     ];
     public Token $tok {
         get {

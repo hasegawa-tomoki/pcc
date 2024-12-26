@@ -1,4 +1,5 @@
 TEST_SRCS=$(wildcard TestCase/*.c)
+#TEST_SRCS=TestCase/union.c
 TESTS=$(TEST_SRCS:.c=.out)
 
 TestCase/%.out: TestCase/%.c

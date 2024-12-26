@@ -7,7 +7,7 @@ use Pcc\Tokenizer\Token;
 class Type
 {
     public TypeKind $kind;
-    public int $size;
+    public int $size = 0;
     public int $align;
     // Pointer
     public ?Type $base;

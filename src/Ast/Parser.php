@@ -173,6 +173,10 @@ class Parser
             return $this->structDecl($rest, $tok->next);
         }
 
+        if ($this->tokenizer->equal($tok, 'union')){
+            return $this->unionDecl($rest, $tok->next);
+        }
+
         Console::errorTok($tok, 'typename expected');
     }
 
@@ -687,13 +691,13 @@ class Parser
     }
 
     /**
-     * struct-decl = "{" struct-members
+     * struct-union-decl = ident? ("{" struct-members)?
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
      */
-    public function structDecl(Token $rest, Token $tok): array
+    public function structUnionDecl(Token $rest, Token $tok): array
     {
         $tag = null;
         if ($tok->isKind(TokenKind::TK_IDENT)){
@@ -713,6 +717,25 @@ class Parser
         $rest = $this->structMembers($rest, $tok->next, $ty);
         $ty->align = 1;
 
+        if ($tag){
+            $this->pushTagScope($tag, $ty);
+        }
+
+        return [$ty, $rest];
+    }
+
+    /**
+     * struct-decl = struct-union-decl
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function structDecl(Token $rest, Token $tok): array
+    {
+        [$ty, $rest] = $this->structUnionDecl($rest, $tok);
+        $ty->kind = TypeKind::TY_STRUCT;
+
         $offset = 0;
         foreach ($ty->members as $mem){
             $offset = Align::alignTo($offset, $mem->ty->align);
@@ -725,9 +748,31 @@ class Parser
         }
         $ty->size = Align::alignTo($offset, $ty->align);
 
-        if ($tag){
-            $this->pushTagScope($tag, $ty);
+        return [$ty, $rest];
+    }
+
+    /**
+     * union-decl = struct-union-decl
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function unionDecl(Token $rest, Token $tok): array
+    {
+        [$ty, $rest] = $this->structUnionDecl($rest, $tok);
+        $ty->kind = TypeKind::TY_UNION;
+
+        foreach ($ty->members as $mem){
+            $mem->offset = 0;
+            if ($ty->align < $mem->ty->align){
+                $ty->align = $mem->ty->align;
+            }
+            if ($ty->size < $mem->ty->size){
+                $ty->size = $mem->ty->size;
+            }
         }
+        $ty->size = Align::alignTo($ty->size, $ty->align);
 
         return [$ty, $rest];
     }
@@ -745,8 +790,8 @@ class Parser
     public function structRef(Node $lhs, Token $tok): Node
     {
         $lhs->addType();
-        if ($lhs->ty->kind !== TypeKind::TY_STRUCT){
-            Console::errorTok($tok, 'not a struct');
+        if ($lhs->ty->kind !== TypeKind::TY_STRUCT and $lhs->ty->kind !== TypeKind::TY_UNION){
+            Console::errorTok($tok, 'not a struct nor a union');
         }
 
         $node = Node::newUnary(NodeKind::ND_MEMBER, $lhs, $tok);
