@@ -56,7 +56,8 @@ class Type
         return new Type(TypeKind::TY_FUNC, $returnTy);
     }
 
-    public static function arrayOf(Type $base, int $len){
+    public static function arrayOf(Type $base, int $len): Type
+    {
         $ty = new Type(TypeKind::TY_ARRAY, $base);
         $ty->size = $base->size * $len;
         $ty->arrayLen = $len;
