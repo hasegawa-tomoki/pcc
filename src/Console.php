@@ -26,16 +26,12 @@ class Console
     #[NoReturn] public static function vErrorAt(int $lineNo, int $pos, string $format, ...$args): void
     {
         $lines = explode("\n", Console::$currentInput);
-        /*
-        $lineNo = 1;
         foreach ($lines as $line){
             if ($pos < strlen($line)){
                 break;
             }
             $pos -= strlen($line) + 1;
-            $lineNo++;
         }
-        */
 
         $indent = sprintf("%s:%d: ", Console::$currentFilename, $lineNo);
         printf("%s %s".PHP_EOL, $indent, $lines[$lineNo - 1]);
@@ -49,11 +45,12 @@ class Console
     {
         $lines = explode("\n", Console::$currentInput);
         $lineNo = 1;
+        $idx = $pos;
         foreach ($lines as $line){
-            if ($pos < strlen($line)){
+            if ($idx < strlen($line)){
                 break;
             }
-            $pos -= strlen($line) + 1;
+            $idx -= strlen($line) + 1;
             $lineNo++;
         }
         self::vErrorAt($lineNo, $pos, $format, ...$args);
