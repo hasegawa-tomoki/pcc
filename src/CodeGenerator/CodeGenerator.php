@@ -15,6 +15,8 @@ class CodeGenerator
     public int $depth = 0;
     /** @var string[] */
     public array $argreg8 = ['%dil', '%sil', '%dl', '%cl', '%r8b', '%r9b'];
+    /** @var string[] */
+    public array $argreg32 = ['%edi', '%esi', '%edx', '%ecx', '%r8d', '%r9d'];
     /** @var string[]  */
     public array $argreg64 = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
     public Obj $currentFn;
@@ -74,8 +76,10 @@ class CodeGenerator
             return;
         }
 
-        if ($ty->size == 1){
+        if ($ty->size == 1) {
             Console::out("  movsbq (%%rax), %%rax");
+        } elseif ($ty->size == 4) {
+            Console::out("  movsxd (%%rax), %%rax");
         } else {
             Console::out("  mov (%%rax), %%rax");
         }
@@ -95,6 +99,8 @@ class CodeGenerator
 
         if ($ty->size == 1){
             Console::out("  mov %%al, (%%rdi)");
+        } elseif ($ty->size == 4){
+            Console::out("  mov %%eax, (%%rdi)");
         } else {
             Console::out("  mov %%rax, (%%rdi)");
         }
@@ -300,6 +306,22 @@ class CodeGenerator
         }
     }
 
+    public function storeGp(int $r, int $offset, int $sz): void
+    {
+        switch($sz){
+            case 1:
+                Console::out("  mov %s, %d(%%rbp)", $this->argreg8[$r], $offset);
+                return;
+            case 4:
+                Console::out("  mov %s, %d(%%rbp)", $this->argreg32[$r], $offset);
+                return;
+            case 8:
+                Console::out("  mov %s, %d(%%rbp)", $this->argreg64[$r], $offset);
+                return;
+        }
+        Console::unreachable(__FILE__, __LINE__);
+    }
+
     /**
      * @param Obj[] $prog
      * @return void
@@ -324,13 +346,7 @@ class CodeGenerator
             // Save passed-by-register arguments to the stack
             $idx = 0;
             foreach ($fn->params as $param){
-                if ($idx < count($this->argreg64)){
-                    if ($param->ty->size === 1){
-                        Console::out("  mov %s, %d(%%rbp)", $this->argreg8[$idx], $param->offset);
-                    } else {
-                        Console::out("  mov %s, %d(%%rbp)", $this->argreg64[$idx], $param->offset);
-                    }
-                }
+                $this->storeGp($idx, $param->offset, $param->ty->size);
                 $idx++;
             }
 

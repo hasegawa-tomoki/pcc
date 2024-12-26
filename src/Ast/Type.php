@@ -39,8 +39,8 @@ class Type
     public static function tyInt(): Type
     {
         $ty = new Type(TypeKind::TY_INT);
-        $ty->size = 8;
-        $ty->align = 8;
+        $ty->size = 4;
+        $ty->align = 4;
         return $ty;
     }
 

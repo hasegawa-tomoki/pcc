@@ -66,6 +66,18 @@ class Console
         exit(1);
     }
 
+    /**
+     * Console::unreachable(__FILE__, __LINE__);
+     *
+     * @param string $file
+     * @param int $line
+     * @return void
+     */
+    #[NoReturn] public static function unreachable(string $file, int $line): void
+    {
+        self::error('internal error at %s:%d', $file, $line);
+    }
+
     public static function out(string $format, ...$args): void
     {
         fprintf(self::$outputFile, $format.PHP_EOL, ...$args);
