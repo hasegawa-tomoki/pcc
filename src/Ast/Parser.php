@@ -190,7 +190,7 @@ class Parser
 
     /**
      * func-params = (param ("," param)*)? ")"
-     * param = declspec declarator
+     * param = typespec declarator
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -242,20 +242,32 @@ class Parser
     }
 
     /**
-     * declarator = "*"* ident type-suffix
+     * declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) type-suffix
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Type $ty
      * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     *
+     * ({ char (*x)[3]; sizeof(x); })
      */
     public function declarator(Token $rest, Token $tok, Type $ty): array
     {
-        while (
-            [$consumed, $tok] = $this->tokenizer->consume($tok, '*') and
-            $consumed
-        ){
+        while ([$consumed, $tok] = $this->tokenizer->consume($tok, '*') and $consumed){
             $ty = Type::pointerTo($ty);
+        }
+
+        if ($this->tokenizer->equal($tok, '(')){
+            $start = $tok;
+
+            $ignore = new Type(TypeKind::TY_CHAR);
+            [$declarator, $tok] = $this->declarator($tok, $tok->next, $ignore);
+
+            $tok = $this->tokenizer->skip($tok, ')');
+
+            [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
+            [$type, $tok] = $this->declarator($tok, $start->next, $ty);
+            return [$type, $rest];
         }
 
         if (! $tok->isKind(TokenKind::TK_IDENT)){
@@ -268,7 +280,7 @@ class Parser
     }
 
     /**
-     * declaration = declspec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
+     * declaration = typespec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok

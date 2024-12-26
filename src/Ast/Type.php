@@ -8,7 +8,7 @@ class Type
 {
     public TypeKind $kind;
     public int $size = 0;
-    public int $align;
+    public int $align = 0;
     // Pointer
     public ?Type $base;
     // Declaration
