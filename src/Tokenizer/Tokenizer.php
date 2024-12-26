@@ -135,7 +135,7 @@ class Tokenizer
             }
         }
 
-        $tok = new Token(TokenKind::TK_STR, $str, $endPos + 1);
+        $tok = new Token(TokenKind::TK_STR, $str, $start);
         $tok->ty = Type::arrayOf(Type::tyChar(), strlen($tok->str) + 1);
         return [$tok, $endPos + 1];
     }
@@ -161,6 +161,9 @@ class Tokenizer
             if ($this->currentInput[$pos] === "\n") {
                 $lineNo++;
             }
+        }
+        if ($tok->kind === TokenKind::TK_EOF){
+            $tok->lineNo = $lineNo;
         }
     }
 
@@ -247,5 +250,5 @@ class Tokenizer
         }
         $this->addLineNumbers();
         $this->convertKeywords();
-    }
+   }
 }

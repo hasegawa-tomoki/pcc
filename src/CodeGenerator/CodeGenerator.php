@@ -89,6 +89,8 @@ class CodeGenerator
 
     public function genExpr(Node $node): void
     {
+        Console::out("  .loc 1 %d", $node->tok->lineNo);
+
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
             case NodeKind::ND_NUM:
@@ -177,6 +179,8 @@ class CodeGenerator
 
     public function genStmt(Node $node): void
     {
+        Console::out("  .loc 1 %d", $node->tok->lineNo);
+
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_IF: {

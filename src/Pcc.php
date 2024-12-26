@@ -31,8 +31,10 @@ class Pcc
             self::displayHelp();
             return 1;
         }
+        $inputPath = $args[0];
+        fprintf($fpOut, ".file 1 \"%s\"\n", $inputPath);
 
-        $tokenizer = new Tokenizer($args[0]);
+        $tokenizer = new Tokenizer($inputPath);
         $tokenizer->tokenize();
         $parser = new Ast\Parser($tokenizer);
         $prog = $parser->parse();
