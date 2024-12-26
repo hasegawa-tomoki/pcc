@@ -755,7 +755,7 @@ class Parser
     }
 
     /**
-     * postfix = primary ("[" expr "]") | "." ident)*
+     * postfix = primary ("[" expr "]") | "." ident | "->" ident)*
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -776,6 +776,14 @@ class Parser
             }
 
             if ($this->tokenizer->equal($tok, '.')){
+                $node = $this->structRef($node, $tok->next);
+                $tok = $tok->next->next;
+                continue;
+            }
+
+            if ($this->tokenizer->equal($tok, '->')){
+                // x->y is short for (*x).y
+                $node = Node::newUnary(NodeKind::ND_DEREF, $node, $tok);
                 $node = $this->structRef($node, $tok->next);
                 $tok = $tok->next->next;
                 continue;
