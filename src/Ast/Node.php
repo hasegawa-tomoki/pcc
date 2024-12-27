@@ -32,6 +32,7 @@ class Node
 
     // Function call
     public ?string $funcname = null;
+    public Type $funcTy;
     /** @var Node[] */
     public array $args = [];
 

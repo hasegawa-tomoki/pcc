@@ -1027,22 +1027,34 @@ class Parser
             Console::errorTok($start, 'not a function');
         }
 
-        $ty = $sc->var->ty->returnTy;
+        $ty = $sc->var->ty;
+        $paramTy = $ty->params;
+
         $nodes = [];
         while(! $this->tokenizer->equal($tok, ')')){
             if (count($nodes) > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
-            [$assign, $tok] = $this->assign($tok, $tok);
-            $assign->addType();
-            $nodes[] = $assign;
+            [$arg, $tok] = $this->assign($tok, $tok);
+            $arg->addType();
+
+            if (isset($paramTy[0])){
+                if ($paramTy[0]->kind === TypeKind::TY_STRUCT or $paramTy[0]->kind === TypeKind::TY_UNION){
+                    Console::errorTok($tok, 'passing struct or union is not supported yet');
+                }
+                $arg = Node::newCast($arg, $paramTy[0]);
+                array_shift($paramTy);
+            }
+
+            $nodes[] = $arg;
         }
 
         $rest = $this->tokenizer->skip($tok, ')');
 
         $node = Node::newNode(NodeKind::ND_FUNCALL, $start);
         $node->funcname = $start->str;
-        $node->ty = $ty;
+        $node->funcTy = $ty;
+        $node->ty = $ty->returnTy;
         $node->args = $nodes;
         return [$node, $rest];
     }

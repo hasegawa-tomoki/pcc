@@ -18,7 +18,7 @@ class Type
     /** @var \Pcc\Ast\Member[] */
     public array $members;
     // Function type
-    public ?Type $returnTy;
+    public Type $returnTy;
     /** @var \Pcc\Ast\Type[] */
     public array $params = [];
 
