@@ -153,7 +153,9 @@ class Parser
     }
 
     /**
-     * typespec = "char" | "short" | "int" | "long" | struct-decl | union-decl
+     * typespec = typename typename*
+     * typename = "void" | "char" | "short" | "int" | "long"
+     *          | struct-decl | union-decl
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -161,31 +163,62 @@ class Parser
      */
     public function typespec(Token $rest, Token $tok): array
     {
-        if ($this->tokenizer->equal($tok, 'char')){
-            return [Type::tyChar(), $tok->next];
+        $ty = Type::tyInt();
+        $counter = 0;
+
+        while ($tok->isTypeName()){
+            // Handle user-defined types
+            if ($this->tokenizer->equal($tok, 'struct') or $this->tokenizer->equal($tok, 'union')){
+                if ($this->tokenizer->equal($tok, 'struct')){
+                    [$ty, $tok] = $this->structDecl($tok, $tok->next);
+                } else {
+                    [$ty, $tok] = $this->unionDecl($tok, $tok->next);
+                }
+                $counter += TypeCount::OTHER->value;
+                continue;
+            }
+
+            // Handle built-in types
+            if ($this->tokenizer->equal($tok, 'void')){
+                $counter += TypeCount::VOID->value;
+            } elseif ($this->tokenizer->equal($tok, 'char')){
+                $counter += TypeCount::CHAR->value;
+            } elseif ($this->tokenizer->equal($tok, 'short')){
+                $counter += TypeCount::SHORT->value;
+            } elseif ($this->tokenizer->equal($tok, 'int')){
+                $counter += TypeCount::INT->value;
+            } elseif ($this->tokenizer->equal($tok, 'long')){
+                $counter += TypeCount::LONG->value;
+            } else {
+                Console::unreachable(__FILE__, __LINE__);
+            }
+
+            switch ($counter){
+                case TypeCount::VOID->value:
+                    $ty = Type::tyVoid();
+                    break;
+                case TypeCount::CHAR->value:
+                    $ty = Type::tyChar();
+                    break;
+                case TypeCount::SHORT->value:
+                case TypeCount::SHORT->value + TypeCount::INT->value:
+                    $ty = Type::tyShort();
+                    break;
+                case TypeCount::INT->value:
+                    $ty = Type::tyInt();
+                    break;
+                case TypeCount::LONG->value:
+                case TypeCount::LONG->value + TypeCount::INT->value:
+                    $ty = Type::tyLong();
+                    break;
+                default:
+                    Console::errorTok($tok, 'invalid type');
+            }
+
+            $tok = $tok->next;
         }
 
-        if ($this->tokenizer->equal($tok, 'short')){
-            return [Type::tyShort(), $tok->next];
-        }
-
-        if ($this->tokenizer->equal($tok, 'int')){
-            return [Type::tyInt(), $tok->next];
-        }
-
-        if ($this->tokenizer->equal($tok, 'long')){
-            return [Type::tyLong(), $tok->next];
-        }
-
-        if ($this->tokenizer->equal($tok, 'struct')){
-            return $this->structDecl($rest, $tok->next);
-        }
-
-        if ($this->tokenizer->equal($tok, 'union')){
-            return $this->unionDecl($rest, $tok->next);
-        }
-
-        Console::errorTok($tok, 'typename expected');
+        return [$ty, $tok];
     }
 
     /**
@@ -298,6 +331,9 @@ class Parser
             }
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            if ($ty->kind === TypeKind::TY_VOID){
+                Console::errorTok($tok, 'variable declared void');
+            }
             $var = $this->newLvar($this->getIdent($ty->name), $ty);
 
             if (! $this->tokenizer->equal($tok, '=')){
