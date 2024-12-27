@@ -11,7 +11,7 @@ class Tokenizer
     public array $tokens;
     public array $keywords = [
         'return', 'if', 'else', 'for', 'while', 'int', 'sizeof', 'char',
-        'struct', 'union', 'short', 'long', 'void', 'typedef',
+        'struct', 'union', 'short', 'long', 'void', 'typedef', '_Bool',
     ];
     public Token $tok {
         get {

@@ -128,6 +128,15 @@ class CodeGenerator
         }
     }
 
+    public function cmpZero(Type $ty): void
+    {
+        if ($ty->isInteger() and $ty->size <= 4){
+            Console::out("  cmp \$0, %%eax");
+        } else {
+            Console::out("  cmp \$0, %%rax");
+        }
+    }
+
     public function getTypeId(Type $ty): int
     {
         return match ($ty->kind) {
@@ -141,6 +150,13 @@ class CodeGenerator
     public function cast(Type $from, Type $to): void
     {
         if ($to->kind === TypeKind::TY_VOID){
+            return;
+        }
+
+        if ($to->kind === TypeKind::TY_BOOL){
+            $this->cmpZero($from);
+            Console::out("  setne %%al");
+            Console::out("  movzx %%al, %%eax");
             return;
         }
 

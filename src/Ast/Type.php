@@ -36,6 +36,14 @@ class Type
         return $ty;
     }
 
+    public static function tyBool(): Type
+    {
+        $ty = new Type(TypeKind::TY_BOOL);
+        $ty->size = 1;
+        $ty->align = 1;
+        return $ty;
+    }
+
     public static function tyChar(): Type
     {
         $ty = new Type(TypeKind::TY_CHAR);
@@ -79,10 +87,8 @@ class Type
     public function isInteger(): bool
     {
         $intTypes = [
-            TypeKind::TY_CHAR,
-            TypeKind::TY_SHORT,
-            TypeKind::TY_INT,
-            TypeKind::TY_LONG,
+            TypeKind::TY_BOOL, TypeKind::TY_CHAR, TypeKind::TY_SHORT,
+            TypeKind::TY_INT, TypeKind::TY_LONG,
         ];
         return in_array($this->kind, $intTypes);
     }

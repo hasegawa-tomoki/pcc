@@ -203,6 +203,8 @@ class Parser
             // Handle built-in types
             if ($this->tokenizer->equal($tok, 'void')){
                 $counter += TypeCount::VOID->value;
+            } elseif ($this->tokenizer->equal($tok, '_Bool')){
+                $counter += TypeCount::BOOL->value;
             } elseif ($this->tokenizer->equal($tok, 'char')){
                 $counter += TypeCount::CHAR->value;
             } elseif ($this->tokenizer->equal($tok, 'short')){
@@ -218,6 +220,9 @@ class Parser
             switch ($counter){
                 case TypeCount::VOID->value:
                     $ty = Type::tyVoid();
+                    break;
+                case TypeCount::BOOL->value:
+                    $ty = Type::tyBool();
                     break;
                 case TypeCount::CHAR->value:
                     $ty = Type::tyChar();
@@ -422,7 +427,7 @@ class Parser
     public function isTypeName(Token $tok): bool
     {
         if (in_array($tok->str, [
-            'void', 'char', 'short', 'int', 'long', 'struct', 'union',
+            'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
             'typedef',
         ])){
             return true;
