@@ -22,8 +22,9 @@ class ParserTest extends TestCase
         $tokenizer->tokenize();
         $parser = new Pcc\Ast\Parser($tokenizer);
         [$node, $tok] = $parser->unary($tokenizer->tok, $tokenizer->tok);
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_NEG, $node->kind);
-        $this->assertEquals(5, $node->lhs->val);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_SUB, $node->kind);
+        $this->assertEquals(0, $node->lhs->val);
+        $this->assertEquals(5, $node->rhs->val);
     }
 
     public function testMul()
@@ -96,9 +97,10 @@ class ParserTest extends TestCase
         [$node, $tok] = $parser->expr($tokenizer->tok, $tokenizer->tok);
 
         $this->assertEquals(Pcc\Ast\NodeKind::ND_ADD, $node->kind);
-        $this->assertEquals(Pcc\Ast\NodeKind::ND_NEG, $node->lhs->kind);
+        $this->assertEquals(Pcc\Ast\NodeKind::ND_SUB, $node->lhs->kind);
         $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->lhs->lhs->kind);
-        $this->assertEquals(10, $node->lhs->lhs->val);
+        $this->assertEquals(0, $node->lhs->lhs->val);
+        $this->assertEquals(10, $node->lhs->rhs->val);
         $this->assertEquals(Pcc\Ast\NodeKind::ND_NUM, $node->rhs->kind);
         $this->assertEquals(20, $node->rhs->val);
     }

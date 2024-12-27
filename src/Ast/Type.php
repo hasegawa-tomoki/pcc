@@ -107,4 +107,29 @@ class Type
         $ty->arrayLen = $len;
         return $ty;
     }
+
+    public static function getCommonType(Type $ty1, Type $ty2): Type
+    {
+        if ($ty1->base){
+            return self::pointerTo($ty1->base);
+        }
+        if ($ty1->size === 8 or $ty2->size === 8){
+            return self::tyLong();
+        }
+        return self::tyInt();
+    }
+
+    /**
+     * @param \Pcc\Ast\Node $lhs
+     * @param \Pcc\Ast\Node $rhs
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Ast\Node}
+     */
+    public static function usualArithConv(Node $lhs, Node $rhs): array
+    {
+        $ty = self::getCommonType($lhs->ty, $rhs->ty);
+        return [
+            Node::newCast($lhs, $ty),
+            Node::newCast($rhs, $ty),
+        ];
+    }
 }

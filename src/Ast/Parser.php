@@ -65,26 +65,6 @@ class Parser
         return null;
     }
 
-    public function newNode(NodeKind $kind, Token $tok): Node
-    {
-        $node = new Node();
-        $node->kind = $kind;
-        $node->tok = $tok;
-        return $node;
-    }
-
-    public function newCast(Node $expr, Type $ty): Node
-    {
-        $expr->addType();
-
-        $node = new Node();
-        $node->kind = NodeKind::ND_CAST;
-        $node->tok = $expr->tok;
-        $node->lhs = $expr;
-        $node->ty = $ty;
-        return $node;
-    }
-
     public function pushScope(string $name): VarScope
     {
         $sc = new VarScope();
@@ -810,7 +790,7 @@ class Parser
             [$ty, $tok] = $this->typename($tok, $tok->next);
             $tok = $this->tokenizer->skip($tok, ')');
             [$cast, $rest] = $this->cast($rest, $tok);
-            $node = $this->newCast($cast, $ty);
+            $node = Node::newCast($cast, $ty);
             $node->tok = $start;
             return [$node, $rest];
         }
@@ -833,7 +813,7 @@ class Parser
         }
         if ($this->tokenizer->equal($tok, '-')){
             [$cast, $rest] = $this->cast($rest, $tok->next);
-            return [Node::newUnary(NodeKind::ND_NEG, $cast, $tok), $rest];
+            return [Node::newBinary(NodeKind::ND_SUB, Node::newNum(0, $tok), $cast, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '&')){
             [$cast, $rest] = $this->cast($rest, $tok->next);

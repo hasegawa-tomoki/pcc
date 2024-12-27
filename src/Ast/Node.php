@@ -77,6 +77,18 @@ class Node
         return $node;
     }
 
+    public static function newCast(Node $expr, Type $ty): Node
+    {
+        $expr->addType();
+
+        $node = new Node();
+        $node->kind = NodeKind::ND_CAST;
+        $node->tok = $expr->tok;
+        $node->lhs = $expr;
+        $node->ty = $ty;
+        return $node;
+    }
+
     public function addType(): void
     {
         if ($this->ty){
@@ -100,16 +112,22 @@ class Node
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($this->kind){
+            case NodeKind::ND_NUM:
+                $this->ty = ($this->val > 2 ** 32) ? Type::tyLong() : Type::tyInt();
+                return;
             case NodeKind::ND_ADD:
             case NodeKind::ND_SUB:
             case NodeKind::ND_MUL:
             case NodeKind::ND_DIV:
-            case NodeKind::ND_NEG:
+                [$this->lhs, $this->rhs] = Type::usualArithConv($this->lhs, $this->rhs);
                 $this->ty = $this->lhs->ty;
                 return;
             case NodeKind::ND_ASSIGN:
                 if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){
                     Console::errorTok($this->lhs->tok, 'not an lvalue');
+                }
+                if ($this->lhs->ty->kind !== TypeKind::TY_STRUCT){
+                    $this->rhs = Node::newCast($this->rhs, $this->lhs->ty);
                 }
                 $this->ty = $this->lhs->ty;
                 return;
@@ -117,7 +135,9 @@ class Node
             case NodeKind::ND_NE:
             case NodeKind::ND_LT:
             case NodeKind::ND_LE:
-            case NodeKind::ND_NUM:
+                [$this->lhs, $this->rhs] = Type::usualArithConv($this->lhs, $this->rhs);
+                $this->ty = Type::tyInt();
+                return;
             case NodeKind::ND_FUNCALL:
                 $this->ty = Type::tyLong();
                 return;

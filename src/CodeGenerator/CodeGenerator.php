@@ -95,9 +95,9 @@ class CodeGenerator
         }
 
         if ($ty->size === 1) {
-            Console::out("  movsbq (%%rax), %%rax");
+            Console::out("  movsbl (%%rax), %%eax");
         } elseif ($ty->size === 2) {
-            Console::out("  movswq (%%rax), %%rax");
+            Console::out("  movswl (%%rax), %%eax");
         } elseif ($ty->size === 4) {
             Console::out("  movsxd (%%rax), %%rax");
         } else {
@@ -160,10 +160,6 @@ class CodeGenerator
             case NodeKind::ND_NUM:
                 Console::out("  mov \$%ld, %%rax", $node->val);
                 return;
-            case NodeKind::ND_NEG:
-                $this->genExpr($node->lhs);
-                Console::out("  neg %%rax");
-                return;
             case NodeKind::ND_VAR:
             case NodeKind::ND_MEMBER:
                 $this->genAddr($node);
@@ -214,7 +210,7 @@ class CodeGenerator
         $this->genExpr($node->lhs);
         $this->pop('%rdi');
 
-        if ($node->lhs->ty->kind === TypeKind::TY_LONG || $node->lhs->ty->base){
+        if ($node->lhs->ty->kind === TypeKind::TY_LONG or $node->lhs->ty->base){
             $ax = '%rax';
             $di = '%rdi';
         } else {
