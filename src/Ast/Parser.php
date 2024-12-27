@@ -1015,12 +1015,22 @@ class Parser
         $start = $tok;
         $tok = $tok->next->next;
 
+        $sc = $this->findVar($start);
+        if (! $sc){
+            Console::errorTok($start, 'implicit declaration of a function');
+        }
+        if ((! $sc->var) or $sc->var->ty->kind !== TypeKind::TY_FUNC){
+            Console::errorTok($start, 'not a function');
+        }
+
+        $ty = $sc->var->ty->returnTy;
         $nodes = [];
         while(! $this->tokenizer->equal($tok, ')')){
             if (count($nodes) > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
             [$assign, $tok] = $this->assign($tok, $tok);
+            $assign->addType();
             $nodes[] = $assign;
         }
 
@@ -1028,6 +1038,7 @@ class Parser
 
         $node = Node::newNode(NodeKind::ND_FUNCALL, $start);
         $node->funcname = $start->str;
+        $node->ty = $ty;
         $node->args = $nodes;
         return [$node, $rest];
     }

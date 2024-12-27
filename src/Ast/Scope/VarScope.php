@@ -8,6 +8,6 @@ class VarScope
 {
     public string $name;
     public int $depth;
-    public Obj $var;
+    public ?Obj $var;
     public ?Type $typeDef = null;
 }

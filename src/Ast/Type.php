@@ -97,7 +97,9 @@ class Type
 
     public static function funcType(Type $returnTy): Type
     {
-        return new Type(TypeKind::TY_FUNC, $returnTy);
+        $type = new Type(TypeKind::TY_FUNC);
+        $type->returnTy = $returnTy;
+        return $type;
     }
 
     public static function arrayOf(Type $base, int $len): Type
