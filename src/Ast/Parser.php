@@ -19,6 +19,7 @@ class Parser
     /** @var array<int, \Pcc\Ast\Scope\Scope> */
     public array $scopes = [];
     public int $scopeDepth = 0;
+    public Obj $currentFn;
 
     public function __construct(
         private readonly Tokenizer $tokenizer,
@@ -445,8 +446,11 @@ class Parser
     {
         if ($this->tokenizer->equal($tok, 'return')){
             $node = Node::newNode(NodeKind::ND_RETURN, $tok);
-            [$node->lhs, $tok] = $this->expr($tok, $tok->next);
+            [$exp, $tok] = $this->expr($tok, $tok->next);
             $rest = $this->tokenizer->skip($tok, ';');
+
+            $exp->addType();
+            $node->lhs = Node::newCast($exp, $this->currentFn->ty->returnTy);
             return [$node, $rest];
         }
 
@@ -1155,6 +1159,7 @@ class Parser
             return $tok;
         }
 
+        $this->currentFn = $fn;
         $this->locals = [];
         $this->enterScope();
 
