@@ -209,6 +209,8 @@ class Parser
                     break;
                 case TypeCount::LONG->value:
                 case TypeCount::LONG->value + TypeCount::INT->value:
+                case TypeCount::LONG->value + TypeCount::LONG->value:
+                case TypeCount::LONG->value + TypeCount::LONG->value + TypeCount::INT->value:
                     $ty = Type::tyLong();
                     break;
                 default:
