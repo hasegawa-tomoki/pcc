@@ -344,6 +344,51 @@ class Parser
     }
 
     /**
+     * abstract-declarator = "*"* ("(" abstract-declarator ")")? type-suffix
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function abstractDeclarator(Token $rest, Token $tok, Type $ty): array
+    {
+        while ($this->tokenizer->equal($tok, '*')){
+            $ty = Type::pointerTo($ty);
+            $tok = $tok->next;
+        }
+
+        if ($this->tokenizer->equal($tok, '(')){
+            $start = $tok;
+
+            $ignore = new Type(TypeKind::TY_CHAR);
+            [$declarator, $tok] = $this->abstractDeclarator($tok, $tok->next, $ignore);
+
+            $tok = $this->tokenizer->skip($tok, ')');
+
+            [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
+            [$type, $tok] = $this->abstractDeclarator($tok, $start->next, $ty);
+
+            return [$type, $rest];
+        }
+
+        return $this->typeSuffix($rest, $tok, $ty);
+    }
+
+    /**
+     * type-name = typespec abstract-declarator
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function typename(Token $rest, Token $tok): array
+    {
+        [$ty, $tok] = $this->typespec($rest, $tok, null);
+        return $this->abstractDeclarator($rest, $tok, $ty);
+    }
+
+    /**
      * declaration = typespec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -975,6 +1020,7 @@ class Parser
     /**
      * primary = "(" "{" stmt+ "}" ")"
      *         | "(" expr ")"
+     *         | "sizeof" "(" type-name ")"
      *         | "sizeof" unary
      *         | ident func-args?
      *         | str
@@ -986,6 +1032,8 @@ class Parser
      */
     public function primary(Token $rest, Token $tok): array
     {
+        $start = $tok;
+
         if ($this->tokenizer->equal($tok, '(') and $this->tokenizer->equal($tok->next, '{')){
             // This is a GNU statement expression
             $node = Node::newNode(NodeKind::ND_STMT_EXPR, $tok);
@@ -999,6 +1047,12 @@ class Parser
             [$node, $tok] = $this->expr($tok, $tok->next);
             $rest = $this->tokenizer->skip($tok, ')');
             return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'sizeof') and $this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
+            [$ty, $tok] = $this->typename($tok, $tok->next->next);
+            $rest = $this->tokenizer->skip($tok, ')');
+            return [Node::newNum($ty->size, $start), $rest];
         }
 
         if ($this->tokenizer->equal($tok, 'sizeof')){
