@@ -21,7 +21,23 @@ class CodeGenerator
     public array $argreg32 = ['%edi', '%esi', '%edx', '%ecx', '%r8d', '%r9d'];
     /** @var string[]  */
     public array $argreg64 = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
+
+    public string $i32i8 = "movsbl %al, %eax";
+    public string $i32i16 = "movswl %ax, %eax";
+    public string $i32i64 = "movsxd %eax, %rax";
+    public array $castTable = [];
+
     public Obj $currentFn;
+
+    public function __construct()
+    {
+        $this->castTable = [
+            [null,          null,           null, $this->i32i64,    ], // I8
+            [$this->i32i8,  null,           null, $this->i32i64,    ], // I16
+            [$this->i32i8,  $this->i32i16,  null, $this->i32i64,    ], // I32
+            [$this->i32i8,  $this->i32i16,  null, null,             ], // I64
+        ];
+    }
 
     public function cnt(): int
     {
@@ -112,6 +128,29 @@ class CodeGenerator
         }
     }
 
+    public function getTypeId(Type $ty): int
+    {
+        return match ($ty->kind) {
+            TypeKind::TY_CHAR => TypeId::I8->value,
+            TypeKind::TY_SHORT => TypeId::I16->value,
+            TypeKind::TY_INT => TypeId::I32->value,
+            default => TypeId::I64->value,
+        };
+    }
+
+    public function cast(Type $from, Type $to): void
+    {
+        if ($to->kind === TypeKind::TY_VOID){
+            return;
+        }
+
+        $t1 = $this->getTypeId($from);
+        $t2 = $this->getTypeId($to);
+        if (isset($this->castTable[$t1][$t2]) and $this->castTable[$t1][$t2]){
+            Console::out("  %s", $this->castTable[$t1][$t2]);
+        }
+    }
+
     public function genExpr(Node $node): void
     {
         Console::out("  .loc 1 %d", $node->tok->lineNo);
@@ -151,6 +190,10 @@ class CodeGenerator
             case NodeKind::ND_COMMA:
                 $this->genExpr($node->lhs);
                 $this->genExpr($node->rhs);
+                return;
+            case NodeKind::ND_CAST:
+                $this->genExpr($node->lhs);
+                $this->cast($node->lhs->ty, $node->ty);
                 return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){

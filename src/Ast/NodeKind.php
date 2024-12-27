@@ -27,4 +27,5 @@ enum NodeKind
     case ND_STMT_EXPR;
     case ND_VAR;
     case ND_NUM;
+    case ND_CAST;
 }

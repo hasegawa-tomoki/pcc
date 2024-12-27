@@ -73,6 +73,18 @@ class Parser
         return $node;
     }
 
+    public function newCast(Node $expr, Type $ty): Node
+    {
+        $expr->addType();
+
+        $node = new Node();
+        $node->kind = NodeKind::ND_CAST;
+        $node->tok = $expr->tok;
+        $node->lhs = $expr;
+        $node->ty = $ty;
+        return $node;
+    }
+
     public function pushScope(string $name): VarScope
     {
         $sc = new VarScope();
@@ -756,7 +768,7 @@ class Parser
     }
 
     /**
-     * mul = unary ("*" unary | "/" unary)*
+     * mul = cast ("*" unary | "/" cast)*
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -764,18 +776,18 @@ class Parser
      */
     public function mul(Token $rest, Token $tok): array
     {
-        [$node, $tok] = $this->unary($tok, $tok);
+        [$node, $tok] = $this->cast($tok, $tok);
 
         for (;;){
             $start = $tok;
 
             if ($this->tokenizer->equal($tok, '*')){
-                [$unary, $tok] = $this->unary($tok, $tok->next);
+                [$unary, $tok] = $this->cast($tok, $tok->next);
                 $node = Node::newBinary(NodeKind::ND_MUL, $node, $unary, $start);
                 continue;
             }
             if ($this->tokenizer->equal($tok, '/')){
-                [$unary, $tok] = $this->unary($tok, $tok->next);
+                [$unary, $tok] = $this->cast($tok, $tok->next);
                 $node = Node::newBinary(NodeKind::ND_DIV, $node, $unary, $start);
                 continue;
             }
@@ -785,7 +797,30 @@ class Parser
     }
 
     /**
-     * unary = ("+" | "-" | "*" | "&") unary | postfix
+     * cast = "(" type-name ")" cast | unary
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function cast(Token $rest, Token $tok): array
+    {
+        if ($this->tokenizer->equal($tok, '(') and $this->isTypeName($tok->next)){
+            $start = $tok;
+            [$ty, $tok] = $this->typename($tok, $tok->next);
+            $tok = $this->tokenizer->skip($tok, ')');
+            [$cast, $rest] = $this->cast($rest, $tok);
+            $node = $this->newCast($cast, $ty);
+            $node->tok = $start;
+            return [$node, $rest];
+        }
+
+        return $this->unary($rest, $tok);
+    }
+
+    /**
+     * unary = ("+" | "-" | "*" | "&") cast
+     *       | postfix
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -794,19 +829,19 @@ class Parser
     public function unary(Token $rest, Token $tok): array
     {
         if ($this->tokenizer->equal($tok, '+')){
-            return $this->unary($rest, $tok->next);
+            return $this->cast($rest, $tok->next);
         }
         if ($this->tokenizer->equal($tok, '-')){
-            [$unary, $rest] = $this->unary($rest, $tok->next);
-            return [Node::newUnary(NodeKind::ND_NEG, $unary, $tok), $rest];
+            [$cast, $rest] = $this->cast($rest, $tok->next);
+            return [Node::newUnary(NodeKind::ND_NEG, $cast, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '&')){
-            [$unary, $rest] = $this->unary($rest, $tok->next);
-            return [Node::newUnary(NodeKind::ND_ADDR, $unary, $tok), $rest];
+            [$cast, $rest] = $this->cast($rest, $tok->next);
+            return [Node::newUnary(NodeKind::ND_ADDR, $cast, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '*')){
-            [$unary, $rest] = $this->unary($rest, $tok->next);
-            return [Node::newUnary(NodeKind::ND_DEREF, $unary, $tok), $rest];
+            [$cast, $rest] = $this->cast($rest, $tok->next);
+            return [Node::newUnary(NodeKind::ND_DEREF, $cast, $tok), $rest];
         }
 
         return $this->postfix($rest, $tok);
