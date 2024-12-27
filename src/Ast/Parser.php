@@ -39,13 +39,13 @@ class Parser
         $this->scopeDepth--;
     }
 
-    public function findVar(Token $tok): ?Obj
+    public function findVar(Token $tok): ?VarScope
     {
         foreach ($this->scopes as $sc){
             foreach ($sc->vars as $vsc){
                 if ($vsc->name === $tok->str){
-                    return $vsc->var;
-                    }
+                    return $vsc;
+                }
             }
         }
 
@@ -73,11 +73,10 @@ class Parser
         return $node;
     }
 
-    public function pushScope(string $name, Obj $var): VarScope
+    public function pushScope(string $name): VarScope
     {
         $sc = new VarScope();
         $sc->name = $name;
-        $sc->var = $var;
         $sc->depth = $this->scopeDepth;
 
         array_unshift($this->scopes[0]->vars, $sc);
@@ -88,7 +87,7 @@ class Parser
     {
         $var = new Obj($name);
         $var->ty = $ty;
-        $this->pushScope($name, $var);
+        $this->pushScope($name)->var = $var;
         return $var;
     }
 
@@ -134,6 +133,17 @@ class Parser
         return $tok->str;
     }
 
+    public function findTypedef(Token $tok): ?Type
+    {
+        if ($tok->isKind(TokenKind::TK_IDENT)){
+            $sc = $this->findVar($tok);
+            if ($sc){
+                return $sc->typeDef;
+            }
+        }
+        return null;
+    }
+
     public function getNumber(Token $tok): int
     {
         if ($tok->kind !== TokenKind::TK_NUM) {
@@ -155,24 +165,43 @@ class Parser
     /**
      * typespec = typename typename*
      * typename = "void" | "char" | "short" | "int" | "long"
-     *          | struct-decl | union-decl
+     *          | struct-decl | union-decl | typedef-name
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\VarAttr|null $attr
      * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
      */
-    public function typespec(Token $rest, Token $tok): array
+    public function typespec(Token $rest, Token $tok, ?VarAttr $attr): array
     {
         $ty = Type::tyInt();
         $counter = 0;
 
-        while ($tok->isTypeName()){
+        while ($this->isTypeName($tok)){
+            // Handle "typedef" keyword
+            if ($this->tokenizer->equal($tok, 'typedef')){
+                if (! $attr){
+                    Console::errorTok($tok, 'storage class specifier is not allowed in this context');
+                }
+                $attr->isTypedef = true;
+                $tok = $tok->next;
+                continue;
+            }
+
             // Handle user-defined types
-            if ($this->tokenizer->equal($tok, 'struct') or $this->tokenizer->equal($tok, 'union')){
-                if ($this->tokenizer->equal($tok, 'struct')){
+            $ty2 = $this->findTypedef($tok);
+            if ($this->tokenizer->equal($tok, 'struct') or $this->tokenizer->equal($tok, 'union') or $ty2){
+                if ($counter){
+                    break;
+                }
+
+                if ($this->tokenizer->equal($tok, 'struct')) {
                     [$ty, $tok] = $this->structDecl($tok, $tok->next);
-                } else {
+                } elseif ($this->tokenizer->equal($tok, 'union')){
                     [$ty, $tok] = $this->unionDecl($tok, $tok->next);
+                } else {
+                    $ty = $ty2;
+                    $tok = $tok->next;
                 }
                 $counter += TypeCount::OTHER->value;
                 continue;
@@ -239,7 +268,7 @@ class Parser
             if (count($params) > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
-            [$basety, $tok] = $this->typespec($tok, $tok);
+            [$basety, $tok] = $this->typespec($tok, $tok, null);
             [$type, $tok] = $this->declarator($tok, $tok, $basety);
             $params[] = $type;
         }
@@ -319,12 +348,11 @@ class Parser
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $basety
      * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
      */
-    public function declaration(Token $rest, Token $tok): array
+    public function declaration(Token $rest, Token $tok, Type $basety): array
     {
-        [$basety, $tok] = $this->typespec($tok, $tok);
-
         $i = 0;
         $nodes = [];
         while (! $this->tokenizer->equal($tok, ';')){
@@ -351,6 +379,17 @@ class Parser
         $node = Node::newNode(NodeKind::ND_BLOCK, $tok);
         $node->body = $nodes;
         return [$node, $tok->next];
+    }
+
+    public function isTypeName(Token $tok): bool
+    {
+        if (in_array($tok->str, [
+            'void', 'char', 'short', 'int', 'long', 'struct', 'union',
+            'typedef',
+        ])){
+            return true;
+        }
+        return $this->findTypedef($tok) !== null;
     }
 
     /**
@@ -425,7 +464,7 @@ class Parser
     }
 
     /**
-     * compound-stmt = (declaration | stmt)* "}"
+     * compound-stmt = (typedef | declaration | stmt)* "}"
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -439,8 +478,16 @@ class Parser
 
         $nodes = [];
         while (! $this->tokenizer->equal($tok, '}')){
-            if ($tok->isTypeName()){
-                [$n, $tok] = $this->declaration($tok, $tok);
+            if ($this->isTypeName($tok)){
+                $attr = new VarAttr();
+                [$basety, $tok] = $this->typespec($tok, $tok, $attr);
+
+                if ($attr->isTypedef){
+                    $tok = $this->parseTypedef($tok, $basety);
+                    continue;
+                }
+
+                [$n, $tok] = $this->declaration($tok, $tok, $basety);
             } else {
                 [$n, $tok] = $this->stmt($tok, $tok);
             }
@@ -726,7 +773,7 @@ class Parser
         $members = [];
 
         while (! $this->tokenizer->equal($tok, '}')){
-            [$basety, $tok] = $this->typespec($tok, $tok);
+            [$basety, $tok] = $this->typespec($tok, $tok, null);
             $i = 0;
             while (
                 [$consumed, $tok] = $this->tokenizer->consume($tok, ';') and
@@ -967,11 +1014,12 @@ class Parser
             }
 
             // Variable
-            if (! $var = $this->findVar($tok)){
+            $sc = $this->findVar($tok);
+            if ((! $sc) or (! $sc->var)){
                 Console::errorTok($tok, 'undefined variable');
             }
 
-            return [Node::newVarNode($var, $tok), $tok->next];
+            return [Node::newVarNode($sc->var, $tok), $tok->next];
         }
 
         if ($tok->isKind(TokenKind::TK_STR)){
@@ -984,6 +1032,23 @@ class Parser
         }
 
         Console::errorTok($tok, 'expected an expression');
+    }
+
+    public function parseTypedef(Token $tok, Type $basety): Token
+    {
+        $first = true;
+
+        while ([$consumed, $tok] = $this->tokenizer->consume($tok, ';') and (! $consumed)){
+            if (! $first){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+            $first = false;
+
+            [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            $this->pushScope($this->getIdent($ty->name))->typeDef = $ty;
+        }
+
+        return $tok;
     }
 
     /**
@@ -1054,7 +1119,7 @@ class Parser
     }
 
     /**
-     * program = (function-definition | global-variable)*
+     * program = (typedef | function-definition | global-variable)*
      *
      * @return Obj[]
      */
@@ -1064,7 +1129,15 @@ class Parser
         $this->globals = [];
 
         while (! $tok->isKind(TokenKind::TK_EOF)){
-            [$basety, $tok] = $this->typespec($tok, $tok);
+            $attr = new VarAttr();
+            [$basety, $tok] = $this->typespec($tok, $tok, $attr);
+
+            // Typedef
+            if ($attr->isTypedef){
+                $tok = $this->parseTypedef($tok, $basety);
+                continue;
+            }
+
             // Function
             if ($this->isFunction($tok)){
                 $tok = $this->func($tok, $basety);
