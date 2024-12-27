@@ -171,26 +171,39 @@ class CodeGenerator
         $this->genExpr($node->lhs);
         $this->pop('%rdi');
 
+        if ($node->lhs->ty->kind === TypeKind::TY_LONG || $node->lhs->ty->base){
+            $ax = '%rax';
+            $di = '%rdi';
+        } else {
+            $ax = '%eax';
+            $di = '%edi';
+        }
+
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
             case NodeKind::ND_ADD:
-                Console::out("  add %%rdi, %%rax");
+                Console::out("  add %s, %s", $di, $ax);
                 return;
             case NodeKind::ND_SUB:
-                Console::out("  sub %%rdi, %%rax");
+                Console::out("  sub %s, %s", $di, $ax);
                 return;
             case NodeKind::ND_MUL:
-                Console::out("  imul %%rdi, %%rax");
+                Console::out("  imul %s, %s", $di, $ax);
                 return;
             case NodeKind::ND_DIV:
-                Console::out("  cqo");
-                Console::out("  idiv %%rdi");
+                if ($node->lhs->ty->size === 8){
+                    Console::out("  cqo");
+                } else {
+                    Console::out("  cdq");
+                }
+                Console::out("  idiv %s", $di);
                 return;
             case NodeKind::ND_EQ:
             case NodeKind::ND_NE:
             case NodeKind::ND_LT:
             case NodeKind::ND_LE:
-                Console::out("  cmp %%rdi, %%rax");
+                Console::out("  cmp %s, %s", $di, $ax);
+
                 if ($node->kind == NodeKind::ND_EQ) {
                     Console::out("  sete %%al");
                 } elseif ($node->kind == NodeKind::ND_NE) {
