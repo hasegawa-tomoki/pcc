@@ -28,6 +28,14 @@ class Type
         $this->base = $base;
     }
 
+    public static function tyVoid(): Type
+    {
+        $ty = new Type(TypeKind::TY_VOID);
+        $ty->size = 1;
+        $ty->align = 1;
+        return $ty;
+    }
+
     public static function tyChar(): Type
     {
         $ty = new Type(TypeKind::TY_CHAR);

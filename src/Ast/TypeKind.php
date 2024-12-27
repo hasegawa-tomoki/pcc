@@ -4,6 +4,7 @@ namespace Pcc\Ast;
 
 enum TypeKind
 {
+    case TY_VOID;
     case TY_CHAR;
     case TY_SHORT;
     case TY_INT;

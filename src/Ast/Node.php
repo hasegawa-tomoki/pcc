@@ -141,6 +141,9 @@ class Node
                 if (! $this->lhs->ty->base){
                     Console::errorTok($this->tok, 'invalid pointer dereference');
                 }
+                if ($this->lhs->ty->base->kind === TypeKind::TY_VOID){
+                    Console::errorTok($this->tok, 'dereferencing a void pointer');
+                }
                 $this->ty = $this->lhs->ty->base;
                 return;
             case NodeKind::ND_STMT_EXPR:
