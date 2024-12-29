@@ -90,6 +90,40 @@ class Tokenizer
     }
 
     /**
+     * @param int $pos
+     * @return array{0: string, 1: int}
+     */
+    public function readEscapedChar(int $pos): array
+    {
+        // Octal number
+        if (preg_match('/^([0-7]{1, 3})/', substr($this->currentInput, $pos), $matches)){
+            $c = chr(octdec($matches[1]));
+            $pos += strlen($matches[1]);
+            return [$c, $pos];
+        }
+        // Hexadecimal number
+        if (preg_match('/^x([0-9a-fA-F]+)/', substr($this->currentInput, $pos), $matches)){
+            $c = chr(hexdec($matches[1]));
+            $pos += strlen($matches[1]) + 1;
+            return [$c, $pos];
+        }
+
+        $c = match ($this->currentInput[$pos]){
+            'a' => chr(7),
+            'b' => chr(8),
+            't' => "\t",
+            'n' => "\n",
+            'v' => "\v",
+            'f' => "\f",
+            'r' => "\r",
+            'e' => chr(27),
+            default => $this->currentInput[$pos],
+        };
+        $pos++;
+        return [$c, $pos];
+    }
+
+    /**
      * @param int $start
      * @return array{0: \Pcc\Tokenizer\Token, 1: int}
      */
@@ -98,34 +132,13 @@ class Tokenizer
         $endPos = $this->stringLiteralEndPos($start + 1);
 
         $str = '';
-        for ($i = $start + 1; $i < $endPos; $i++){
+        for ($i = $start + 1; $i < $endPos; ){
             if ($this->currentInput[$i] === '\\'){
-                // Octal number
-                if (preg_match('/\\\\([0-7]{1, 3})/', substr($this->currentInput, $i, 4), $matches)){
-                    $str .= chr(octdec($matches[1]));
-                    $i += strlen($matches[1]) + 1;
-                    continue;
-                }
-                // Hexadecimal number
-                if (preg_match('/\\\\x([0-9a-fA-F]+)/', substr($this->currentInput, $i, 4), $matches)){
-                    $str .= chr(hexdec($matches[1]));
-                    $i += strlen($matches[1]) + 2;
-                    continue;
-                }
-                $i++;
-                $str .= match ($this->currentInput[$i]){
-                    'a' => chr(7),
-                    'b' => chr(8),
-                    't' => "\t",
-                    'n' => "\n",
-                    'v' => "\v",
-                    'f' => "\f",
-                    'r' => "\r",
-                    'e' => chr(27),
-                    default => $this->currentInput[$i],
-                };
+                [$c, $i] = $this->readEscapedChar($i + 1);
+                $str .= $c;
             } else {
                 $str .= $this->currentInput[$i];
+                $i++;
             }
         }
 
@@ -134,7 +147,45 @@ class Tokenizer
         return [$tok, $endPos + 1];
     }
 
-    public function convertKeywords(): void
+    /**
+     * @param int $start
+     * @return array{0: \Pcc\Tokenizer\Token, 1: int}
+     */
+    public function readCharLiteral(int $start): array
+    {
+        $pos = $start + 1;
+        if ($this->currentInput[$pos] === "\0"){
+            Console::errorAt($start, 'unclosed char literal');
+        }
+
+        if ($this->currentInput[$pos] === '\\'){
+            [$c, $pos] = $this->readEscapedChar($pos + 1);
+        } else {
+            $c = $this->currentInput[$pos];
+            $pos++;
+        }
+
+        $end = strpos(substr($this->currentInput, $pos), "'");
+        if ($end === false){
+            Console::errorAt($start, 'unclosed char literal');
+        }
+
+        $str = substr($this->currentInput, $start + 1, ($pos + $end) - ($start + 1));
+        $tok = new Token(TokenKind::TK_NUM, $str, $start, );
+
+        $val = ord($c);
+        if ($val & 0x80){
+            // Sign bit is set (negative number)
+            $signedVal = $val - 0x100;
+        } else {
+            // Sign bit is not set (positive number)
+            $signedVal = $val;
+        }
+        $tok->val = $signedVal;
+        return [$tok, $pos + $end + 1];
+    }
+
+     public function convertKeywords(): void
     {
         foreach ($this->tokens as $idx => $token){
             if (in_array($token->str, $this->keywords)){
@@ -208,6 +259,13 @@ class Tokenizer
             // String literal
             if ($this->currentInput[$pos] === '"') {
                 [$token, $pos] = $this->readStringLiteral($pos);
+                $tokens[] = $token;
+                continue;
+            }
+
+            // Character literal
+            if ($this->currentInput[$pos] === "'") {
+                [$token, $pos] = $this->readCharLiteral($pos);
                 $tokens[] = $token;
                 continue;
             }
