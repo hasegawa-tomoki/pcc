@@ -52,7 +52,7 @@ class Console
         }
 
         $indent = sprintf("%s:%d: ", Console::$currentFilename, $lineNo);
-        printf("%s %s".PHP_EOL, $indent, $lines[$lineNo - 1]);
+        printf("%s%s".PHP_EOL, $indent, $lines[$lineNo - 1]);
         printf(str_repeat(" ", strlen($indent) + $pos));
         printf("^ ");
         printf($format.PHP_EOL, ...$args);
