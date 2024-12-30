@@ -207,6 +207,12 @@ class CodeGenerator
                 $this->genExpr($node->lhs);
                 $this->cast($node->lhs->ty, $node->ty);
                 return;
+            case NodeKind::ND_NOT:
+                $this->genExpr($node->lhs);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  sete %%al");
+                Console::out("  movzx %%al, %%rax");
+                return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){
                     $this->genExpr($arg);

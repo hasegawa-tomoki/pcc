@@ -17,6 +17,7 @@ enum NodeKind
     case ND_MEMBER; // . (struct member access)
     case ND_ADDR;   // unary &
     case ND_DEREF;  // unary *
+    case ND_NOT;
     case ND_RETURN;
     case ND_IF;
     case ND_FOR;
