@@ -291,8 +291,29 @@ class Parser
     }
 
     /**
+     * array-dimensions = num? "]" type-suffix
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function arrayDimensions(Token $rest, Token $tok, Type $ty): array
+    {
+        if ($this->tokenizer->equal($tok, ']')){
+            [$ty, $rest] = $this->typeSuffix($rest, $tok->next, $ty);
+            return [Type::arrayOf($ty, -1), $rest];
+        }
+
+        $sz = $this->getNumber($tok);
+        $tok = $this->tokenizer->skip($tok->next, ']');
+        [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
+        return [Type::arrayOf($ty, $sz), $rest];
+    }
+
+    /**
      * type-suffix = "(" func-params
-     *             | "[" num "]" type-suffix
+     *             | "[" num "]" array-dimensions
      *             | ε
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -307,10 +328,7 @@ class Parser
         }
 
         if ($this->tokenizer->equal($tok, '[')){
-            $sz = $this->getNumber($tok->next);
-            $tok = $this->tokenizer->skip($tok->next->next, ']');
-            [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
-            return [Type::arrayOf($ty, $sz), $rest];
+            return $this->arrayDimensions($rest, $tok->next, $ty);
         }
 
         return [$ty, $tok];
@@ -478,6 +496,9 @@ class Parser
             }
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            if ($ty->size < 0){
+                Console::errorTok($tok, 'variable has incomplete type');
+            }
             if ($ty->kind === TypeKind::TY_VOID){
                 Console::errorTok($tok, 'variable declared void');
             }
