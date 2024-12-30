@@ -938,6 +938,7 @@ class Parser
 
     /**
      * unary = ("+" | "-" | "*" | "&") cast
+     *       | ("++" | "--") unary
      *       | postfix
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -960,6 +961,18 @@ class Parser
         if ($this->tokenizer->equal($tok, '*')){
             [$cast, $rest] = $this->cast($rest, $tok->next);
             return [Node::newUnary(NodeKind::ND_DEREF, $cast, $tok), $rest];
+        }
+
+        // Read ++i as i += 1
+        if ($this->tokenizer->equal($tok, '++')){
+            [$unary, $rest] = $this->unary($rest, $tok->next);
+            return [$this->toAssign($this->newAdd($unary, Node::newNum(1, $tok), $tok)), $rest];
+        }
+
+        // Read --i as i -= 1
+        if ($this->tokenizer->equal($tok, '--')){
+            [$unary, $rest] = $this->unary($rest, $tok->next);
+            return [$this->toAssign($this->newSub($unary, Node::newNum(1, $tok), $tok)), $rest];
         }
 
         return $this->postfix($rest, $tok);
