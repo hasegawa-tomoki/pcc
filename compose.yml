@@ -5,5 +5,7 @@ services:
     hostname: 'localhost'
     volumes:
       - ./:/usr/local/src/pcc:cached
-      - ./docker/web/php.ini:/usr/local/etc/php/php.ini:cached
+      - ./docker/php/php.ini:/usr/local/etc/php/php.ini:cached
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     working_dir: /usr/local/src/pcc
