@@ -1115,6 +1115,14 @@ class Parser
         return $node;
     }
 
+    // Convert A++ to `(typeof A)((A += 1) - 1)`
+    public function newIncDec(Node $node, Token $tok, int $addend): Node
+    {
+        return Node::newCast($this->newAdd($this->toAssign($this->newAdd($node, Node::newNum($addend, $tok), $tok)),
+            Node::newNum(-1 * $addend, $tok), $tok),
+            $node->ty);
+    }
+
     /**
      * postfix = primary ("[" expr "]") | "." ident | "->" ident)*
      *
@@ -1147,6 +1155,18 @@ class Parser
                 $node = Node::newUnary(NodeKind::ND_DEREF, $node, $tok);
                 $node = $this->structRef($node, $tok->next);
                 $tok = $tok->next->next;
+                continue;
+            }
+
+            if ($this->tokenizer->equal($tok, '++')){
+                $node = $this->newIncDec($node, $tok, 1);
+                $tok = $tok->next;
+                continue;
+            }
+
+            if ($this->tokenizer->equal($tok, '--')){
+                $node = $this->newIncDec($node, $tok, -1);
+                $tok = $tok->next;
                 continue;
             }
 
