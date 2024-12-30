@@ -696,7 +696,7 @@ class Parser
 
     /**
      * assign    = equality (assign-op assign)?
-     * assign-op = "=" | "+=" | "-=" | "*=" | "/="
+     * assign-op = "=" | "+=" | "-=" | "*=" | "/=" | "%="
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -729,6 +729,11 @@ class Parser
         if ($this->tokenizer->equal($tok, '/=')){
             [$assign, $rest] = $this->assign($rest, $tok->next);
             return [$this->toAssign(Node::newBinary(NodeKind::ND_DIV, $node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '%=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_MOD, $node, $assign, $tok)), $rest];
         }
 
         return [$node, $tok];
@@ -907,6 +912,11 @@ class Parser
             if ($this->tokenizer->equal($tok, '/')){
                 [$cast, $tok] = $this->cast($tok, $tok->next);
                 $node = Node::newBinary(NodeKind::ND_DIV, $node, $cast, $start);
+                continue;
+            }
+            if ($this->tokenizer->equal($tok, '%')){
+                [$cast, $tok] = $this->cast($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_MOD, $node, $cast, $start);
                 continue;
             }
 

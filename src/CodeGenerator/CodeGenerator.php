@@ -256,12 +256,17 @@ class CodeGenerator
                 Console::out("  imul %s, %s", $di, $ax);
                 return;
             case NodeKind::ND_DIV:
+            case NodeKind::ND_MOD:
                 if ($node->lhs->ty->size === 8){
                     Console::out("  cqo");
                 } else {
                     Console::out("  cdq");
                 }
                 Console::out("  idiv %s", $di);
+
+                if ($node->kind === NodeKind::ND_MOD){
+                    Console::out("  mov %%rdx, %%rax");
+                }
                 return;
             case NodeKind::ND_EQ:
             case NodeKind::ND_NE:

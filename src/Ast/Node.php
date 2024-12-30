@@ -120,6 +120,7 @@ class Node
             case NodeKind::ND_SUB:
             case NodeKind::ND_MUL:
             case NodeKind::ND_DIV:
+            case NodeKind::ND_MOD:
                 [$this->lhs, $this->rhs] = Type::usualArithConv($this->lhs, $this->rhs);
                 $this->ty = $this->lhs->ty;
                 return;

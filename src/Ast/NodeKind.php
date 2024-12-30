@@ -8,6 +8,7 @@ enum NodeKind
     case ND_SUB;
     case ND_MUL;
     case ND_DIV;
+    case ND_MOD;
     case ND_EQ;
     case ND_NE;
     case ND_LT;
