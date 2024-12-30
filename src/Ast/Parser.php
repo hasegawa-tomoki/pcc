@@ -548,7 +548,14 @@ class Parser
             $node = Node::newNode(NodeKind::ND_FOR, $tok);
             $tok = $this->tokenizer->skip($tok->next, '(');
 
-            [$node->init, $tok] = $this->exprStmt($tok, $tok);
+            $this->enterScope();
+
+            if ($this->isTypeName($tok)){
+                [$basety, $tok] = $this->typespec($tok, $tok, null);
+                [$node->init, $tok] = $this->declaration($tok, $tok, $basety);
+            } else {
+                [$node->init, $tok] = $this->exprStmt($tok, $tok);
+            }
 
             if (! $this->tokenizer->equal($tok, ';')){
                 [$node->cond, $tok] = $this->expr($tok, $tok);
@@ -561,6 +568,8 @@ class Parser
             $tok = $this->tokenizer->skip($tok, ')');
 
             [$node->then, $rest] = $this->stmt($rest, $tok);
+
+            $this->leaveScope();
 
             return [$node, $rest];
         }
