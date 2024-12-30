@@ -900,13 +900,13 @@ class Parser
             $start = $tok;
 
             if ($this->tokenizer->equal($tok, '*')){
-                [$unary, $tok] = $this->cast($tok, $tok->next);
-                $node = Node::newBinary(NodeKind::ND_MUL, $node, $unary, $start);
+                [$cast, $tok] = $this->cast($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_MUL, $node, $cast, $start);
                 continue;
             }
             if ($this->tokenizer->equal($tok, '/')){
-                [$unary, $tok] = $this->cast($tok, $tok->next);
-                $node = Node::newBinary(NodeKind::ND_DIV, $node, $unary, $start);
+                [$cast, $tok] = $this->cast($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_DIV, $node, $cast, $start);
                 continue;
             }
 
