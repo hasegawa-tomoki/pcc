@@ -282,7 +282,7 @@ class Tokenizer
             }
 
             // Punctuators
-            if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', ])) {
+            if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', ])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $pos += 2;
                 continue;

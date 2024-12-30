@@ -9,6 +9,7 @@ use Pcc\Console;
 use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\Tokenizer;
 use Pcc\Tokenizer\TokenKind;
+use PhpParser\NodeTraverser;
 
 class Parser
 {
@@ -669,7 +670,33 @@ class Parser
     }
 
     /**
-     * assign = equality ("=" assign)?
+     * Convert `A op= B` to `tmp = &A, *tmp = *tmp op B`
+     * where tmp is a fresh pointer variable.
+     */
+    public function toAssign(Node $binary): Node
+    {
+        $binary->lhs->addType();
+        $binary->rhs->addType();
+        $tok = $binary->tok;
+
+        $var = $this->newLvar('', Type::pointerTo($binary->lhs->ty));
+        $expr1 = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($var, $tok),
+            Node::newUnary(NodeKind::ND_ADDR, $binary->lhs, $tok), $tok);
+        $expr2 = Node::newBinary(NodeKind::ND_ASSIGN,
+            Node::newUnary(NodeKind::ND_DEREF, Node::newVarNode($var, $tok), $tok),
+            Node::newBinary($binary->kind,
+                Node::newUnary(NodeKind::ND_DEREF, Node::newVarNode($var, $tok), $tok),
+                $binary->rhs,
+                $tok),
+            $tok);
+
+        return Node::newBinary(NodeKind::ND_COMMA, $expr1, $expr2, $tok);
+    }
+
+
+    /**
+     * assign    = equality (assign-op assign)?
+     * assign-op = "=" | "+=" | "-=" | "*=" | "/="
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -682,6 +709,26 @@ class Parser
         if ($this->tokenizer->equal($tok, '=')){
             [$assign, $rest] = $this->assign($rest, $tok->next);
             return [Node::newBinary(NodeKind::ND_ASSIGN, $node, $assign, $tok), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '+=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign($this->newAdd($node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '-=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign($this->newSub($node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '*=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_MUL, $node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '/=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_DIV, $node, $assign, $tok)), $rest];
         }
 
         return [$node, $tok];
