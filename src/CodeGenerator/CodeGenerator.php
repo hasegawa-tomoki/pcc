@@ -213,6 +213,10 @@ class CodeGenerator
                 Console::out("  sete %%al");
                 Console::out("  movzx %%al, %%rax");
                 return;
+            case NodeKind::ND_BITNOT:
+                $this->genExpr($node->lhs);
+                Console::out("  not %%rax");
+                return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){
                     $this->genExpr($arg);

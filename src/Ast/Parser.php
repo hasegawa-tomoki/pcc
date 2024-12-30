@@ -937,7 +937,7 @@ class Parser
     }
 
     /**
-     * unary = ("+" | "-" | "*" | "&" | "!") cast
+     * unary = ("+" | "-" | "*" | "&" | "!" | "~") cast
      *       | ("++" | "--") unary
      *       | postfix
      *
@@ -965,6 +965,10 @@ class Parser
         if ($this->tokenizer->equal($tok, '!')){
             [$cast, $rest] = $this->cast($rest, $tok->next);
             return [Node::newUnary(NodeKind::ND_NOT, $cast, $tok), $rest];
+        }
+        if ($this->tokenizer->equal($tok, '~')){
+            [$cast, $rest] = $this->cast($rest, $tok->next);
+            return [Node::newUnary(NodeKind::ND_BITNOT, $cast, $tok), $rest];
         }
 
         // Read ++i as i += 1

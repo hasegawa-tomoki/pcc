@@ -145,6 +145,9 @@ class Node
             case NodeKind::ND_NOT:
                 $this->ty = Type::tyInt();
                 return;
+            case NodeKind::ND_BITNOT:
+                $this->ty = $this->lhs->ty;
+                return;
             case NodeKind::ND_VAR:
                 $this->ty = $this->var->ty;
                 return;
