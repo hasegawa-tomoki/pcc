@@ -157,7 +157,7 @@ class Parser
 
     /**
      * typespec = typename typename*
-     * typename = "void" | "char" | "short" | "int" | "long"
+     * typename = "void" | "_Bool" | "char" | "short" | "int" | "long"
      *          | struct-decl | union-decl | typedef-name
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -183,15 +183,17 @@ class Parser
 
             // Handle user-defined types
             $ty2 = $this->findTypedef($tok);
-            if ($this->tokenizer->equal($tok, 'struct') or $this->tokenizer->equal($tok, 'union') or $ty2){
+            if ($this->tokenizer->equal($tok, 'struct') or $this->tokenizer->equal($tok, 'union') or $this->tokenizer->equal($tok, 'enum') or $ty2){
                 if ($counter){
                     break;
                 }
 
                 if ($this->tokenizer->equal($tok, 'struct')) {
                     [$ty, $tok] = $this->structDecl($tok, $tok->next);
-                } elseif ($this->tokenizer->equal($tok, 'union')){
+                } elseif ($this->tokenizer->equal($tok, 'union')) {
                     [$ty, $tok] = $this->unionDecl($tok, $tok->next);
+                } elseif ($this->tokenizer->equal($tok, 'enum')) {
+                    [$ty, $tok] = $this->enumSpecifier($tok, $tok->next);
                 } else {
                     $ty = $ty2;
                     $tok = $tok->next;
@@ -387,6 +389,67 @@ class Parser
     }
 
     /**
+     * enum-specifier = ident? "{" enum-list? "}"
+     *                | ident ("{" enum-list? "}")?
+     * enum-list      = ident ("=" num)? ("," ident ("=" num)?)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function enumSpecifier(Token $rest, Token $tok): array
+    {
+        $ty = Type::enumType();
+
+        // Read a struct tag.
+        $tag = null;
+        if ($tok->isKind(TokenKind::TK_IDENT)){
+            $tag = $tok;
+            $tok = $tok->next;
+        }
+
+        if ($tag and (! $this->tokenizer->equal($tok, '{'))){
+            $sc = $this->findTag($tag);
+            if (! $sc){
+                Console::errorTok($tag, 'unknown enum type');
+            }
+            if ($sc->ty->kind !== TypeKind::TY_ENUM){
+                Console::errorTok($tag, 'not an enum tag');
+            }
+            return [$sc->ty, $tok];
+        }
+
+        $tok = $this->tokenizer->skip($tok, '{');
+
+        // Read an enum-list.
+        $i = 0;
+        $val = 0;
+        while (! $this->tokenizer->equal($tok, '}')){
+            if ($i++ > 0){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            $name = $this->getIdent($tok);
+            $tok = $tok->next;
+
+            if ($this->tokenizer->equal($tok, '=')){
+                $val = $this->getNumber($tok->next);
+                $tok = $tok->next->next;
+            }
+
+            $sc = $this->pushScope($name);
+            $sc->enumTy = $ty;
+            $sc->enumVal = $val++;
+        }
+
+        if ($tag){
+            $this->pushTagScope($tag, $ty);
+        }
+
+        return [$ty, $tok->next];
+    }
+
+    /**
      * declaration = typespec (declarator ("=" expr)? ("," declarator ("=" expr)?)*)? ";"
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -428,7 +491,7 @@ class Parser
     {
         if (in_array($tok->str, [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
-            'typedef',
+            'typedef', 'enum',
         ])){
             return true;
         }
@@ -1114,13 +1177,19 @@ class Parser
                 return $this->funcall($rest, $tok);
             }
 
-            // Variable
+            // Variable or enum constant
             $sc = $this->findVar($tok);
-            if ((! $sc) or (! $sc->var)){
+            if ((! $sc) or ((! $sc->var) and (! $sc->enumTy))){
                 Console::errorTok($tok, 'undefined variable');
             }
 
-            return [Node::newVarNode($sc->var, $tok), $tok->next];
+            if ($sc->var){
+                $node = Node::newVarNode($sc->var, $tok);
+            } else {
+                $node = Node::newNum($sc->enumVal, $tok);
+            }
+
+            return [$node, $tok->next];
         }
 
         if ($tok->isKind(TokenKind::TK_STR)){

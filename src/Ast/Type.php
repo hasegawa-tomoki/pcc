@@ -88,7 +88,7 @@ class Type
     {
         $intTypes = [
             TypeKind::TY_BOOL, TypeKind::TY_CHAR, TypeKind::TY_SHORT,
-            TypeKind::TY_INT, TypeKind::TY_LONG,
+            TypeKind::TY_INT, TypeKind::TY_LONG, TypeKind::TY_ENUM,
         ];
         return in_array($this->kind, $intTypes);
     }
@@ -114,6 +114,11 @@ class Type
         $ty->base = $base;
         $ty->arrayLen = $len;
         return $ty;
+    }
+
+    public static function enumType(): Type
+    {
+        return self::newType(TypeKind::TY_ENUM, 4, 4);
     }
 
     public static function getCommonType(Type $ty1, Type $ty2): Type
