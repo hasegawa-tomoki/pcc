@@ -186,6 +186,41 @@ class Tokenizer
         return [$tok, $pos + $end + 1];
     }
 
+    /**
+     * @param int $start
+     * @return array{0: \Pcc\Tokenizer\Token, 1: int}
+     */
+    public function readIntLiteral(int $start): array
+    {
+        $p = $start;
+
+        $base = 10;
+        if (strtolower(substr($this->currentInput, $p, 2)) === '0x' and ctype_alnum($this->currentInput[$p + 2])){
+            $p += 2;
+            $base = 16;
+        } elseif (strtolower(substr($this->currentInput, $p, 2)) === '0b' and ctype_alnum($this->currentInput[$p + 2])){
+            $p += 2;
+            $base = 2;
+        } elseif ($this->currentInput[$p] === '0'){
+            $base = 8;
+        }
+
+        if (! preg_match('/^([0-9a-fA-F]+)/', substr($this->currentInput, $p), $matches)){
+            $val = 0;
+        } else {
+            $val = intval($matches[1], $base);
+            $p += strlen($matches[1]);
+        }
+        if (ctype_alnum($this->currentInput[$p])){
+            Console::errorAt($p, 'invalid digit');
+        }
+
+        $tok = new Token(TokenKind::TK_NUM, substr($this->currentInput, $start, $p - $start), $start);
+        $tok->val = $val;
+
+        return [$tok, $p];
+    }
+
      public function convertKeywords(): void
     {
         foreach ($this->tokens as $idx => $token){
@@ -245,14 +280,7 @@ class Tokenizer
 
             // Numeric literal
             if (ctype_digit($this->currentInput[$pos])) {
-                $token = new Token(TokenKind::TK_NUM, $this->currentInput[$pos], $pos);
-                $valStr = '';
-                while ($pos < strlen($this->currentInput) && ctype_digit($this->currentInput[$pos])) {
-                    $valStr .= $this->currentInput[$pos];
-                    $pos++;
-                }
-                $token->str = $valStr;
-                $token->val = intval($valStr);
+                [$token, $pos] = $this->readIntLiteral($pos);
                 $tokens[] = $token;
                 continue;
             }
