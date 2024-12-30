@@ -695,8 +695,8 @@ class Parser
 
 
     /**
-     * assign    = equality (assign-op assign)?
-     * assign-op = "=" | "+=" | "-=" | "*=" | "/=" | "%="
+     * assign    = bitor (assign-op assign)?
+     * assign-op = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -704,7 +704,7 @@ class Parser
      */
     public function assign(Token $rest, Token $tok): array
     {
-        [$node, $tok] = $this->equality($tok, $tok);
+        [$node, $tok] = $this->bitor($tok, $tok);
 
         if ($this->tokenizer->equal($tok, '=')){
             [$assign, $rest] = $this->assign($rest, $tok->next);
@@ -736,6 +736,75 @@ class Parser
             return [$this->toAssign(Node::newBinary(NodeKind::ND_MOD, $node, $assign, $tok)), $rest];
         }
 
+        if ($this->tokenizer->equal($tok, '&=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_BITAND, $node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '|=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_BITOR, $node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '^=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_BITXOR, $node, $assign, $tok)), $rest];
+        }
+
+        return [$node, $tok];
+    }
+
+    /**
+     * bitor = bitxor ("|" bitxor)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function bitor(Token $rest, Token $tok): array
+    {
+        [$node, $tok] = $this->bitxor($tok, $tok);
+        while ($this->tokenizer->equal($tok, '|')){
+            $start = $tok;
+            [$bitxor, $tok] = $this->bitxor($tok, $tok->next);
+            $node = Node::newBinary(NodeKind::ND_BITOR, $node, $bitxor, $start);
+        }
+        return [$node, $tok];
+    }
+
+    /**
+     * bitxor = bitand ("^" bitand)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function bitxor(Token $rest, Token $tok): array
+    {
+        [$node, $tok] = $this->bitand($tok, $tok);
+        while ($this->tokenizer->equal($tok, '^')){
+            $start = $tok;
+            [$bitand, $tok] = $this->bitand($tok, $tok->next);
+            $node = Node::newBinary(NodeKind::ND_BITXOR, $node, $bitand, $start);
+        }
+        return [$node, $tok];
+    }
+
+    /**
+     * bitand = equality ("&" equality)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function bitand(Token $rest, Token $tok): array
+    {
+        [$node, $tok] = $this->equality($tok, $tok);
+        while ($this->tokenizer->equal($tok, '&')){
+            $start = $tok;
+            [$equality, $tok] = $this->equality($tok, $tok->next);
+            $node = Node::newBinary(NodeKind::ND_BITAND, $node, $equality, $start);
+        }
         return [$node, $tok];
     }
 

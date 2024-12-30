@@ -268,6 +268,15 @@ class CodeGenerator
                     Console::out("  mov %%rdx, %%rax");
                 }
                 return;
+            case NodeKind::ND_BITAND:
+                Console::out("  and %%rdi, %%rax");
+                return;
+            case NodeKind::ND_BITOR:
+                Console::out("  or %%rdi, %%rax");
+                return;
+            case NodeKind::ND_BITXOR:
+                Console::out("  xor %%rdi, %%rax");
+                return;
             case NodeKind::ND_EQ:
             case NodeKind::ND_NE:
             case NodeKind::ND_LT:

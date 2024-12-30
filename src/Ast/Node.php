@@ -121,6 +121,9 @@ class Node
             case NodeKind::ND_MUL:
             case NodeKind::ND_DIV:
             case NodeKind::ND_MOD:
+            case NodeKind::ND_BITAND:
+            case NodeKind::ND_BITOR:
+            case NodeKind::ND_BITXOR:
                 [$this->lhs, $this->rhs] = Type::usualArithConv($this->lhs, $this->rhs);
                 $this->ty = $this->lhs->ty;
                 return;
