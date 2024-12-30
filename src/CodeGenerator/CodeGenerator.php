@@ -217,6 +217,34 @@ class CodeGenerator
                 $this->genExpr($node->lhs);
                 Console::out("  not %%rax");
                 return;
+            case NodeKind::ND_LOGAND:
+                $c = $this->cnt();
+                $this->genExpr($node->lhs);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  je .L.false.%d", $c);
+                $this->genExpr($node->rhs);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  je .L.false.%d", $c);
+                Console::out("  mov \$1, %%rax");
+                Console::out("  jmp .L.end.%d", $c);
+                Console::out(".L.false.%d:", $c);
+                Console::out("  mov \$0, %%rax");
+                Console::out(".L.end.%d:", $c);
+                return;
+            case NodeKind::ND_LOGOR:
+                $c = $this->cnt();
+                $this->genExpr($node->lhs);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  jne .L.true.%d", $c);
+                $this->genExpr($node->rhs);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  jne .L.true.%d", $c);
+                Console::out("  mov \$0, %%rax");
+                Console::out("  jmp .L.end.%d", $c);
+                Console::out(".L.true.%d:", $c);
+                Console::out("  mov \$1, %%rax");
+                Console::out(".L.end.%d:", $c);
+                return;
             case NodeKind::ND_FUNCALL:
                 foreach ($node->args as $arg){
                     $this->genExpr($arg);

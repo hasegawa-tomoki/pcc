@@ -147,6 +147,8 @@ class Node
                 $this->ty = Type::tyLong();
                 return;
             case NodeKind::ND_NOT:
+            case NodeKind::ND_LOGAND:
+            case NodeKind::ND_LOGOR:
                 $this->ty = Type::tyInt();
                 return;
             case NodeKind::ND_BITNOT:

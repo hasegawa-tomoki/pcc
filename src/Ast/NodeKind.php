@@ -23,6 +23,8 @@ enum NodeKind
     case ND_DEREF;  // unary *
     case ND_NOT;
     case ND_BITNOT;
+    case ND_LOGAND;
+    case ND_LOGOR;
     case ND_RETURN;
     case ND_IF;
     case ND_FOR;
