@@ -171,12 +171,22 @@ class Parser
         $counter = 0;
 
         while ($this->isTypeName($tok)){
-            // Handle "typedef" keyword
-            if ($this->tokenizer->equal($tok, 'typedef')){
+            // Handle storage class specifiers
+            if ($this->tokenizer->equal($tok, 'typedef') or $this->tokenizer->equal($tok, 'static')){
                 if (! $attr){
                     Console::errorTok($tok, 'storage class specifier is not allowed in this context');
                 }
-                $attr->isTypedef = true;
+
+                if ($this->tokenizer->equal($tok, 'typedef')){
+                    $attr->isTypedef = true;
+                } else {
+                    $attr->isStatic = true;
+                }
+
+                if ($attr->isTypedef + $attr->isStatic > 1){
+                    Console::errorTok($tok, 'typedef and static may not be used together');
+                }
+
                 $tok = $tok->next;
                 continue;
             }
@@ -491,7 +501,7 @@ class Parser
     {
         if (in_array($tok->str, [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
-            'typedef', 'enum',
+            'typedef', 'enum', 'static',
         ])){
             return true;
         }
@@ -1232,7 +1242,7 @@ class Parser
         }
     }
 
-    public function func(Token $tok, Type $basety): Token
+    public function func(Token $tok, Type $basety, VarAttr $attr): Token
     {
         [$ty, $tok] = $this->declarator($tok, $tok, $basety);
 
@@ -1240,6 +1250,7 @@ class Parser
         $fn->isFunction = true;
         [$consumed, $tok] = $this->tokenizer->consume($tok, ';');
         $fn->isDefinition = (! $consumed);
+        $fn->isStatic = $attr->isStatic;
 
         if (! $fn->isDefinition){
             return $tok;
@@ -1311,7 +1322,7 @@ class Parser
 
             // Function
             if ($this->isFunction($tok)){
-                $tok = $this->func($tok, $basety);
+                $tok = $this->func($tok, $basety, $attr);
                 continue;
             }
 

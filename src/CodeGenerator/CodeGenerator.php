@@ -410,7 +410,12 @@ class CodeGenerator
                 continue;
             }
 
-            Console::out("  .globl %s", $fn->name);
+            if ($fn->isStatic){
+                Console::out("  .local %s", $fn->name);
+            } else {
+                Console::out("  .globl %s", $fn->name);
+            }
+
             Console::out("  .text");
             Console::out("%s:", $fn->name);
             $this->currentFn = $fn;

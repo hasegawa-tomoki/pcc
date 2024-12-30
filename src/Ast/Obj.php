@@ -13,6 +13,7 @@ class Obj
     // Global variable or function
     public bool $isFunction = false;
     public bool $isDefinition;
+    public bool $isStatic;
 
     // Global variable
     public ?string $initData = null;
