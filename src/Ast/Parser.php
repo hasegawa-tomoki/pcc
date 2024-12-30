@@ -9,7 +9,6 @@ use Pcc\Console;
 use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\Tokenizer;
 use Pcc\Tokenizer\TokenKind;
-use PhpParser\NodeTraverser;
 
 class Parser
 {
