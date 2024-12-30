@@ -279,9 +279,18 @@ class Parser
             if (count($params) > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
-            [$basety, $tok] = $this->typespec($tok, $tok, null);
-            [$type, $tok] = $this->declarator($tok, $tok, $basety);
-            $params[] = $type;
+
+            [$ty2, $tok] = $this->typespec($tok, $tok, null);
+            [$ty2, $tok] = $this->declarator($tok, $tok, $ty2);
+
+            // "array of T" is converted to "pointer to T" only in the parameter context.
+            // For example, *argv[] is converted to **argv by this.
+            if ($ty2->kind === TypeKind::TY_ARRAY){
+                $name = $ty2->name;
+                $ty2 = Type::pointerTo($ty2->base);
+                $ty2->name = $name;
+            }
+            $params[] = $ty2;
         }
 
         $ty = Type::funcType($ty);
