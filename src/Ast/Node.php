@@ -36,6 +36,10 @@ class Node
     /** @var Node[] */
     public array $args = [];
 
+    // Goto or labeled statement
+    public ?string $label = null;
+    public ?string $uniqueLabel = null;
+
     // Used if kind == ND_VAR
     public Obj $var;
     // Used if kind == ND_NUM

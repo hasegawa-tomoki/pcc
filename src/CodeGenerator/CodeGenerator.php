@@ -371,6 +371,13 @@ class CodeGenerator
                     $this->genStmt($n);
                 }
                 return;
+            case NodeKind::ND_GOTO:
+                Console::out("  jmp %s", $node->uniqueLabel);
+                return;
+            case NodeKind::ND_LABEL:
+                Console::out("%s:", $node->uniqueLabel);
+                $this->genStmt($node->lhs);
+                return;
             case NodeKind::ND_RETURN:
                 $this->genExpr($node->lhs);
                 Console::out("  jmp .L.return.%s", $this->currentFn->name);

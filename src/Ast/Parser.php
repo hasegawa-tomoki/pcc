@@ -20,6 +20,10 @@ class Parser
     public array $scopes = [];
     public int $scopeDepth = 0;
     public Obj $currentFn;
+    /** @var Node[] */
+    public array $gotos = [];
+    /** @var Node[] */
+    public array $labels = [];
 
     public function __construct(
         private readonly Tokenizer $tokenizer,
@@ -547,6 +551,8 @@ class Parser
      *      | "if" "(" expr ")" stmt ("else" stmt)?
      *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
      *      | "while" "(" expr ")" stmt
+     *      | "goto" ident ";"
+     *      | ident ":" stmt
      *      | "{" compound-stmt
      *      | expr-stmt
      *
@@ -615,6 +621,23 @@ class Parser
             [$node->cond, $tok] = $this->expr($tok, $tok);
             $tok = $this->tokenizer->skip($tok, ')');
             [$node->then, $rest] = $this->stmt($rest, $tok);
+            return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'goto')){
+            $node = Node::newNode(NodeKind::ND_GOTO, $tok);
+            $node->label = $this->getIdent($tok->next);
+            array_unshift($this->gotos, $node);
+            $rest = $this->tokenizer->skip($tok->next->next, ';');
+            return [$node, $rest];
+        }
+
+        if ($tok->isKind(TokenKind::TK_IDENT) and $this->tokenizer->equal($tok->next, ':')){
+            $node = Node::newNode(NodeKind::ND_LABEL, $tok);
+            $node->label = $tok->str;
+            $node->uniqueLabel = $this->newUniqueName();
+            [$node->lhs, $rest] = $this->stmt($rest, $tok->next->next);
+            array_unshift($this->labels, $node);
             return [$node, $rest];
         }
 
@@ -1519,6 +1542,26 @@ class Parser
         }
     }
 
+    public function resolveGotoLabels(): void
+    {
+        $goto = null;
+        foreach ($this->gotos as $goto){
+            foreach ($this->labels as $label){
+                if ($goto->label === $label->label){
+                    $goto->uniqueLabel = $label->uniqueLabel;
+                    break;
+                }
+            }
+        }
+
+        if ((! is_null($goto)) and (! $goto->uniqueLabel)){
+            Console::errorTok($goto->tok->next, 'use of undeclared label');
+        }
+
+        $this->gotos = [];
+        $this->labels = [];
+    }
+
     public function func(Token $tok, Type $basety, VarAttr $attr): Token
     {
         [$ty, $tok] = $this->declarator($tok, $tok, $basety);
@@ -1546,6 +1589,7 @@ class Parser
 
         $fn->locals = $this->locals;
         $this->leaveScope();
+        $this->resolveGotoLabels();
 
         return $tok;
     }
