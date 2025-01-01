@@ -1276,7 +1276,7 @@ class Parser
     }
 
     /**
-     * postfix = primary ("[" expr "]") | "." ident | "->" ident)*
+     * postfix = primary ("[" expr "]" | "." ident | "->" ident | "++" | "--")*
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
