@@ -120,7 +120,7 @@ class Parser
 
     public function getIdent(Token $tok): string
     {
-        if ($tok->kind !== TokenKind::TK_IDENT){
+        if (! $tok->isKind(TokenKind::TK_IDENT)){
             Console::errorTok($tok, "expected an identifier");
         }
         return $tok->str;
@@ -139,7 +139,7 @@ class Parser
 
     public function getNumber(Token $tok): int
     {
-        if ($tok->kind !== TokenKind::TK_NUM) {
+        if (! $tok->isKind(TokenKind::TK_NUM)){
             Console::errorTok($tok, "expected a number");
         }
         return $tok->val;
@@ -422,6 +422,10 @@ class Parser
     public function typename(Token $rest, Token $tok): array
     {
         [$ty, $tok] = $this->typespec($rest, $tok, null);
+        if ($ty->kind === TypeKind::TY_STRUCT and $ty->size === -1){
+            $sc = $this->findTag($ty->name);
+            $ty = $sc->ty;
+        }
         return $this->abstractDeclarator($rest, $tok, $ty);
     }
 
@@ -1167,6 +1171,7 @@ class Parser
      */
     public function structUnionDecl(Token $rest, Token $tok): array
     {
+        // Read a tag.
         $tag = null;
         if ($tok->isKind(TokenKind::TK_IDENT)){
             $tag = $tok;
@@ -1174,18 +1179,36 @@ class Parser
         }
 
         if ($tag and (! $this->tokenizer->equal($tok, '{'))){
+            $rest = $tok;
+
             $sc = $this->findTag($tag);
-            if (! $sc){
-                Console::errorTok($tag, 'unknown struct type');
+            if ($sc){
+                return [$sc->ty, $rest];
             }
-            return [$sc->ty, $tok];
+
+            $ty = Type::structType();
+            $ty->size = -1;
+            $ty->name = $tag;
+            // In pcc, getStructMember() will call findTag().
+            // $this->pushTagScope($tag, $ty);
+            return [$ty, $rest];
         }
 
-        $ty = new Type(TypeKind::TY_STRUCT);
-        $rest = $this->structMembers($rest, $tok->next, $ty);
-        $ty->align = 1;
+        $tok = $this->tokenizer->skip($tok, '{');
+
+        // Construct a struct object.
+        $ty = Type::structType();
+        $rest = $this->structMembers($rest, $tok, $ty);
 
         if ($tag){
+            // If this is a redefinition, overwrite the previous type.
+            // Otherwise, register the struct type.
+            $sc = $this->findTag($tag);
+            if ($sc and $sc->depth === $this->scopeDepth){
+                $sc->ty = $ty;
+                return [$sc->ty, $rest];
+            }
+
             $this->pushTagScope($tag, $ty);
         }
 
@@ -1203,6 +1226,10 @@ class Parser
     {
         [$ty, $rest] = $this->structUnionDecl($rest, $tok);
         $ty->kind = TypeKind::TY_STRUCT;
+
+        if ($ty->size < 0){
+            return [$ty, $rest];
+        }
 
         $offset = 0;
         foreach ($ty->members as $mem){
@@ -1231,6 +1258,10 @@ class Parser
         [$ty, $rest] = $this->structUnionDecl($rest, $tok);
         $ty->kind = TypeKind::TY_UNION;
 
+        if ($ty->size < 0){
+            return [$ty, $rest];
+        }
+
         foreach ($ty->members as $mem){
             $mem->offset = 0;
             if ($ty->align < $mem->ty->align){
@@ -1247,6 +1278,11 @@ class Parser
 
     public function getStructMember(Type $ty, Token $tok): Member
     {
+        if ($ty->size === -1){
+            $sc = $this->findTag($ty->name);
+            $ty = $sc->ty;
+        }
+
         foreach ($ty->members as $mem){
             if ($mem->name->str === $tok->str){
                 return $mem;

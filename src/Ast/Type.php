@@ -16,7 +16,7 @@ class Type
     // Array
     public int $arrayLen;
     /** @var \Pcc\Ast\Member[] */
-    public array $members;
+    public array $members = [];
     // Function type
     public Type $returnTy;
     /** @var \Pcc\Ast\Type[] */
@@ -119,6 +119,11 @@ class Type
     public static function enumType(): Type
     {
         return self::newType(TypeKind::TY_ENUM, 4, 4);
+    }
+
+    public static function structType(): Type
+    {
+        return self::newType(TypeKind::TY_STRUCT, 0, 1);
     }
 
     public static function getCommonType(Type $ty1, Type $ty2): Type
