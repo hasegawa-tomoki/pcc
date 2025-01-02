@@ -33,7 +33,8 @@ class Node
      */
     public array $body = [];
 
-    public ?Member $member = null;
+    /** @var \Pcc\Ast\Member[] */
+    public array $members = [];
 
     // Function call
     public ?string $funcname = null;
@@ -185,7 +186,7 @@ class Node
                 $this->ty = $this->rhs->ty;
                 return;
             case NodeKind::ND_MEMBER:
-                $this->ty = $this->member->ty;
+                $this->ty = $this->members[0]->ty;
                 return;
             case NodeKind::ND_ADDR:
                 if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){

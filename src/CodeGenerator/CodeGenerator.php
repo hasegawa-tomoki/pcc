@@ -80,7 +80,7 @@ class CodeGenerator
                 return;
             case NodeKind::ND_MEMBER:
                 $this->genAddr($node->lhs);
-                Console::out("  add $%d, %%rax", $node->member->offset);
+                Console::out("  add $%d, %%rax", $node->members[0]->offset);
                 return;
         }
 

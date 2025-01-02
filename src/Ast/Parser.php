@@ -100,6 +100,14 @@ class Parser
             for ($i = 0; $i < $ty->arrayLen; $i++){
                 $init->children[] = $this->newInitializer($ty->base, false);
             }
+            return $init;
+        }
+
+        if ($ty->kind === TypeKind::TY_STRUCT){
+            foreach ($ty->members as $mem){
+                $init->children[] = $this->newInitializer($mem->ty, false);
+            }
+            return $init;
         }
 
         return $init;
@@ -623,9 +631,39 @@ class Parser
 
         return [$init, $rest];
     }
+
+    /**
+     * struct-initializer = "{" initializer ("," initializer)* "}"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Initializer $init
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
+     */
+    public function structInitializer(Token $rest, Token $tok, Initializer $init): array
+    {
+        $tok = $this->tokenizer->skip($tok, '{');
+
+        $idx = 0;
+        while ([$consumed, $rest] = $this->tokenizer->consume($rest, $tok, '}') and (! $consumed)){
+            if ($idx > 0){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            if (isset($init->ty->members[$idx])){
+                [$init->children[$idx], $tok] = $this->initializer2($tok, $tok, $init->children[$idx]);
+                $idx++;
+            } else {
+                $tok = $this->skipExcessElement($tok);
+            }
+        }
+
+        return [$init, $rest];
+    }
     
     /**
-     * initializer = string-initializer | array-initializer | assign
+     * initializer = string-initializer | array-initializer
+     *             | struct-initializer | assign
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -640,6 +678,10 @@ class Parser
 
         if ($init->ty->kind === TypeKind::TY_ARRAY){
             return $this->arrayInitializer($rest, $tok, $init);
+        }
+
+        if ($init->ty->kind === TypeKind::TY_STRUCT){
+            return $this->structInitializer($rest, $tok, $init);
         }
 
         [$init->expr, $rest] = $this->assign($rest, $tok);
@@ -667,6 +709,12 @@ class Parser
             return Node::newVarNode($desg->var, $tok);
         }
 
+        if (count($desg->members)){
+            $node = Node::newUnary(NodeKind::ND_MEMBER, $this->initDesgExpr($desg->next, $tok), $tok);
+            $node->members = $desg->members;
+            return $node;
+        }
+
         $lhs = $this->initDesgExpr($desg->next, $tok);
         $rhs = Node::newNum($desg->idx, $tok);
         return Node::newUnary(NodeKind::ND_DEREF, $this->newAdd($lhs, $rhs, $tok), $tok);
@@ -679,6 +727,17 @@ class Parser
             for ($i = 0; $i < $ty->arrayLen; $i++){
                 $desg2 = new InitDesg($desg, $i);
                 $rhs = $this->createLVarInit($init->children[$i], $ty->base, $desg2, $tok);
+                $node = Node::newBinary(NodeKind::ND_COMMA, $node, $rhs, $tok);
+            }
+            return $node;
+        }
+
+        if ($ty->kind === TypeKind::TY_STRUCT){
+            $node = Node::newNode(NodeKind::ND_NULL_EXPR, $tok);
+
+            foreach ($ty->members as $idx => $mem){
+                $desg2 = new InitDesg($desg, 0, [$mem]);
+                $rhs = $this->createLVarInit($init->children[$idx], $mem->ty, $desg2, $tok);
                 $node = Node::newBinary(NodeKind::ND_COMMA, $node, $rhs, $tok);
             }
             return $node;
@@ -701,7 +760,7 @@ class Parser
     public function lVarInitializer(Token $rest, Token $tok, Obj $var): array
     {
         [$init, $rest] = $this->initializer($rest, $tok, $var->ty, $var);
-        $desg = new InitDesg(null, 0, $var);
+        $desg = new InitDesg(null, 0, [], $var);
 
         $lhs = Node::newNode(NodeKind::ND_MEMZERO, $tok);
         $lhs->var = $var;
@@ -1594,11 +1653,13 @@ class Parser
 
         while (! $this->tokenizer->equal($tok, '}')){
             [$basety, $tok] = $this->typespec($tok, $tok, null);
-            $i = 0;
-                if ($i++){
+            $first = true;
+
             while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
+                if (! $first){
                     $tok = $this->tokenizer->skip($tok, ',');
                 }
+                $first = false;
 
                 [$declarator, $tok] = $this->declarator($tok, $tok, $basety);
 
@@ -1749,7 +1810,7 @@ class Parser
         }
 
         $node = Node::newUnary(NodeKind::ND_MEMBER, $lhs, $tok);
-        $node->member = $this->getStructMember($lhs->ty, $tok);
+        $node->members = [$this->getStructMember($lhs->ty, $tok)];
         return $node;
     }
 
