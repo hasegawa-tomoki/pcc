@@ -681,6 +681,15 @@ class Parser
         }
 
         if ($init->ty->kind === TypeKind::TY_STRUCT){
+            if (! $this->tokenizer->equal($tok, '{')){
+                [$expr, $rest] = $this->assign($rest, $tok);
+                $expr->addType();
+                if ($expr->ty->kind === TypeKind::TY_STRUCT){
+                    $init->expr = $expr;
+                    return [$init, $rest];
+                }
+            }
+
             return $this->structInitializer($rest, $tok, $init);
         }
 
@@ -732,7 +741,7 @@ class Parser
             return $node;
         }
 
-        if ($ty->kind === TypeKind::TY_STRUCT){
+        if ($ty->kind === TypeKind::TY_STRUCT and (! $init->expr)){
             $node = Node::newNode(NodeKind::ND_NULL_EXPR, $tok);
 
             foreach ($ty->members as $idx => $mem){
