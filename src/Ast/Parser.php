@@ -554,25 +554,52 @@ class Parser
     }
 
     /**
-     * initializer = "{" initializer ("," initializer)* "}"
-     *             | assign
+     * string-initializer = string-literal
+     */
+    public function stringInitializer(Token $rest, Token $tok, Initializer $init): Token
+    {
+        $len = min($init->ty->arrayLen, $tok->ty->arrayLen);
+        for ($i = 0; $i < $len; $i++){
+            if (isset($tok->str[$i])){
+                $c = ord($tok->str[$i]);
+            } else {
+                $c = 0;
+            }
+            $init->children[$i]->expr = Node::newNum($c, $tok);
+        }
+        return $tok->next;
+    }
+
+    public function arrayInitializer(Token $rest, Token $tok, Initializer $init): Token
+    {
+        $tok = $this->tokenizer->skip($tok, '{');
+
+        for ($i = 0; [$consumed, $rest] = $this->tokenizer->consume($tok, '}') and (! $consumed); $i++){
+            if ($i > 0){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            if ($i < $init->ty->arrayLen){
+                $tok = $this->initializer2($tok, $tok, $init->children[$i]);
+            } else {
+                $tok = $this->skipExcessElement($tok);
+            }
+        }
+
+        return $rest;
+    }
+    
+    /**
+     * initializer = string-initializer | array-initializer | assign
      */
     public function initializer2(Token $rest, Token $tok, Initializer $init): Token
     {
-        if ($init->ty->kind === TypeKind::TY_ARRAY){
-            $tok = $this->tokenizer->skip($tok, '{');
+        if ($init->ty->kind === TypeKind::TY_ARRAY and $tok->kind === TokenKind::TK_STR){
+            return $this->stringInitializer($rest, $tok, $init);
+        }
 
-            for ($i = 0; [$consumed, $rest] = $this->tokenizer->consume($tok, '}') and (! $consumed); $i++){
-                if ($i > 0){
-                    $tok = $this->tokenizer->skip($tok, ',');
-                }
-                if ($i < $init->ty->arrayLen){
-                    $tok = $this->initializer2($tok, $tok, $init->children[$i]);
-                } else {
-                    $tok = $this->skipExcessElement($tok);
-                }
-            }
-            return $rest;
+        if ($init->ty->kind === TypeKind::TY_ARRAY){
+            return $this->arrayInitializer($rest, $tok, $init);
         }
 
         [$init->expr, $rest] = $this->assign($rest, $tok);
