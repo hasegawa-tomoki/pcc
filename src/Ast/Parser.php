@@ -103,7 +103,7 @@ class Parser
             return $init;
         }
 
-        if ($ty->kind === TypeKind::TY_STRUCT){
+        if ($ty->kind === TypeKind::TY_STRUCT or $ty->kind === TypeKind::TY_UNION){
             foreach ($ty->members as $mem){
                 $init->children[] = $this->newInitializer($mem->ty, false);
             }
@@ -660,10 +660,25 @@ class Parser
 
         return [$init, $rest];
     }
-    
+
+    /**
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Initializer $init
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
+     */
+    public function unionInitializer(Token $rest, Token $tok, Initializer $init): array
+    {
+        $tok = $this->tokenizer->skip($tok, '{');
+        [$init->children[0], $tok] = $this->initializer2($tok, $tok, $init->children[0]);
+        $rest = $this->tokenizer->skip($tok, '}');
+        return [$init, $rest];
+    }
+
     /**
      * initializer = string-initializer | array-initializer
-     *             | struct-initializer | assign
+     *             | struct-initializer | union-initializer
+     *             | assign
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -691,6 +706,10 @@ class Parser
             }
 
             return $this->structInitializer($rest, $tok, $init);
+        }
+
+        if ($init->ty->kind === TypeKind::TY_UNION){
+            return $this->unionInitializer($rest, $tok, $init);
         }
 
         [$init->expr, $rest] = $this->assign($rest, $tok);
@@ -750,6 +769,11 @@ class Parser
                 $node = Node::newBinary(NodeKind::ND_COMMA, $node, $rhs, $tok);
             }
             return $node;
+        }
+
+        if ($ty->kind === TypeKind::TY_UNION){
+            $desg2 = new InitDesg($desg, 0, [$ty->members[0]]);
+            return $this->createLVarInit($init->children[0], $ty->members[0]->ty, $desg2, $tok);
         }
 
         if (! $init->expr){
