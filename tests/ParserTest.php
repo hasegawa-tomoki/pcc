@@ -143,9 +143,9 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(NodeKind::ND_ASSIGN, $prog[0]->body[0]->body[0]->body[0]->lhs->kind);
-        $this->assertEquals('x', $prog[0]->body[0]->body[0]->body[0]->lhs->lhs->var->name);
-        $this->assertEquals(3, $prog[0]->body[0]->body[0]->body[0]->lhs->rhs->lhs->val);
+        $this->assertEquals(NodeKind::ND_ASSIGN, $prog[0]->body[0]->body[0]->body[0]->lhs->rhs->kind);
+        $this->assertEquals('x', $prog[0]->body[0]->body[0]->body[0]->lhs->rhs->lhs->var->name);
+        $this->assertEquals(3, $prog[0]->body[0]->body[0]->body[0]->lhs->rhs->rhs->lhs->val);
     }
 
     public function testZeroArityFunctionCall()
