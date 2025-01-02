@@ -22,6 +22,9 @@ class Node
     public ?Node $init = null;
     public ?Node $inc = null;
 
+    // "break" label
+    public ?string $brkLabel = null;
+
     /**
      * Block or statement expression
      * @var Node[]

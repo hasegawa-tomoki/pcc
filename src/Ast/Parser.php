@@ -25,6 +25,9 @@ class Parser
     /** @var Node[] */
     public array $labels = [];
 
+    // Current "goto" jump target
+    public ?string $brkLabel = null;
+
     public function __construct(
         private readonly Tokenizer $tokenizer,
     )
@@ -552,6 +555,7 @@ class Parser
      *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
      *      | "while" "(" expr ")" stmt
      *      | "goto" ident ";"
+     *      | "break" ";"
      *      | ident ":" stmt
      *      | "{" compound-stmt
      *      | expr-stmt
@@ -590,6 +594,9 @@ class Parser
 
             $this->enterScope();
 
+            $brk = $this->brkLabel;
+            $this->brkLabel = $node->brkLabel = $this->newUniqueName();
+
             if ($this->isTypeName($tok)){
                 [$basety, $tok] = $this->typespec($tok, $tok, null);
                 [$node->init, $tok] = $this->declaration($tok, $tok, $basety);
@@ -610,6 +617,7 @@ class Parser
             [$node->then, $rest] = $this->stmt($rest, $tok);
 
             $this->leaveScope();
+            $this->brkLabel = $brk;
 
             return [$node, $rest];
         }
@@ -620,7 +628,11 @@ class Parser
             $tok = $this->tokenizer->skip($tok->next, '(');
             [$node->cond, $tok] = $this->expr($tok, $tok);
             $tok = $this->tokenizer->skip($tok, ')');
+
+            $brk = $this->brkLabel;
+            $this->brkLabel = $node->brkLabel = $this->newUniqueName();
             [$node->then, $rest] = $this->stmt($rest, $tok);
+            $this->brkLabel = $brk;
             return [$node, $rest];
         }
 
@@ -629,6 +641,16 @@ class Parser
             $node->label = $this->getIdent($tok->next);
             array_unshift($this->gotos, $node);
             $rest = $this->tokenizer->skip($tok->next->next, ';');
+            return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'break')){
+            if (! $this->brkLabel){
+                Console::errorTok($tok, 'stray break');
+            }
+            $node = Node::newNode(NodeKind::ND_GOTO, $tok);
+            $node->uniqueLabel = $this->brkLabel;
+            $rest = $this->tokenizer->skip($tok->next, ';');
             return [$node, $rest];
         }
 

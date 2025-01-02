@@ -356,14 +356,14 @@ class CodeGenerator
                 if ($node->cond) {
                     $this->genExpr($node->cond);
                     Console::out("  cmp \$0, %%rax");
-                    Console::out("  je  .L.end.%d", $c);
+                    Console::out("  je  %s", $node->brkLabel);
                 }
                 $this->genStmt($node->then);
                 if ($node->inc) {
                     $this->genExpr($node->inc);
                 }
                 Console::out("  jmp .L.begin.%d", $c);
-                Console::out(".L.end.%d:", $c);
+                Console::out("%s:", $node->brkLabel);
                 return;
             }
             case NodeKind::ND_BLOCK:
