@@ -22,8 +22,9 @@ class Node
     public ?Node $init = null;
     public ?Node $inc = null;
 
-    // "break" label
+    // "break" and "continue" labels
     public ?string $brkLabel = null;
+    public ?string $contLabel = null;
 
     /**
      * Block or statement expression

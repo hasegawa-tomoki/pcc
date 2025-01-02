@@ -359,6 +359,7 @@ class CodeGenerator
                     Console::out("  je  %s", $node->brkLabel);
                 }
                 $this->genStmt($node->then);
+                Console::out("%s:", $node->contLabel);
                 if ($node->inc) {
                     $this->genExpr($node->inc);
                 }

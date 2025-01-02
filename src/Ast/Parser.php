@@ -25,8 +25,9 @@ class Parser
     /** @var Node[] */
     public array $labels = [];
 
-    // Current "goto" jump target
+    // Current "goto" and "continue" jump targets
     public ?string $brkLabel = null;
+    public ?string $contLabel = null;
 
     public function __construct(
         private readonly Tokenizer $tokenizer,
@@ -556,6 +557,7 @@ class Parser
      *      | "while" "(" expr ")" stmt
      *      | "goto" ident ";"
      *      | "break" ";"
+     *      | "continue" ";"
      *      | ident ":" stmt
      *      | "{" compound-stmt
      *      | expr-stmt
@@ -595,7 +597,9 @@ class Parser
             $this->enterScope();
 
             $brk = $this->brkLabel;
+            $cont = $this->contLabel;
             $this->brkLabel = $node->brkLabel = $this->newUniqueName();
+            $this->contLabel = $node->contLabel = $this->newUniqueName();
 
             if ($this->isTypeName($tok)){
                 [$basety, $tok] = $this->typespec($tok, $tok, null);
@@ -618,6 +622,7 @@ class Parser
 
             $this->leaveScope();
             $this->brkLabel = $brk;
+            $this->contLabel = $cont;
 
             return [$node, $rest];
         }
@@ -630,9 +635,15 @@ class Parser
             $tok = $this->tokenizer->skip($tok, ')');
 
             $brk = $this->brkLabel;
+            $cont = $this->contLabel;
             $this->brkLabel = $node->brkLabel = $this->newUniqueName();
+            $this->contLabel = $node->contLabel = $this->newUniqueName();
+
             [$node->then, $rest] = $this->stmt($rest, $tok);
+
             $this->brkLabel = $brk;
+            $this->contLabel = $cont;
+
             return [$node, $rest];
         }
 
@@ -650,6 +661,16 @@ class Parser
             }
             $node = Node::newNode(NodeKind::ND_GOTO, $tok);
             $node->uniqueLabel = $this->brkLabel;
+            $rest = $this->tokenizer->skip($tok->next, ';');
+            return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'continue')){
+            if (! $this->contLabel){
+                Console::errorTok($tok, 'stray continue');
+            }
+            $node = Node::newNode(NodeKind::ND_GOTO, $tok);
+            $node->uniqueLabel = $this->contLabel;
             $rest = $this->tokenizer->skip($tok->next, ';');
             return [$node, $rest];
         }
