@@ -375,7 +375,7 @@ class Parser
      */
     public function declarator(Token $rest, Token $tok, Type $ty): array
     {
-        while ([$consumed, $tok] = $this->tokenizer->consume($tok, '*') and $consumed){
+        while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, '*') and $consumed){
             $ty = Type::pointerTo($ty);
         }
 
@@ -609,7 +609,7 @@ class Parser
             $init = $this->newInitializer(Type::arrayOf($init->ty->base, $len), false);
         }
 
-        for ($i = 0; [$consumed, $rest] = $this->tokenizer->consume($tok, '}') and (! $consumed); $i++){
+        for ($i = 0; [$consumed, $rest] = $this->tokenizer->consume($rest, $tok, '}') and (! $consumed); $i++){
             if ($i > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
@@ -1595,11 +1595,8 @@ class Parser
         while (! $this->tokenizer->equal($tok, '}')){
             [$basety, $tok] = $this->typespec($tok, $tok, null);
             $i = 0;
-            while (
-                [$consumed, $tok] = $this->tokenizer->consume($tok, ';') and
-                (! $consumed)
-            ){
                 if ($i++){
+            while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
                     $tok = $this->tokenizer->skip($tok, ',');
                 }
 
@@ -1948,7 +1945,7 @@ class Parser
     {
         $first = true;
 
-        while ([$consumed, $tok] = $this->tokenizer->consume($tok, ';') and (! $consumed)){
+        while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
             if (! $first){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
@@ -1998,7 +1995,7 @@ class Parser
 
         $fn = $this->newGVar($this->getIdent($ty->name), $ty);
         $fn->isFunction = true;
-        [$consumed, $tok] = $this->tokenizer->consume($tok, ';');
+        [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';');
         $fn->isDefinition = (! $consumed);
         $fn->isStatic = $attr->isStatic;
 
@@ -2028,7 +2025,7 @@ class Parser
     {
         $first = true;
 
-        while ([$consumed, $tok] = $this->tokenizer->consume($tok, ';') and (! $consumed)){
+        while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
             if (! $first){
                 $tok = $this->tokenizer->skip($tok, ',');
             }

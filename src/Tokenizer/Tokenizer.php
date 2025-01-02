@@ -56,11 +56,12 @@ class Tokenizer
     }
 
     /**
+     * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param string $op
      * @return array{0: bool, 1: \Pcc\Tokenizer\Token}
      */
-    public function consume(Token $tok, string $op): array
+    public function consume(Token $rest, Token $tok, string $op): array
     {
         if ($this->equal($tok, $op)){
             return [true, $tok->next];
