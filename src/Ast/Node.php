@@ -165,6 +165,8 @@ class Node
                 $this->ty = Type::tyInt();
                 return;
             case NodeKind::ND_BITNOT:
+            case NodeKind::ND_SHL:
+            case NodeKind::ND_SHR:
                 $this->ty = $this->lhs->ty;
                 return;
             case NodeKind::ND_VAR:

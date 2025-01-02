@@ -310,8 +310,15 @@ class Tokenizer
                 continue;
             }
 
-            // Punctuators
-            if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', ])) {
+            // Three-letter punctuators
+            if (in_array($token = substr($this->currentInput, $pos, 3), ['<<=', '>>=', ])){
+                $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $pos += 3;
+                continue;
+            }
+
+            // Two-letter punctuators
+            if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', '<<', '>>', ])) {
                 $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $pos += 2;
                 continue;

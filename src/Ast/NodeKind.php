@@ -9,18 +9,20 @@ enum NodeKind
     case ND_MUL;
     case ND_DIV;
     case ND_MOD;
-    case ND_BITAND;
-    case ND_BITOR;
-    case ND_BITXOR;
+    case ND_BITAND;     // &
+    case ND_BITOR;      // |
+    case ND_BITXOR;     // ^
+    case ND_SHL;        // <<
+    case ND_SHR;        // >>
     case ND_EQ;
     case ND_NE;
     case ND_LT;
     case ND_LE;
     case ND_ASSIGN;
     case ND_COMMA;
-    case ND_MEMBER; // . (struct member access)
-    case ND_ADDR;   // unary &
-    case ND_DEREF;  // unary *
+    case ND_MEMBER;     // . (struct member access)
+    case ND_ADDR;       // unary &
+    case ND_DEREF;      // unary *
     case ND_NOT;
     case ND_BITNOT;
     case ND_LOGAND;

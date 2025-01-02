@@ -322,6 +322,19 @@ class CodeGenerator
                 }
                 Console::out("  movzb %%al, %%rax");
                 return;
+            case NodeKind::ND_SHL:
+                Console::out("  mov %%rdi, %%rcx");
+                Console::out("  shl %%cl, %s", $ax);
+                return;
+            case NodeKind::ND_SHR:
+                Console::out("  mov %%rdi, %%rcx");
+                // Maybe this is a bug in the original code of 1bb4c6d4b8a499eff3baf8241d009278bb436aab
+                if ($node->ty->size === 8){
+                    Console::out("  sar %%cl, %s", $ax);
+                } else {
+                    Console::out("  sar %%cl, %s", $ax);
+                }
+                return;
         }
 
         Console::errorTok($node->tok, 'invalid expression');

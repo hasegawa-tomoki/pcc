@@ -850,6 +850,7 @@ class Parser
     /**
      * assign    = logor (assign-op assign)?
      * assign-op = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
+     *           | "<<" | ">>"
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -902,6 +903,16 @@ class Parser
         if ($this->tokenizer->equal($tok, '^=')){
             [$assign, $rest] = $this->assign($rest, $tok->next);
             return [$this->toAssign(Node::newBinary(NodeKind::ND_BITXOR, $node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '<<=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_SHL, $node, $assign, $tok)), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '>>=')){
+            [$assign, $rest] = $this->assign($rest, $tok->next);
+            return [$this->toAssign(Node::newBinary(NodeKind::ND_SHR, $node, $assign, $tok)), $rest];
         }
 
         return [$node, $tok];
@@ -1027,7 +1038,7 @@ class Parser
     }
 
     /**
-     * relational = add ("<" add | "<=" add | ">" add | ">=" add)*
+     * relational = shift ("<" shift | "<=" shift | ">" shift | ">=" shift)*
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -1035,29 +1046,59 @@ class Parser
      */
     public function relational(Token $rest, Token $tok): array
     {
-        [$node, $tok] = $this->add($tok, $tok);
+        [$node, $tok] = $this->shift($tok, $tok);
 
         for (;;){
             $start = $tok;
 
             if ($this->tokenizer->equal($tok, '<')){
-                [$add, $tok] = $this->add($tok, $tok->next);
-                $node = Node::newBinary(NodeKind::ND_LT, $node, $add, $start);
+                [$shift, $tok] = $this->shift($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LT, $node, $shift, $start);
                 continue;
             }
             if ($this->tokenizer->equal($tok, '<=')){
-                [$add, $tok] = $this->add($tok, $tok->next);
-                $node = Node::newBinary(NodeKind::ND_LE, $node, $add, $start);
+                [$shift, $tok] = $this->shift($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LE, $node, $shift, $start);
                 continue;
             }
             if ($this->tokenizer->equal($tok, '>')){
-                [$add, $tok] = $this->add($tok, $tok->next);
-                $node = Node::newBinary(NodeKind::ND_LT, $add, $node, $start);
+                [$shift, $tok] = $this->shift($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LT, $shift, $node, $start);
                 continue;
             }
             if ($this->tokenizer->equal($tok, '>=')){
+                [$shift, $tok] = $this->shift($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_LE, $shift, $node, $start);
+                continue;
+            }
+
+            return [$node, $tok];
+        }
+    }
+
+    /**
+     * shift = add ("<<" add | ">>" add)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function shift(Token $rest, Token $tok): array
+    {
+        [$node, $tok] = $this->add($tok, $tok);
+
+        for (;;){
+            $start = $tok;
+
+            if ($this->tokenizer->equal($tok, '<<')){
                 [$add, $tok] = $this->add($tok, $tok->next);
-                $node = Node::newBinary(NodeKind::ND_LE, $add, $node, $start);
+                $node = Node::newBinary(NodeKind::ND_SHL, $node, $add, $start);
+                continue;
+            }
+
+            if ($this->tokenizer->equal($tok, '>>')){
+                [$add, $tok] = $this->add($tok, $tok->next);
+                $node = Node::newBinary(NodeKind::ND_SHR, $node, $add, $start);
                 continue;
             }
 
