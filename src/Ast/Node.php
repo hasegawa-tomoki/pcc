@@ -4,6 +4,7 @@ namespace Pcc\Ast;
 
 use Pcc\Console;
 use Pcc\Tokenizer\Token;
+use Relay\KeyType;
 
 class Node
 {
@@ -171,6 +172,14 @@ class Node
                 return;
             case NodeKind::ND_VAR:
                 $this->ty = $this->var->ty;
+                return;
+            case NodeKind::ND_COND:
+                if ($this->then->ty->kind === TypeKind::TY_VOID or $this->els->ty->kind === TypeKind::TY_VOID){
+                    $this->ty = Type::tyVoid();
+                } else {
+                    [$this->then, $this->els] = Type::usualArithConv($this->then, $this->els);
+                    $this->ty = $this->then->ty;
+                }
                 return;
             case NodeKind::ND_COMMA:
                 $this->ty = $this->rhs->ty;

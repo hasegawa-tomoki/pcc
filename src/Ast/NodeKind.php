@@ -19,6 +19,7 @@ enum NodeKind
     case ND_LT;
     case ND_LE;
     case ND_ASSIGN;
+    case ND_COND;       // ?:
     case ND_COMMA;
     case ND_MEMBER;     // . (struct member access)
     case ND_ADDR;       // unary &

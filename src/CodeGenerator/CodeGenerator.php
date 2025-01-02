@@ -207,6 +207,17 @@ class CodeGenerator
                 $this->genExpr($node->lhs);
                 $this->cast($node->lhs->ty, $node->ty);
                 return;
+            case NodeKind::ND_COND:
+                $c = $this->cnt();
+                $this->genExpr($node->cond);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  je .L.else.%d", $c);
+                $this->genExpr($node->then);
+                Console::out("  jmp .L.end.%d", $c);
+                Console::out(".L.else.%d:", $c);
+                $this->genExpr($node->els);
+                Console::out(".L.end.%d:", $c);
+                return;
             case NodeKind::ND_NOT:
                 $this->genExpr($node->lhs);
                 Console::out("  cmp \$0, %%rax");

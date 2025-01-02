@@ -848,7 +848,7 @@ class Parser
 
 
     /**
-     * assign    = logor (assign-op assign)?
+     * assign    = conditional (assign-op assign)?
      * assign-op = "=" | "+=" | "-=" | "*=" | "/=" | "%=" | "&=" | "|=" | "^="
      *           | "<<" | ">>"
      *
@@ -858,7 +858,7 @@ class Parser
      */
     public function assign(Token $rest, Token $tok): array
     {
-        [$node, $tok] = $this->logor($tok, $tok);
+        [$node, $tok] = $this->conditional($tok, $tok);
 
         if ($this->tokenizer->equal($tok, '=')){
             [$assign, $rest] = $this->assign($rest, $tok->next);
@@ -916,6 +916,30 @@ class Parser
         }
 
         return [$node, $tok];
+    }
+
+    /**
+     * conditional = logor ("?" expr ":" conditional)?
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function conditional(Token $rest, Token $tok): array
+    {
+        [$cond, $tok] = $this->logor($tok, $tok);
+
+        if (! $this->tokenizer->equal($tok, '?')){
+            return [$cond, $tok];
+        }
+
+        $node = Node::newNode(NodeKind::ND_COND, $tok);
+        $node->cond = $cond;
+        [$node->then, $tok] = $this->expr($tok, $tok->next);
+        $tok = $this->tokenizer->skip($tok, ':');
+        [$node->els, $rest] = $this->conditional($rest, $tok);
+
+        return [$node, $rest];
     }
 
     /**
