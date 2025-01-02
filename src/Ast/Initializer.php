@@ -8,6 +8,7 @@ class Initializer
 {
     public Type $ty;
     public Token $tok;
+    public bool $isFlexible = false;
 
     public ?Node $expr = null;
 

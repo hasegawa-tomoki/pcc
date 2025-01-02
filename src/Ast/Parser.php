@@ -86,14 +86,19 @@ class Parser
         return $sc;
     }
 
-    public function newInitializer(Type $ty): Initializer
+    public function newInitializer(Type $ty, bool $isFlexible): Initializer
     {
         $init = new Initializer();
         $init->ty = $ty;
 
         if ($ty->kind === TypeKind::TY_ARRAY){
+            if ($isFlexible and $ty->size < 0){
+                $init->isFlexible = true;
+                return $init;
+            }
+
             for ($i = 0; $i < $ty->arrayLen; $i++){
-                $init->children[] = $this->newInitializer($ty->base);
+                $init->children[] = $this->newInitializer($ty->base, false);
             }
         }
 
@@ -523,17 +528,20 @@ class Parser
             }
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
-            if ($ty->size < 0){
-                Console::errorTok($tok, 'variable has incomplete type');
-            }
             if ($ty->kind === TypeKind::TY_VOID){
                 Console::errorTok($tok, 'variable declared void');
             }
             $var = $this->newLvar($this->getIdent($ty->name), $ty);
-
             if ($this->tokenizer->equal($tok, '=')){
                 [$expr, $tok] = $this->lVarInitializer($tok, $tok->next, $var);
                 $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $expr, $tok);
+            }
+
+            if ($var->ty->size < 0){
+                Console::errorTok($tok, 'variable has incomplete type');
+            }
+            if ($var->ty->kind === TypeKind::TY_VOID){
+                Console::errorTok($tok, 'variable declared void');
             }
         }
 
@@ -555,24 +563,51 @@ class Parser
 
     /**
      * string-initializer = string-literal
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Initializer $init
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function stringInitializer(Token $rest, Token $tok, Initializer $init): Token
+    public function stringInitializer(Token $rest, Token $tok, Initializer $init): array
     {
+        if ($init->isFlexible){
+            $init = $this->newInitializer(Type::arrayOf($init->ty->base, $tok->ty->arrayLen), false);
+        }
+
         $len = min($init->ty->arrayLen, $tok->ty->arrayLen);
         for ($i = 0; $i < $len; $i++){
-            if (isset($tok->str[$i])){
-                $c = ord($tok->str[$i]);
-            } else {
-                $c = 0;
-            }
-            $init->children[$i]->expr = Node::newNum($c, $tok);
+            $init->children[$i]->expr = Node::newNum(isset($tok->str[$i])? ord($tok->str[$i]): 0, $tok);
         }
-        return $tok->next;
+        return [$init, $tok->next];
     }
 
-    public function arrayInitializer(Token $rest, Token $tok, Initializer $init): Token
+    public function countArrayInitElements(Token $tok, Type $ty): int
+    {
+        $dummy = $this->newInitializer($ty->base, false);
+        for ($i = 0; ! $this->tokenizer->equal($tok, '}'); $i++){
+            if ($i > 0){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+            [$init, $tok] = $this->initializer2($tok, $tok, $dummy);
+        }
+        return $i;
+    }
+
+    /**
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Initializer $init
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
+     */
+    public function arrayInitializer(Token $rest, Token $tok, Initializer $init): array
     {
         $tok = $this->tokenizer->skip($tok, '{');
+
+        if ($init->isFlexible){
+            $len = $this->countArrayInitElements($tok, $init->ty);
+            $init = $this->newInitializer(Type::arrayOf($init->ty->base, $len), false);
+        }
 
         for ($i = 0; [$consumed, $rest] = $this->tokenizer->consume($tok, '}') and (! $consumed); $i++){
             if ($i > 0){
@@ -580,19 +615,24 @@ class Parser
             }
 
             if ($i < $init->ty->arrayLen){
-                $tok = $this->initializer2($tok, $tok, $init->children[$i]);
+                [$init->children[$i], $tok] = $this->initializer2($tok, $tok, $init->children[$i]);
             } else {
                 $tok = $this->skipExcessElement($tok);
             }
         }
 
-        return $rest;
+        return [$init, $rest];
     }
     
     /**
      * initializer = string-initializer | array-initializer | assign
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Initializer $init
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function initializer2(Token $rest, Token $tok, Initializer $init): Token
+    public function initializer2(Token $rest, Token $tok, Initializer $init): array
     {
         if ($init->ty->kind === TypeKind::TY_ARRAY and $tok->kind === TokenKind::TK_STR){
             return $this->stringInitializer($rest, $tok, $init);
@@ -603,19 +643,21 @@ class Parser
         }
 
         [$init->expr, $rest] = $this->assign($rest, $tok);
-        return $rest;
+        return [$init, $rest];
     }
 
     /**
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Type $ty
-     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     * @param \Pcc\Ast\Obj $var
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function initializer(Token $rest, Token $tok, Type $ty): array
+    public function initializer(Token $rest, Token $tok, Type $ty, Obj $var): array
     {
-        $init = $this->newInitializer($ty);
-        $rest = $this->initializer2($rest, $tok, $init);
+        $init = $this->newInitializer($ty, true);
+        [$init, $rest] = $this->initializer2($rest, $tok, $init);
+        $var->ty = $init->ty;
         return [$init, $rest];
     }
 
@@ -658,7 +700,7 @@ class Parser
      */
     public function lVarInitializer(Token $rest, Token $tok, Obj $var): array
     {
-        [$init, $rest] = $this->initializer($rest, $tok, $var->ty);
+        [$init, $rest] = $this->initializer($rest, $tok, $var->ty, $var);
         $desg = new InitDesg(null, 0, $var);
 
         $lhs = Node::newNode(NodeKind::ND_MEMZERO, $tok);
