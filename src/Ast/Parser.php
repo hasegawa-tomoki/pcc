@@ -551,7 +551,7 @@ class Parser
         if ($init->ty->kind === TypeKind::TY_ARRAY){
             $tok = $this->tokenizer->skip($tok, '{');
 
-            for ($i = 0; $i < $init->ty->arrayLen; $i++){
+            for ($i = 0; $i < $init->ty->arrayLen and (! $this->tokenizer->equal($tok, '}')); $i++){
                 if ($i > 0){
                     $tok = $this->tokenizer->skip($tok, ',');
                 }
@@ -601,9 +601,12 @@ class Parser
             return $node;
         }
 
+        if (! $init->expr){
+            return Node::newNode(NodeKind::ND_NULL_EXPR, $tok);
+        }
+
         $lhs = $this->initDesgExpr($desg, $tok);
-        $rhs = $init->expr;
-        return Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $rhs, $tok);
+        return Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $init->expr, $tok);
     }
 
     /**
@@ -616,7 +619,12 @@ class Parser
     {
         [$init, $rest] = $this->initializer($rest, $tok, $var->ty);
         $desg = new InitDesg(null, 0, $var);
-        return [$this->createLVarInit($init, $var->ty, $desg, $tok), $rest];
+
+        $lhs = Node::newNode(NodeKind::ND_MEMZERO, $tok);
+        $lhs->var = $var;
+
+        $rhs = $this->createLVarInit($init, $var->ty, $desg, $tok);
+        return [Node::newBinary(NodeKind::ND_COMMA, $lhs, $rhs, $tok), $rest];
     }
 
     public function isTypeName(Token $tok): bool

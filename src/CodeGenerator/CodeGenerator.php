@@ -209,6 +209,12 @@ class CodeGenerator
                 $this->genExpr($node->lhs);
                 $this->cast($node->lhs->ty, $node->ty);
                 return;
+            case NodeKind::ND_MEMZERO:
+                Console::out("  mov $%d, %%rcx", $node->var->ty->size);
+                Console::out("  lea %d(%%rbp), %%rdi", $node->var->offset);
+                Console::out("  mov \$0, %%al");
+                Console::out("  rep stosb");
+                return;
             case NodeKind::ND_COND:
                 $c = $this->cnt();
                 $this->genExpr($node->cond);
