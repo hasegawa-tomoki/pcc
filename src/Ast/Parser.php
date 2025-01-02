@@ -802,6 +802,47 @@ class Parser
         return [Node::newBinary(NodeKind::ND_COMMA, $lhs, $rhs, $tok), $rest];
     }
 
+    public function writeBuf(int $val, int $sz): string
+    {
+        switch ($sz){
+            case 1:
+                return pack('C', $val);
+            case 2:
+                return pack('v', $val);
+            case 4:
+                return pack('V', $val);
+            case 8:
+                return pack('P', $val);
+            default:
+                Console::unreachable(__FILE__, __LINE__);
+        }
+    }
+
+    public function writeGVarData(Initializer $init, Type $ty): string
+    {
+        $buf = '';
+        if ($ty->kind === TypeKind::TY_ARRAY){
+            for ($i = 0; $i < $ty->arrayLen; $i++){
+                $buf .= $this->writeGVarData($init->children[$i], $ty->base);
+            }
+            return $buf;
+        }
+
+        if ($init->expr){
+            $buf .= $this->writeBuf($this->evaluate($init->expr), $ty->size);
+        }
+
+        return $buf;
+    }
+
+    public function gVarInitializer(Token $rest, Token $tok, Obj $var): Token
+    {
+        [$init, $rest] = $this->initializer($rest, $tok, $var->ty, $var);
+        $buf = $this->writeGVarData($init, $var->ty);
+        $var->initData = $buf;
+        return $rest;
+    }
+
     public function isTypeName(Token $tok): bool
     {
         if (in_array($tok->str, [
@@ -2126,7 +2167,10 @@ class Parser
             $first = false;
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
-            $this->newGVar($this->getIdent($ty->name), $ty);
+            $var = $this->newGVar($this->getIdent($ty->name), $ty);
+            if ($this->tokenizer->equal($tok, '=')){
+                $tok = $this->gVarInitializer($tok, $tok->next, $var);
+            }
         }
 
         return $tok;
