@@ -542,6 +542,17 @@ class Parser
         return [$node, $tok->next];
     }
 
+    public function skipExcessElement(Token $tok): Token
+    {
+        if ($this->tokenizer->skip($tok, '{')){
+            $tok = $this->skipExcessElement($tok->next);
+            return $this->tokenizer->skip($tok, '}');
+        }
+
+        [$_, $tok] = $this->assign($tok, $tok);
+        return $tok;
+    }
+
     /**
      * initializer = "{" initializer ("," initializer)* "}"
      *             | assign
@@ -551,13 +562,16 @@ class Parser
         if ($init->ty->kind === TypeKind::TY_ARRAY){
             $tok = $this->tokenizer->skip($tok, '{');
 
-            for ($i = 0; $i < $init->ty->arrayLen and (! $this->tokenizer->equal($tok, '}')); $i++){
+            for ($i = 0; [$consumed, $rest] = $this->tokenizer->consume($tok, '}') and (! $consumed); $i++){
                 if ($i > 0){
                     $tok = $this->tokenizer->skip($tok, ',');
                 }
-                $tok = $this->initializer2($tok, $tok, $init->children[$i]);
+                if ($i < $init->ty->arrayLen){
+                    $tok = $this->initializer2($tok, $tok, $init->children[$i]);
+                } else {
+                    $tok = $this->skipExcessElement($tok);
+                }
             }
-            $rest = $this->tokenizer->skip($tok, '}');
             return $rest;
         }
 
