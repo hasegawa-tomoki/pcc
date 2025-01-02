@@ -663,7 +663,7 @@ class Parser
 
         $nodes = [];
         while (! $this->tokenizer->equal($tok, '}')){
-            if ($this->isTypeName($tok)){
+            if ($this->isTypeName($tok) and (! $this->tokenizer->equal($tok->next, ':'))){
                 $attr = new VarAttr();
                 [$basety, $tok] = $this->typespec($tok, $tok, $attr);
 
