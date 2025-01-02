@@ -4,6 +4,7 @@ namespace Pcc\Ast;
 
 enum NodeKind
 {
+    case ND_NULL_EXPR;  // Do nothing
     case ND_ADD;
     case ND_SUB;
     case ND_MUL;

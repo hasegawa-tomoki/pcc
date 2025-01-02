@@ -86,6 +86,20 @@ class Parser
         return $sc;
     }
 
+    public function newInitializer(Type $ty): Initializer
+    {
+        $init = new Initializer();
+        $init->ty = $ty;
+
+        if ($ty->kind === TypeKind::TY_ARRAY){
+            for ($i = 0; $i < $ty->arrayLen; $i++){
+                $init->children[] = $this->newInitializer($ty->base);
+            }
+        }
+
+        return $init;
+    }
+
     public function newVar(string $name, Type $ty): Obj
     {
         $var = new Obj($name);
@@ -517,19 +531,92 @@ class Parser
             }
             $var = $this->newLvar($this->getIdent($ty->name), $ty);
 
-            if (! $this->tokenizer->equal($tok, '=')){
-                continue;
+            if ($this->tokenizer->equal($tok, '=')){
+                [$expr, $tok] = $this->lVarInitializer($tok, $tok->next, $var);
+                $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $expr, $tok);
             }
-
-            $lhs = Node::newVarNode($var, $ty->name);
-            [$rhs, $tok] = $this->assign($tok, $tok->next);
-            $node = Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $rhs, $tok);
-            $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $node, $tok);
         }
 
         $node = Node::newNode(NodeKind::ND_BLOCK, $tok);
         $node->body = $nodes;
         return [$node, $tok->next];
+    }
+
+    /**
+     * initializer = "{" initializer ("," initializer)* "}"
+     *             | assign
+     */
+    public function initializer2(Token $rest, Token $tok, Initializer $init): Token
+    {
+        if ($init->ty->kind === TypeKind::TY_ARRAY){
+            $tok = $this->tokenizer->skip($tok, '{');
+
+            for ($i = 0; $i < $init->ty->arrayLen; $i++){
+                if ($i > 0){
+                    $tok = $this->tokenizer->skip($tok, ',');
+                }
+                $tok = $this->initializer2($tok, $tok, $init->children[$i]);
+            }
+            $rest = $this->tokenizer->skip($tok, '}');
+            return $rest;
+        }
+
+        [$init->expr, $rest] = $this->assign($rest, $tok);
+        return $rest;
+    }
+
+    /**
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function initializer(Token $rest, Token $tok, Type $ty): array
+    {
+        $init = $this->newInitializer($ty);
+        $rest = $this->initializer2($rest, $tok, $init);
+        return [$init, $rest];
+    }
+
+    public function initDesgExpr(InitDesg $desg, Token $tok): Node
+    {
+        if ($desg->var){
+            return Node::newVarNode($desg->var, $tok);
+        }
+
+        $lhs = $this->initDesgExpr($desg->next, $tok);
+        $rhs = Node::newNum($desg->idx, $tok);
+        return Node::newUnary(NodeKind::ND_DEREF, $this->newAdd($lhs, $rhs, $tok), $tok);
+    }
+
+    public function createLVarInit(Initializer $init, Type $ty, InitDesg $desg, Token $tok): Node
+    {
+        if ($ty->kind === TypeKind::TY_ARRAY){
+            $node = Node::newNode(NodeKind::ND_NULL_EXPR, $tok);
+            for ($i = 0; $i < $ty->arrayLen; $i++){
+                $desg2 = new InitDesg($desg, $i);
+                $rhs = $this->createLVarInit($init->children[$i], $ty->base, $desg2, $tok);
+                $node = Node::newBinary(NodeKind::ND_COMMA, $node, $rhs, $tok);
+            }
+            return $node;
+        }
+
+        $lhs = $this->initDesgExpr($desg, $tok);
+        $rhs = $init->expr;
+        return Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $rhs, $tok);
+    }
+
+    /**
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Obj $var
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function lVarInitializer(Token $rest, Token $tok, Obj $var): array
+    {
+        [$init, $rest] = $this->initializer($rest, $tok, $var->ty);
+        $desg = new InitDesg(null, 0, $var);
+        return [$this->createLVarInit($init, $var->ty, $desg, $tok), $rest];
     }
 
     public function isTypeName(Token $tok): bool
