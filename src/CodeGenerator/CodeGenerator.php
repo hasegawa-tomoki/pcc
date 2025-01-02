@@ -367,6 +367,27 @@ class CodeGenerator
                 Console::out("%s:", $node->brkLabel);
                 return;
             }
+            case NodeKind::ND_SWITCH:
+                $this->genExpr($node->cond);
+
+                foreach ($node->cases as $n){
+                    $reg = ($node->cond->ty->size == 8) ? '%rax' : '%eax';
+                    Console::out("  cmp \$%ld, %s", $n->val, $reg);
+                    Console::out("  je %s", $n->label);
+                }
+
+                if ($node->defaultCase){
+                    Console::out("  jmp %s", $node->defaultCase->label);
+                }
+
+                Console::out("  jmp %s", $node->brkLabel);
+                $this->genStmt($node->then);
+                Console::out("%s:", $node->brkLabel);
+                return;
+            case NodeKind::ND_CASE:
+                Console::out("%s:", $node->label);
+                $this->genStmt($node->lhs);
+                return;
             case NodeKind::ND_BLOCK:
                 foreach ($node->body as $n){
                     $this->genStmt($n);

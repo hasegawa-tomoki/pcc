@@ -29,6 +29,8 @@ class Parser
     public ?string $brkLabel = null;
     public ?string $contLabel = null;
 
+    public ?Node $currentSwitch = null;
+
     public function __construct(
         private readonly Tokenizer $tokenizer,
     )
@@ -553,6 +555,9 @@ class Parser
     /**
      * stmt = "return" expr ";"
      *      | "if" "(" expr ")" stmt ("else" stmt)?
+     *      | "switch" "(" expr ")" stmt
+     *      | "case" num ":" stmt
+     *      | "default" ":" stmt
      *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
      *      | "while" "(" expr ")" stmt
      *      | "goto" ident ";"
@@ -588,6 +593,55 @@ class Parser
                 [$node->els, $tok] = $this->stmt($tok, $tok->next);
             }
             return [$node, $tok];
+        }
+
+        if ($this->tokenizer->equal($tok, 'switch')){
+            $node = Node::newNode(NodeKind::ND_SWITCH, $tok);
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$node->cond, $tok] = $this->expr($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ')');
+
+            $sw = $this->currentSwitch;
+            $this->currentSwitch = $node;
+
+            $brk = $this->brkLabel;
+            $this->brkLabel = $node->brkLabel = $this->newUniqueName();
+
+            [$node->then, $rest] = $this->stmt($rest, $tok);
+
+            $this->currentSwitch = $sw;
+            $this->brkLabel = $brk;
+            return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'case')){
+            if (! $this->currentSwitch){
+                Console::errorTok($tok, 'stray case');
+            }
+            $val = $this->getNumber($tok->next);
+
+            $node = Node::newNode(NodeKind::ND_CASE, $tok);
+            $tok = $this->tokenizer->skip($tok->next->next, ':');
+            $node->label = $this->newUniqueName();
+            [$node->lhs, $rest] = $this->stmt($rest, $tok);
+            $node->val = $val;
+            array_unshift($this->currentSwitch->cases, $node);
+
+            return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'default')){
+            if (! $this->currentSwitch){
+                Console::errorTok($tok, 'stray default');
+            }
+
+            $node = Node::newNode(NodeKind::ND_CASE, $tok);
+            $tok = $this->tokenizer->skip($tok->next, ':');
+            $node->label = $this->newUniqueName();
+            [$node->lhs, $rest] = $this->stmt($rest, $tok);
+            $this->currentSwitch->defaultCase = $node;
+
+            return [$node, $rest];
         }
 
         if ($this->tokenizer->equal($tok, 'for')){

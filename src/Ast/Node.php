@@ -44,9 +44,14 @@ class Node
     public ?string $label = null;
     public ?string $uniqueLabel = null;
 
-    // Used if kind == ND_VAR
+    // Switch-cases
+    /** @var \Pcc\Ast\Node[] */
+    public array $cases = [];
+    public ?Node $defaultCase = null;
+
+    // Variable
     public Obj $var;
-    // Used if kind == ND_NUM
+    // Numeric literal
     public int $val;
 
     public static function newNode(NodeKind $nodeKind, Token $tok): Node

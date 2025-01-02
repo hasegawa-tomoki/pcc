@@ -28,6 +28,8 @@ enum NodeKind
     case ND_RETURN;
     case ND_IF;
     case ND_FOR;
+    case ND_SWITCH;
+    case ND_CASE;
     case ND_BLOCK;
     case ND_GOTO;
     case ND_LABEL;
