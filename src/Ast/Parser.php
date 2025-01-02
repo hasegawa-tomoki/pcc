@@ -147,14 +147,6 @@ class Parser
         return null;
     }
 
-    public function getNumber(Token $tok): int
-    {
-        if (! $tok->isKind(TokenKind::TK_NUM)){
-            Console::errorTok($tok, "expected a number");
-        }
-        return $tok->val;
-    }
-
     public function pushTagScope(Token $tok, Type $ty): void
     {
         $sc = new TagScope();
@@ -309,7 +301,7 @@ class Parser
     }
 
     /**
-     * array-dimensions = num? "]" type-suffix
+     * array-dimensions = const-expr? "]" type-suffix
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -323,8 +315,8 @@ class Parser
             return [Type::arrayOf($ty, -1), $rest];
         }
 
-        $sz = $this->getNumber($tok);
-        $tok = $this->tokenizer->skip($tok->next, ']');
+        [$sz, $tok] = $this->constExpr($tok, $tok);
+        $tok = $this->tokenizer->skip($tok, ']');
         [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
         return [Type::arrayOf($ty, $sz), $rest];
     }
@@ -484,8 +476,7 @@ class Parser
             $tok = $tok->next;
 
             if ($this->tokenizer->equal($tok, '=')){
-                $val = $this->getNumber($tok->next);
-                $tok = $tok->next->next;
+                [$val, $tok] = $this->constExpr($tok, $tok->next);
             }
 
             $sc = $this->pushScope($name);
@@ -556,7 +547,7 @@ class Parser
      * stmt = "return" expr ";"
      *      | "if" "(" expr ")" stmt ("else" stmt)?
      *      | "switch" "(" expr ")" stmt
-     *      | "case" num ":" stmt
+     *      | "case" const-expr ":" stmt
      *      | "default" ":" stmt
      *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
      *      | "while" "(" expr ")" stmt
@@ -618,10 +609,10 @@ class Parser
             if (! $this->currentSwitch){
                 Console::errorTok($tok, 'stray case');
             }
-            $val = $this->getNumber($tok->next);
 
             $node = Node::newNode(NodeKind::ND_CASE, $tok);
-            $tok = $this->tokenizer->skip($tok->next->next, ':');
+            [$val, $tok] = $this->constExpr($tok, $tok->next);
+            $tok = $this->tokenizer->skip($tok, ':');
             $node->label = $this->newUniqueName();
             [$node->lhs, $rest] = $this->stmt($rest, $tok);
             $node->val = $val;
@@ -820,6 +811,105 @@ class Parser
         }
         $rest = $tok;
         return [$node, $rest];
+    }
+
+    public function evaluate(Node $node): int
+    {
+        $node->addType();
+
+        $val = null;
+        switch ($node->kind){
+            case NodeKind::ND_ADD:
+                $val = $this->evaluate($node->lhs) + $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_SUB:
+                $val = $this->evaluate($node->lhs) - $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_MUL:
+                $val = $this->evaluate($node->lhs) * $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_DIV:
+                $val = $this->evaluate($node->lhs) / $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_MOD:
+                $val = $this->evaluate($node->lhs) % $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_BITAND:
+                $val = $this->evaluate($node->lhs) & $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_BITOR:
+                $val = $this->evaluate($node->lhs) | $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_BITXOR:
+                $val = $this->evaluate($node->lhs) ^ $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_SHL:
+                $val = $this->evaluate($node->lhs) << $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_SHR:
+                $val = $this->evaluate($node->lhs) >> $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_EQ:
+                $val = $this->evaluate($node->lhs) == $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_NE:
+                $val = $this->evaluate($node->lhs) != $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_LT:
+                $val = $this->evaluate($node->lhs) < $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_LE:
+                $val = $this->evaluate($node->lhs) <= $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_COND:
+                $val = $this->evaluate($node->cond)? $this->evaluate($node->then): $this->evaluate($node->els);
+                break;
+            case NodeKind::ND_COMMA:
+                $val = $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_NOT:
+                $val = !$this->evaluate($node->lhs);
+                break;
+            case NodeKind::ND_BITNOT:
+                $val = ~$this->evaluate($node->lhs);
+                break;
+            case NodeKind::ND_LOGAND:
+                $val = $this->evaluate($node->lhs) && $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_LOGOR:
+                $val = $this->evaluate($node->lhs) || $this->evaluate($node->rhs);
+                break;
+            case NodeKind::ND_CAST:
+                if ($node->ty->isInteger()){
+                    return match ($node->ty->size){
+                        1 => $this->evaluate($node->lhs) & 0xff,
+                        2 => $this->evaluate($node->lhs) & 0xffff,
+                        4 => $this->evaluate($node->lhs) & 0xffffffff,
+                    };
+                }
+                $val = $this->evaluate($node->lhs);
+                break;
+            case NodeKind::ND_NUM:
+                $val = $node->val;
+                break;
+
+        }
+        if (is_null($val)){
+            Console::errorTok($node->tok, 'not a compile-time constant');
+        }
+
+        return $val & 0xffffffff;
+    }
+
+    /**
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: int, 1: \Pcc\Tokenizer\Token}
+     */
+    public function constExpr(Token $rest, Token $tok): array
+    {
+        [$node, $rest] = $this->conditional($rest, $tok);
+        return [$this->evaluate($node), $rest];
     }
 
     /**
