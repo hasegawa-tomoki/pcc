@@ -7,4 +7,5 @@ class VarAttr
     public bool $isTypedef = false;
     public bool $isStatic = false;
     public bool $isExtern = false;
+    public int $align = 0;
 }

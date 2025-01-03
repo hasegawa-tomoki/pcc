@@ -124,6 +124,7 @@ class Parser
     {
         $var = new Obj($name);
         $var->ty = $ty;
+        $var->align = $ty->align;
         $this->pushScope($name)->var = $var;
         return $var;
     }
@@ -227,6 +228,21 @@ class Parser
                 }
 
                 $tok = $tok->next;
+                continue;
+            }
+
+            if ($this->tokenizer->equal($tok, '_Alignas')){
+                if (! $attr){
+                    Console::errorTok($tok, '_Alignas is not allowed in this context');
+                }
+                $tok = $this->tokenizer->skip($tok->next, '(');
+                if ($this->isTypeName($tok)){
+                    [$ty, $tok] = $this->typename($tok, $tok);
+                    $attr->align = $ty->align;
+                } else {
+                    [$attr->align, $tok] = $this->constExpr($tok, $tok);
+                }
+                $tok = $this->tokenizer->skip($tok, ')');
                 continue;
             }
 
@@ -561,9 +577,10 @@ class Parser
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Type $basety
+     * @param \Pcc\Ast\VarAttr|null $attr
      * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
      */
-    public function declaration(Token $rest, Token $tok, Type $basety): array
+    public function declaration(Token $rest, Token $tok, Type $basety, ?VarAttr $attr): array
     {
         $i = 0;
         $nodes = [];
@@ -576,7 +593,12 @@ class Parser
             if ($ty->kind === TypeKind::TY_VOID){
                 Console::errorTok($tok, 'variable declared void');
             }
+
             $var = $this->newLvar($this->getIdent($ty->name), $ty);
+            if ($attr and $attr->align){
+                $var->align = $attr->align;
+            }
+
             if ($this->tokenizer->equal($tok, '=')){
                 [$expr, $tok] = $this->lVarInitializer($tok, $tok->next, $var);
                 $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $expr, $tok);
@@ -1012,7 +1034,7 @@ class Parser
     {
         if (in_array($tok->str, [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
-            'typedef', 'enum', 'static', 'extern',
+            'typedef', 'enum', 'static', 'extern', '_Alignas',
         ])){
             return true;
         }
@@ -1124,7 +1146,7 @@ class Parser
 
             if ($this->isTypeName($tok)){
                 [$basety, $tok] = $this->typespec($tok, $tok, null);
-                [$node->init, $tok] = $this->declaration($tok, $tok, $basety);
+                [$node->init, $tok] = $this->declaration($tok, $tok, $basety, null);
             } else {
                 [$node->init, $tok] = $this->exprStmt($tok, $tok);
             }
@@ -1246,7 +1268,7 @@ class Parser
                     continue;
                 }
 
-                [$n, $tok] = $this->declaration($tok, $tok, $basety);
+                [$n, $tok] = $this->declaration($tok, $tok, $basety, $attr);
             } else {
                 [$n, $tok] = $this->stmt($tok, $tok);
             }
@@ -1972,7 +1994,8 @@ class Parser
         $members = [];
 
         while (! $this->tokenizer->equal($tok, '}')){
-            [$basety, $tok] = $this->typespec($tok, $tok, null);
+            $attr = new VarAttr();
+            [$basety, $tok] = $this->typespec($tok, $tok, $attr);
             $first = true;
 
             while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
@@ -1986,6 +2009,7 @@ class Parser
                 $mem = new Member();
                 $mem->ty = $declarator;
                 $mem->name = $mem->ty->name;
+                $mem->align = $attr->align?: $mem->ty->align;
                 $members[] = $mem;
             }
         }
@@ -2071,12 +2095,12 @@ class Parser
 
         $offset = 0;
         foreach ($ty->members as $mem){
-            $offset = Align::alignTo($offset, $mem->ty->align);
+            $offset = Align::alignTo($offset, $mem->align);
             $mem->offset = $offset;
             $offset += $mem->ty->size;
 
-            if ($ty->align < $mem->ty->align){
-                $ty->align = $mem->ty->align;
+            if ($ty->align < $mem->align){
+                $ty->align = $mem->align;
             }
         }
         $ty->size = Align::alignTo($offset, $ty->align);
@@ -2102,8 +2126,8 @@ class Parser
 
         foreach ($ty->members as $mem){
             $mem->offset = 0;
-            if ($ty->align < $mem->ty->align){
-                $ty->align = $mem->ty->align;
+            if ($ty->align < $mem->align){
+                $ty->align = $mem->align;
             }
             if ($ty->size < $mem->ty->size){
                 $ty->size = $mem->ty->size;
@@ -2257,6 +2281,7 @@ class Parser
      *         | "(" expr ")"
      *         | "sizeof" "(" type-name ")"
      *         | "sizeof" unary
+     *         | "_Alignof" "(" type-name ")"
      *         | ident func-args?
      *         | str
      *         | number
@@ -2294,6 +2319,13 @@ class Parser
             [$node, $rest] = $this->unary($rest, $tok->next);
             $node->addType();
             return [Node::newNum($node->ty->size, $tok), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '_Alignof')){
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$ty, $tok] = $this->typename($tok, $tok);
+            $rest = $this->tokenizer->skip($tok, ')');
+            return [Node::newNum($ty->align, $tok), $rest];
         }
 
         if ($tok->isKind(TokenKind::TK_IDENT)){
@@ -2422,6 +2454,9 @@ class Parser
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
             $var = $this->newGVar($this->getIdent($ty->name), $ty);
             $var->isDefinition = ! $attr->isExtern;
+            if ($attr->align){
+                $var->align = $attr->align;
+            }
 
             if ($this->tokenizer->equal($tok, '=')){
                 $tok = $this->gVarInitializer($tok, $tok->next, $var);

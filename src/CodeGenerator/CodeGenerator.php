@@ -458,7 +458,7 @@ class CodeGenerator
             $offset = 0;
             foreach (array_reverse($fn->locals) as $var){
                 $offset += $var->ty->size;
-                $offset = Align::alignTo($offset, $var->ty->align);
+                $offset = Align::alignTo($offset, $var->align);
                 $var->offset = -1 * $offset;
             }
             $fn->stackSize = Align::alignTo($offset, 16);
@@ -479,7 +479,7 @@ class CodeGenerator
             }
 
             Console::out("  .globl %s", $var->name);
-            Console::out("  .align %d", $var->ty->align);
+            Console::out("  .align %d", $var->align);
 
             if (! is_null($var->initData)){
                 Console::out("  .data");

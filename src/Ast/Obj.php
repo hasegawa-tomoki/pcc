@@ -6,6 +6,7 @@ class Obj
     public Type $ty;
     // Local or global/function
     public bool $isLocal = false;
+    public int $align = 0;
 
     // Local variable
     public int $offset;
