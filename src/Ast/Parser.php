@@ -603,12 +603,14 @@ class Parser
     }
 
     /**
+     * array-initializer1 = "{" initializer ("," initializer)* "}"
+     *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Initializer $init
      * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function arrayInitializer(Token $rest, Token $tok, Initializer $init): array
+    public function arrayInitializer1(Token $rest, Token $tok, Initializer $init): array
     {
         $tok = $this->tokenizer->skip($tok, '{');
 
@@ -633,14 +635,39 @@ class Parser
     }
 
     /**
-     * struct-initializer = "{" initializer ("," initializer)* "}"
+     * array-initializer2 = initializer ("," initializer)*
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Initializer $init
      * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function structInitializer(Token $rest, Token $tok, Initializer $init): array
+    public function arrayInitializer2(Token $rest, Token $tok, Initializer $init): array
+    {
+        if ($init->isFlexible){
+            $len = $this->countArrayInitElements($tok, $init->ty);
+            $init = $this->newInitializer(Type::arrayOf($init->ty->base, $len), false);
+        }
+
+        for ($i = 0; $i < $init->ty->arrayLen and (! $this->tokenizer->equal($tok, '}')); $i++){
+            if ($i > 0){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            [$init->children[$i], $tok] = $this->initializer2($tok, $tok, $init->children[$i]);
+        }
+        return [$init, $tok];
+    }
+
+    /**
+     * struct-initializer1 = "{" initializer ("," initializer)* "}"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Initializer $init
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
+     */
+    public function structInitializer1(Token $rest, Token $tok, Initializer $init): array
     {
         $tok = $this->tokenizer->skip($tok, '{');
 
@@ -662,6 +689,29 @@ class Parser
     }
 
     /**
+     * struct-initializer2 = initializer ("," initializer)*
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Initializer $init
+     * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
+     */
+    public function structInitializer2(Token $rest, Token $tok, Initializer $init): array
+    {
+        foreach ($init->ty->members as $idx => $mem){
+            if ($this->tokenizer->equal($tok, '}')){
+                break;
+            }
+            if ($idx > 0){
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            [$init->children[$idx], $tok] = $this->initializer2($tok, $tok, $init->children[$idx]);
+        }
+        return [$init, $tok];
+    }
+
+    /**
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Initializer $init
@@ -669,9 +719,12 @@ class Parser
      */
     public function unionInitializer(Token $rest, Token $tok, Initializer $init): array
     {
-        $tok = $this->tokenizer->skip($tok, '{');
-        [$init->children[0], $tok] = $this->initializer2($tok, $tok, $init->children[0]);
-        $rest = $this->tokenizer->skip($tok, '}');
+        if ($this->tokenizer->equal($tok, '{')){
+            [$init->children[0], $rest] = $this->initializer2($tok, $tok->next, $init->children[0]);
+            $rest = $this->tokenizer->skip($rest, '}');
+        } else {
+            [$init->children[0], $rest] = $this->initializer2($tok, $tok, $init->children[0]);
+        }
         return [$init, $rest];
     }
 
@@ -692,20 +745,26 @@ class Parser
         }
 
         if ($init->ty->kind === TypeKind::TY_ARRAY){
-            return $this->arrayInitializer($rest, $tok, $init);
+            if ($this->tokenizer->equal($tok, '{')){
+                return $this->arrayInitializer1($rest, $tok, $init);
+            } else {
+                return $this->arrayInitializer2($rest, $tok, $init);
+            }
         }
 
         if ($init->ty->kind === TypeKind::TY_STRUCT){
-            if (! $this->tokenizer->equal($tok, '{')){
-                [$expr, $rest] = $this->assign($rest, $tok);
-                $expr->addType();
-                if ($expr->ty->kind === TypeKind::TY_STRUCT){
-                    $init->expr = $expr;
-                    return [$init, $rest];
-                }
+            if ($this->tokenizer->equal($tok, '{')){
+                return $this->structInitializer1($rest, $tok, $init);
             }
 
-            return $this->structInitializer($rest, $tok, $init);
+            [$expr, $rest] = $this->assign($rest, $tok);
+            $expr->addType();
+            if ($expr->ty->kind === TypeKind::TY_STRUCT){
+                $init->expr = $expr;
+                return [$init, $rest];
+            }
+
+            return $this->structInitializer2($rest, $tok, $init);
         }
 
         if ($init->ty->kind === TypeKind::TY_UNION){
