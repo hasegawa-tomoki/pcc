@@ -1236,6 +1236,16 @@ class Parser
                     continue;
                 }
 
+                if ($this->isFunction($tok)){
+                    $tok = $this->func($tok, $basety, $attr);
+                    continue;
+                }
+
+                if ($attr->isExtern){
+                    $tok = $this->globalVariable($tok, $basety, $attr);
+                    continue;
+                }
+
                 [$n, $tok] = $this->declaration($tok, $tok, $basety);
             } else {
                 [$n, $tok] = $this->stmt($tok, $tok);
