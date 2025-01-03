@@ -1927,7 +1927,32 @@ class Parser
     }
 
     /**
-     * cast = "(" type-name ")" cast | unary
+     * compound-literal = initializer "}"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @param \Pcc\Tokenizer\Token $start
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function compoundLiteral(Token $rest, Token $tok, Type $ty, Token $start): array
+    {
+        if ($this->scopeDepth === 0){
+            $var = $this->newAnonGVar($ty);
+            $rest = $this->gVarInitializer($rest, $tok, $var);
+            return [Node::newVarNode($var, $start), $rest];
+        }
+
+        $var = $this->newLvar($this->newUniqueName(), $ty);
+        [$lhs, $rest] = $this->lVarInitializer($rest, $tok, $var);
+        $rhs = Node::newVarNode($var, $tok);
+        return [Node::newBinary(NodeKind::ND_COMMA, $lhs, $rhs, $tok), $rest];
+    }
+
+    /**
+     * cast = "(" type-name ")" "{" compound-literal
+     *      | "(" type-name ")" cast
+     *      | unary
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -1939,6 +1964,13 @@ class Parser
             $start = $tok;
             [$ty, $tok] = $this->typename($tok, $tok->next);
             $tok = $this->tokenizer->skip($tok, ')');
+
+            // compound literal
+            if ($this->tokenizer->equal($tok, '{')){
+                return $this->compoundLiteral($rest, $tok, $ty, $start);
+            }
+
+            // type cast
             [$cast, $rest] = $this->cast($rest, $tok);
             $node = Node::newCast($cast, $ty);
             $node->tok = $start;
