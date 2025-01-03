@@ -771,6 +771,12 @@ class Parser
             return $this->unionInitializer($rest, $tok, $init);
         }
 
+        if ($this->tokenizer->equal($tok, '{')){
+            [$init, $tok] = $this->initializer2($tok, $tok->next, $init);
+            $rest = $this->tokenizer->skip($tok, '}');
+            return [$init, $rest];
+        }
+
         [$init->expr, $rest] = $this->assign($rest, $tok);
         return [$init, $rest];
     }
