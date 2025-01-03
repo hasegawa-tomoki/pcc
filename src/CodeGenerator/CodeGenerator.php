@@ -399,6 +399,16 @@ class CodeGenerator
                 Console::out("%s:", $node->brkLabel);
                 return;
             }
+            case NodeKind::ND_DO:
+                $c = $this->cnt();
+                Console::out(".L.begin.%d:", $c);
+                $this->genStmt($node->then);
+                Console::out("%s:", $node->contLabel);
+                $this->genExpr($node->cond);
+                Console::out("  cmp \$0, %%rax");
+                Console::out("  jne .L.begin.%d", $c);
+                Console::out("%s:", $node->brkLabel);
+                return;
             case NodeKind::ND_SWITCH:
                 $this->genExpr($node->cond);
 

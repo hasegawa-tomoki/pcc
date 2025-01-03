@@ -1060,6 +1060,7 @@ class Parser
      *      | "default" ":" stmt
      *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
      *      | "while" "(" expr ")" stmt
+     *      | "do" stmt "while" "(" expr ")" ";"
      *      | "goto" ident ";"
      *      | "break" ";"
      *      | "continue" ";"
@@ -1203,6 +1204,27 @@ class Parser
             $this->brkLabel = $brk;
             $this->contLabel = $cont;
 
+            return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'do')){
+            $node = Node::newNode(NodeKind::ND_DO, $tok);
+
+            $brk = $this->brkLabel;
+            $cont = $this->contLabel;
+            $this->brkLabel = $node->brkLabel = $this->newUniqueName();
+            $this->contLabel = $node->contLabel = $this->newUniqueName();
+
+            [$node->then, $tok] = $this->stmt($tok, $tok->next);
+
+            $this->brkLabel = $brk;
+            $this->contLabel = $cont;
+
+            $tok = $this->tokenizer->skip($tok, 'while');
+            $tok = $this->tokenizer->skip($tok, '(');
+            [$node->cond, $tok] = $this->expr($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ')');
+            $rest = $this->tokenizer->skip($tok, ';');
             return [$node, $rest];
         }
 
