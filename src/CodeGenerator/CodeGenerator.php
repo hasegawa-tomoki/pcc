@@ -282,6 +282,22 @@ class CodeGenerator
                     Console::out("  call %s", $node->funcname);
                     Console::out("  add \$8, %%rsp");
                 }
+
+                // It looks like the most significant 48 or 56 bits in RAX may
+                // contain garbage if a function return type is short or bool/char,
+                // respectively. We clear the upper bits here.
+                switch ($node->ty->kind){
+                    case TypeKind::TY_BOOL:
+                        Console::out("  movzx %%al, %%eax");
+                        return;
+                    case TypeKind::TY_CHAR:
+                        Console::out("  movsbl %%al, %%eax");
+                        return;
+                    case TypeKind::TY_SHORT:
+                        Console::out("  movswl %%ax, %%eax");
+                        return;
+                }
+
                 return;
         }
 

@@ -319,7 +319,7 @@ class Parser
     }
 
     /**
-     * func-params = ("void" | param ("," param)*)? ")"
+     * func-params = ("void" | param ("," param)*?)? ")"
      * param = typespec declarator
      *
      * @param \Pcc\Tokenizer\Token $rest
