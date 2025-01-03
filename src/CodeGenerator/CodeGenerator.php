@@ -433,7 +433,9 @@ class CodeGenerator
                 $this->genStmt($node->lhs);
                 return;
             case NodeKind::ND_RETURN:
-                $this->genExpr($node->lhs);
+                if ($node->lhs){
+                    $this->genExpr($node->lhs);
+                }
                 Console::out("  jmp .L.return.%s", $this->currentFn->name);
                 return;
             case NodeKind::ND_EXPR_STMT:

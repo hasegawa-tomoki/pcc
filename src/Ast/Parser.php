@@ -1052,7 +1052,7 @@ class Parser
     }
 
     /**
-     * stmt = "return" expr ";"
+     * stmt = "return" expr? ";"
      *      | "if" "(" expr ")" stmt ("else" stmt)?
      *      | "switch" "(" expr ")" stmt
      *      | "case" const-expr ":" stmt
@@ -1074,6 +1074,11 @@ class Parser
     {
         if ($this->tokenizer->equal($tok, 'return')){
             $node = Node::newNode(NodeKind::ND_RETURN, $tok);
+            [$consumed, $rest] = $this->tokenizer->consume($rest, $tok->next, ';');
+            if ($consumed){
+                return [$node, $rest];
+            }
+
             [$exp, $tok] = $this->expr($tok, $tok->next);
             $rest = $this->tokenizer->skip($tok, ';');
 
