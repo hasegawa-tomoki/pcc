@@ -141,6 +141,7 @@ class Parser
     {
         $var = $this->newVar($name, $ty);
         $var->isLocal = false;
+        $var->isStatic = true;
         $var->isDefinition = true;
         $this->globals[] = $var;
         return $var;
@@ -2501,6 +2502,7 @@ class Parser
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
             $var = $this->newGVar($this->getIdent($ty->name), $ty);
             $var->isDefinition = ! $attr->isExtern;
+            $var->isStatic = $attr->isStatic;
             if ($attr->align){
                 $var->align = $attr->align;
             }

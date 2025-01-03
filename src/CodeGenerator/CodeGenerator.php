@@ -480,7 +480,11 @@ class CodeGenerator
                 continue;
             }
 
-            Console::out("  .globl %s", $var->name);
+            if ($var->isStatic){
+                Console::out("  .local %s", $var->name);
+            } else {
+                Console::out("  .globl %s", $var->name);
+            }
             Console::out("  .align %d", $var->align);
 
             if (! is_null($var->initData)){
