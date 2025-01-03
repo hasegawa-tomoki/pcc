@@ -53,19 +53,19 @@ class TokenizerTest extends TestCase
         file_put_contents('tmp.c', '"abc"');
         $tokenizer = new Tokenizer('tmp.c');
         [$tok, $pos] = $tokenizer->readStringLiteral(0);
-        $this->assertEquals('abc', $tok->str);
+        $this->assertEquals("abc\0", $tok->str);
         $this->assertEquals(5, $pos);
 
         file_put_contents('tmp.c', '"\'abc"');
         $tokenizer = new Tokenizer('tmp.c');
         [$tok, $pos] = $tokenizer->readStringLiteral(0);
-        $this->assertEquals("'abc", $tok->str);
+        $this->assertEquals("'abc\0", $tok->str);
         $this->assertEquals(6, $pos);
 
         file_put_contents('tmp.c', '"\'\\\\x80\'"');
         $tokenizer = new Tokenizer('tmp.c');
         [$tok, $pos] = $tokenizer->readStringLiteral(0);
-        $this->assertEquals("'\\x80'", $tok->str);
+        $this->assertEquals("'\\x80'\0", $tok->str);
         $this->assertEquals(9, $pos);
     }
 

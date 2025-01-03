@@ -239,6 +239,6 @@ class ParserTest extends TestCase
         $parser = new Pcc\Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
-        $this->assertEquals(chr(7), $prog[1]->initData);
+        $this->assertEquals(chr(7).chr(0), $prog[1]->initData);
     }
 }
