@@ -104,8 +104,15 @@ class Parser
         }
 
         if ($ty->kind === TypeKind::TY_STRUCT or $ty->kind === TypeKind::TY_UNION){
-            foreach ($ty->members as $mem){
-                $init->children[] = $this->newInitializer($mem->ty, false);
+            foreach ($ty->members as $idx => $mem){
+                if ($isFlexible and $ty->isFlexible and (! isset($ty->members[$idx + 1]))){
+                    $child = new Initializer();
+                    $child->ty = $mem->ty;
+                    $child->isFlexible = true;
+                    $init->children[] = $child;
+                } else {
+                    $init->children[] = $this->newInitializer($mem->ty, false);
+                }
             }
             return $init;
         }
@@ -804,6 +811,19 @@ class Parser
         return [$init, $rest];
     }
 
+    public function copyStructType(Type $ty): Type
+    {
+        $t = clone $ty;
+
+        $members = [];
+        foreach ($t->members as $mem){
+            $m = clone $mem;
+            $members[] = $m;
+        }
+        $t->members = $members;
+        return $t;
+    }
+
     /**
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -815,6 +835,18 @@ class Parser
     {
         $init = $this->newInitializer($ty, true);
         [$init, $rest] = $this->initializer2($rest, $tok, $init);
+
+        if (($ty->kind === TypeKind::TY_STRUCT or $ty->kind === TypeKind::TY_UNION) and $ty->isFlexible){
+            $ty = $this->copyStructType($ty);
+
+            $lastIdx = count($ty->members) - 1;
+            $ty->members[$lastIdx]->ty = $init->children[$lastIdx]->ty;
+            $ty->size += $ty->members[$lastIdx]->ty->size;
+
+            $var->ty = $ty;
+            return [$init, $rest];
+        }
+
         $var->ty = $init->ty;
         return [$init, $rest];
     }
@@ -1944,6 +1976,7 @@ class Parser
         $lastMemberIdx = count($members) - 1;
         if (count($members) and $members[$lastMemberIdx]->ty->kind === TypeKind::TY_ARRAY and $members[$lastMemberIdx]->ty->arrayLen < 0){
             $members[$lastMemberIdx]->ty = Type::arrayOf($members[$lastMemberIdx]->ty->base, 0);
+            $ty->isFlexible = true;
         }
 
         $ty->members = $members;

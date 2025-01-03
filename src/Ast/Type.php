@@ -17,6 +17,7 @@ class Type
     public int $arrayLen;
     /** @var \Pcc\Ast\Member[] */
     public array $members = [];
+    public bool $isFlexible = false;
     // Function type
     public Type $returnTy;
     /** @var \Pcc\Ast\Type[] */
