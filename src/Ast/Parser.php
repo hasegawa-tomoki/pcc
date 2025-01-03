@@ -1940,6 +1940,12 @@ class Parser
                 $members[] = $mem;
             }
         }
+
+        $lastMemberIdx = count($members) - 1;
+        if (count($members) and $members[$lastMemberIdx]->ty->kind === TypeKind::TY_ARRAY and $members[$lastMemberIdx]->ty->arrayLen < 0){
+            $members[$lastMemberIdx]->ty = Type::arrayOf($members[$lastMemberIdx]->ty->base, 0);
+        }
+
         $ty->members = $members;
         return $tok->next;
     }
