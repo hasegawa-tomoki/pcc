@@ -140,6 +140,7 @@ class Parser
     {
         $var = $this->newVar($name, $ty);
         $var->isLocal = false;
+        $var->isDefinition = true;
         $this->globals[] = $var;
         return $var;
     }
@@ -208,19 +209,21 @@ class Parser
 
         while ($this->isTypeName($tok)){
             // Handle storage class specifiers
-            if ($this->tokenizer->equal($tok, 'typedef') or $this->tokenizer->equal($tok, 'static')){
+            if ($this->tokenizer->equal($tok, 'typedef') or $this->tokenizer->equal($tok, 'static') or $this->tokenizer->equal($tok, 'extern')){
                 if (! $attr){
                     Console::errorTok($tok, 'storage class specifier is not allowed in this context');
                 }
 
-                if ($this->tokenizer->equal($tok, 'typedef')){
+                if ($this->tokenizer->equal($tok, 'typedef')) {
                     $attr->isTypedef = true;
-                } else {
+                } elseif ($this->tokenizer->equal($tok, 'static')) {
                     $attr->isStatic = true;
+                } else {
+                    $attr->isExtern = true;
                 }
 
-                if ($attr->isTypedef + $attr->isStatic > 1){
-                    Console::errorTok($tok, 'typedef and static may not be used together');
+                if ($attr->isTypedef and $attr->isStatic + $attr->isExtern > 1){
+                    Console::errorTok($tok, 'typedef may not be used together with static or extern');
                 }
 
                 $tok = $tok->next;
@@ -1009,7 +1012,7 @@ class Parser
     {
         if (in_array($tok->str, [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
-            'typedef', 'enum', 'static',
+            'typedef', 'enum', 'static', 'extern',
         ])){
             return true;
         }
@@ -2396,7 +2399,7 @@ class Parser
         return $tok;
     }
 
-    public function globalVariable(Token $tok, Type $basety): Token
+    public function globalVariable(Token $tok, Type $basety, VarAttr $attr): Token
     {
         $first = true;
 
@@ -2408,6 +2411,8 @@ class Parser
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
             $var = $this->newGVar($this->getIdent($ty->name), $ty);
+            $var->isDefinition = ! $attr->isExtern;
+
             if ($this->tokenizer->equal($tok, '=')){
                 $tok = $this->gVarInitializer($tok, $tok->next, $var);
             }
@@ -2453,7 +2458,7 @@ class Parser
             }
 
             // Global variable
-            $tok = $this->globalVariable($tok, $basety);
+            $tok = $this->globalVariable($tok, $basety, $attr);
         }
         return $this->globals;
     }

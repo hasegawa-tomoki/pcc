@@ -474,7 +474,7 @@ class CodeGenerator
     public function emitData(array $prog): void
     {
         foreach (array_reverse($prog) as $var){
-            if ($var->isFunction){
+            if ($var->isFunction or (! $var->isDefinition)){
                 continue;
             }
 
