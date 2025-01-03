@@ -594,6 +594,16 @@ class Parser
                 Console::errorTok($tok, 'variable declared void');
             }
 
+            if ($attr and $attr->isStatic){
+                // static local variable
+                $var = $this->newAnonGVar($ty);
+                $this->pushScope($this->getIdent($ty->name))->var = $var;
+                if ($this->tokenizer->equal($tok, '=')){
+                    $tok = $this->gVarInitializer($tok, $tok->next, $var);
+                }
+                continue;
+            }
+
             $var = $this->newLvar($this->getIdent($ty->name), $ty);
             if ($attr and $attr->align){
                 $var->align = $attr->align;
