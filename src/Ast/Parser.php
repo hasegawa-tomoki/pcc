@@ -458,10 +458,33 @@ class Parser
         return $this->abstractDeclarator($rest, $tok, $ty);
     }
 
+    public function isEnd(Token $tok): bool
+    {
+        return $this->tokenizer->equal($tok, '}') or ($this->tokenizer->equal($tok, ',') and $this->tokenizer->equal($tok->next, '}'));
+    }
+
+    /**
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: bool, 1: \Pcc\Tokenizer\Token}
+     */
+    public function consumeEnd(Token $rest, Token $tok): array
+    {
+        if ($this->tokenizer->equal($tok, '}')){
+            return [true, $tok->next];
+        }
+
+        if ($this->tokenizer->equal($tok, ',') and $this->tokenizer->equal($tok->next, '}')){
+            return [true, $tok->next->next];
+        }
+
+        return [false, $rest];
+    }
+
     /**
      * enum-specifier = ident? "{" enum-list? "}"
      *                | ident ("{" enum-list? "}")?
-     * enum-list      = ident ("=" num)? ("," ident ("=" num)?)*
+     * enum-list      = ident ("=" num)? ("," ident ("=" num)?)* ","?
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -494,7 +517,7 @@ class Parser
         // Read an enum-list.
         $i = 0;
         $val = 0;
-        while (! $this->tokenizer->equal($tok, '}')){
+        while ([$consumed, $rest] = $this->consumeEnd($rest, $tok) and (! $consumed)){
             if ($i++ > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
@@ -515,7 +538,7 @@ class Parser
             $this->pushTagScope($tag, $ty);
         }
 
-        return [$ty, $tok->next];
+        return [$ty, $rest];
     }
 
     /**
@@ -593,7 +616,7 @@ class Parser
     public function countArrayInitElements(Token $tok, Type $ty): int
     {
         $dummy = $this->newInitializer($ty->base, false);
-        for ($i = 0; ! $this->tokenizer->equal($tok, '}'); $i++){
+        for ($i = 0; [$consumed, $tok] = $this->consumeEnd($tok, $tok) and (! $consumed); $i++){
             if ($i > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
@@ -603,7 +626,7 @@ class Parser
     }
 
     /**
-     * array-initializer1 = "{" initializer ("," initializer)* "}"
+     * array-initializer1 = "{" initializer ("," initializer)* ","?"}"
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -619,7 +642,7 @@ class Parser
             $init = $this->newInitializer(Type::arrayOf($init->ty->base, $len), false);
         }
 
-        for ($i = 0; [$consumed, $rest] = $this->tokenizer->consume($rest, $tok, '}') and (! $consumed); $i++){
+        for ($i = 0; [$consumed, $rest] = $this->consumeEnd($rest, $tok) and (! $consumed); $i++){
             if ($i > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
@@ -649,7 +672,7 @@ class Parser
             $init = $this->newInitializer(Type::arrayOf($init->ty->base, $len), false);
         }
 
-        for ($i = 0; $i < $init->ty->arrayLen and (! $this->tokenizer->equal($tok, '}')); $i++){
+        for ($i = 0; $i < $init->ty->arrayLen and (! $this->isEnd($tok)); $i++){
             if ($i > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
@@ -660,7 +683,7 @@ class Parser
     }
 
     /**
-     * struct-initializer1 = "{" initializer ("," initializer)* "}"
+     * struct-initializer1 = "{" initializer ("," initializer)* ","? "}"
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -672,7 +695,7 @@ class Parser
         $tok = $this->tokenizer->skip($tok, '{');
 
         $idx = 0;
-        while ([$consumed, $rest] = $this->tokenizer->consume($rest, $tok, '}') and (! $consumed)){
+        while ([$consumed, $rest] = $this->consumeEnd($rest, $tok) and (! $consumed)){
             if ($idx > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
@@ -699,7 +722,7 @@ class Parser
     public function structInitializer2(Token $rest, Token $tok, Initializer $init): array
     {
         foreach ($init->ty->members as $idx => $mem){
-            if ($this->tokenizer->equal($tok, '}')){
+            if ($this->isEnd($tok)){
                 break;
             }
             if ($idx > 0){
