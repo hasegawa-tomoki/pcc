@@ -479,6 +479,7 @@ class CodeGenerator
             }
 
             Console::out("  .globl %s", $var->name);
+            Console::out("  .align %d", $var->ty->align);
 
             if (! is_null($var->initData)){
                 Console::out("  .data");
