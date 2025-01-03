@@ -274,7 +274,14 @@ class CodeGenerator
                 }
 
                 Console::out("  mov $0, %%rax");
-                Console::out("  call %s", $node->funcname);
+
+                if ($this->depth %2 === 0){
+                    Console::out("  call %s", $node->funcname);
+                } else {
+                    Console::out("  sub \$8, %%rsp");
+                    Console::out("  call %s", $node->funcname);
+                    Console::out("  add \$8, %%rsp");
+                }
                 return;
         }
 
