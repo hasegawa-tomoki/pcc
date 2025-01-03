@@ -478,11 +478,12 @@ class CodeGenerator
                 continue;
             }
 
-            Console::out("  .data");
             Console::out("  .globl %s", $var->name);
-            Console::out("%s:", $var->name);
 
             if (! is_null($var->initData)){
+                Console::out("  .data");
+                Console::out("%s:", $var->name);
+
                 $pos = 0;
                 $relIdx = 0;
                 while ($pos < $var->ty->size){
@@ -495,9 +496,12 @@ class CodeGenerator
                         Console::out("  .byte %d", ord($var->initData[$pos++]));
                     }
                 }
-            } else {
-                Console::out("  .zero %d", $var->ty->size);
+                continue;
             }
+
+            Console::out("  .bss");
+            Console::out("%s:", $var->name);
+            Console::out("  .zero %d", $var->ty->size);
         }
     }
 
