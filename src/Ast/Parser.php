@@ -299,7 +299,7 @@ class Parser
     }
 
     /**
-     * func-params = (param ("," param)*)? ")"
+     * func-params = ("void" | param ("," param)*)? ")"
      * param = typespec declarator
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -309,6 +309,10 @@ class Parser
      */
     public function funcParams(Token $rest, Token $tok, Type $ty): array
     {
+        if ($this->tokenizer->equal($tok, 'void') and $this->tokenizer->equal($tok->next, ')')){
+            return [Type::funcType($ty), $tok->next->next];
+        }
+
         $params = [];
         while (! $this->tokenizer->equal($tok, ')')){
             if (count($params) > 0){
