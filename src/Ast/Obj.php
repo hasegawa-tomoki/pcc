@@ -17,6 +17,8 @@ class Obj
 
     // Global variable
     public ?string $initData = null;
+    /** @var Relocation[] */
+    public array $rels = [];
 
     // Function
     /** @var \Pcc\Ast\Obj[] */

@@ -822,37 +822,62 @@ class Parser
         }
     }
 
-    public function writeGVarData(Initializer $init, Type $ty, string $buf, int $offset): string
+
+    /**
+     * @param \Pcc\Ast\Relocation[] $rels
+     * @param \Pcc\Ast\Initializer $init
+     * @param \Pcc\Ast\Type $ty
+     * @param string $buf
+     * @param int $offset
+     * @return array{0: string, 1: \Pcc\Ast\Relocation[]}
+     */
+    public function writeGVarData(array $rels, Initializer $init, Type $ty, string $buf, int $offset): array
     {
+        $cur = null;
         if ($ty->kind === TypeKind::TY_ARRAY){
             for ($i = 0; $i < $ty->arrayLen; $i++){
-                $buf = $this->writeGVarData($init->children[$i], $ty->base, $buf, $offset + $ty->base->size * $i);
+                [$buf, $rels] = $this->writeGVarData($rels, $init->children[$i], $ty->base, $buf, $offset + $ty->base->size * $i);
             }
-            return $buf;
+            return [$buf, $rels];
         }
 
         if ($ty->kind === TypeKind::TY_STRUCT){
             foreach ($ty->members as $idx => $mem){
-                $buf = $this->writeGVarData($init->children[$idx], $mem->ty, $buf, $offset + $mem->offset);
+                [$buf, $rels] = $this->writeGVarData($rels, $init->children[$idx], $mem->ty, $buf, $offset + $mem->offset);
             }
-            return $buf;
+            return [$buf, $rels];
         }
 
-        if ($init->expr){
-            $buf = $this->writeBuf($buf, $offset, $this->evaluate($init->expr), $ty->size);
+        if ($ty->kind === TypeKind::TY_UNION){
+            return $this->writeGVarData($rels, $init->children[0], $ty->members[0]->ty, $buf, $offset);
         }
 
-        return $buf;
+        if (! $init->expr){
+            return [$buf, $rels];
+        }
+
+        [$val, $label] = $this->evaluate2($init->expr, '');
+
+        if (! $label){
+            $buf = $this->writeBuf($buf, $offset, $val, $ty->size);
+            return [$buf, $rels];
+        }
+
+        $rels[] = new Relocation($offset, $label, $val);
+        return [$buf, $rels];
     }
 
     public function gVarInitializer(Token $rest, Token $tok, Obj $var): Token
     {
         [$init, $rest] = $this->initializer($rest, $tok, $var->ty, $var);
-        $buf = $this->writeGVarData($init, $var->ty, '', 0);
+
+        $rels = [];
+        [$buf, $rels] = $this->writeGVarData($rels, $init, $var->ty, '', 0);
         if (strlen($buf) < $var->ty->size){
             $buf .= str_repeat("\0", $var->ty->size - strlen($buf));
         }
         $var->initData = $buf;
+        $var->rels = $rels;
         return $rest;
     }
 
@@ -1139,16 +1164,29 @@ class Parser
 
     public function evaluate(Node $node): int
     {
+        [$val, ] = $this->evaluate2($node, null);
+        return $val;
+    }
+
+    /**
+     * @param \Pcc\Ast\Node $node
+     * @param ?string $label
+     * @return array{0: int, 1: $string}
+     */
+    public function evaluate2(Node $node, ?string $label): array
+    {
         $node->addType();
 
         $val = null;
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_ADD:
-                $val = $this->evaluate($node->lhs) + $this->evaluate($node->rhs);
+                [$val1, $label] = $this->evaluate2($node->lhs, $label);
+                $val = $val1 + $this->evaluate($node->rhs);
                 break;
             case NodeKind::ND_SUB:
-                $val = $this->evaluate($node->lhs) - $this->evaluate($node->rhs);
+                [$val1, $label] = $this->evaluate2($node->lhs, $label);
+                $val = $val1 - $this->evaluate($node->rhs);
                 break;
             case NodeKind::ND_MUL:
                 $val = $this->evaluate($node->lhs) * $this->evaluate($node->rhs);
@@ -1187,10 +1225,14 @@ class Parser
                 $val = $this->evaluate($node->lhs) <= $this->evaluate($node->rhs);
                 break;
             case NodeKind::ND_COND:
-                $val = $this->evaluate($node->cond)? $this->evaluate($node->then): $this->evaluate($node->els);
+                if ($this->evaluate($node->cond)){
+                    [$val, $label] = $this->evaluate2($node->then, $label);
+                } else {
+                    [$val, $label] = $this->evaluate2($node->els, $label);
+                }
                 break;
             case NodeKind::ND_COMMA:
-                $val = $this->evaluate($node->rhs);
+                [$val, $label] = $this->evaluate2($node->rhs, $label);
                 break;
             case NodeKind::ND_NOT:
                 $val = !$this->evaluate($node->lhs);
@@ -1205,25 +1247,78 @@ class Parser
                 $val = $this->evaluate($node->lhs) || $this->evaluate($node->rhs);
                 break;
             case NodeKind::ND_CAST:
+                [$val, $label] = $this->evaluate2($node->lhs, $label);
                 if ($node->ty->isInteger()){
-                    return match ($node->ty->size){
-                        1 => $this->evaluate($node->lhs) & 0xff,
-                        2 => $this->evaluate($node->lhs) & 0xffff,
-                        4 => $this->evaluate($node->lhs) & 0xffffffff,
-                    };
+                    return [
+                        match ($node->ty->size){
+                            1 => $val & 0xff,
+                            2 => $val & 0xffff,
+                            4 => $val & 0xffffffff,
+                            8 => $val,
+                        },
+                        $label
+                    ];
                 }
-                $val = $this->evaluate($node->lhs);
+                break;
+            case NodeKind::ND_ADDR:
+                [$val, $label] = $this->evalRval($node->lhs, $label);
+                break;
+            case NodeKind::ND_MEMBER:
+                if (is_null($label)){
+                    Console::errorTok($node->tok, 'not a compile-time constant (ND_MEMBER)');
+                }
+                if ($node->ty->kind !== TypeKind::TY_ARRAY){
+                    Console::errorTok($node->tok, 'invalid initializer');
+                }
+                [$val, $label] = $this->evalRval($node->lhs, $label);
+                $val += $node->members[0]->offset;
+                break;
+            case NodeKind::ND_VAR:
+                if (is_null($label)){
+                    Console::errorTok($node->tok, 'not a compile-time constant (ND_VAR)');
+                }
+                if ($node->var->ty->kind !== TypeKind::TY_ARRAY and $node->var->ty->kind !== TypeKind::TY_FUNC){
+                    Console::errorTok($node->tok, 'invalid initializer');
+                }
+                $val = 0;
+                $label = $node->var->name;
                 break;
             case NodeKind::ND_NUM:
                 $val = $node->val;
                 break;
-
         }
         if (is_null($val)){
-            Console::errorTok($node->tok, 'not a compile-time constant');
+            Console::errorTok($node->tok, 'not a compile-time constant (E)');
         }
 
-        return $val & 0xffffffff;
+        if ($val > 0xffffffff){
+            $val = $val & 0xffffffff;
+        }
+        return [$val, $label];
+    }
+
+    /**
+     * @param \Pcc\Ast\Node $node
+     * @param string $label
+     * @return array{0: int, 1: string}
+     */
+    public function evalRval(Node $node, ?string $label): array
+    {
+        /** @noinspection PhpUncoveredEnumCasesInspection */
+        switch($node->kind){
+            case NodeKind::ND_VAR:
+                if ($node->var->isLocal){
+                    Console::errorTok($node->tok, 'not a compile-time constant');
+                }
+                $label = $node->var->name;
+                return [0, $label];
+            case NodeKind::ND_DEREF:
+                return $this->evaluate2($node->lhs, $label);
+            case NodeKind::ND_MEMBER:
+                [$rval, $label] = $this->evalRval($node->lhs, $label);
+                return [$rval + $node->members[0]->offset, $label];
+        }
+        Console::errorTok($node->tok, 'invalid initializer');
     }
 
     /**

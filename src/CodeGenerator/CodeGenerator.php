@@ -483,8 +483,17 @@ class CodeGenerator
             Console::out("%s:", $var->name);
 
             if (! is_null($var->initData)){
-                for ($i = 0; $i < $var->ty->size; $i++){
-                    Console::out("  .byte %d", ord($var->initData[$i]));
+                $pos = 0;
+                $relIdx = 0;
+                while ($pos < $var->ty->size){
+                    $rel = $var->rels[$relIdx] ?? null;
+                    if ($rel and $rel->offset === $pos){
+                        Console::out("  .quad %s%+ld", $rel->label, $rel->addend);
+                        $relIdx++;
+                        $pos += 8;
+                    } else {
+                        Console::out("  .byte %d", ord($var->initData[$pos++]));
+                    }
                 }
             } else {
                 Console::out("  .zero %d", $var->ty->size);
