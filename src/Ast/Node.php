@@ -101,7 +101,7 @@ class Node
         $node->kind = NodeKind::ND_CAST;
         $node->tok = $expr->tok;
         $node->lhs = $expr;
-        $node->ty = $ty;
+        $node->ty = clone $ty;
         return $node;
     }
 

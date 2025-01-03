@@ -318,7 +318,7 @@ class Parser
                 $ty2 = Type::pointerTo($ty2->base);
                 $ty2->name = $name;
             }
-            $params[] = $ty2;
+            $params[] = clone $ty2;
         }
 
         $ty = Type::funcType($ty);
