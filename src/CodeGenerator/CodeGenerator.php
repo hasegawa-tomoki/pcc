@@ -483,10 +483,9 @@ class CodeGenerator
             Console::out("%s:", $var->name);
 
             if (! is_null($var->initData)){
-                for ($i = 0; $i < strlen($var->initData); $i++){
+                for ($i = 0; $i < $var->ty->size; $i++){
                     Console::out("  .byte %d", ord($var->initData[$i]));
                 }
-                Console::out("  .byte 0");
             } else {
                 Console::out("  .zero %d", $var->ty->size);
             }

@@ -1,4 +1,4 @@
-<?php
+<?php /** @noinspection PhpUnusedParameterInspection */
 
 namespace Pcc\Ast;
 
@@ -802,34 +802,44 @@ class Parser
         return [Node::newBinary(NodeKind::ND_COMMA, $lhs, $rhs, $tok), $rest];
     }
 
-    public function writeBuf(int $val, int $sz): string
+    public function writeBuf(string $buf, int $offset, int $val, int $sz): string
     {
+        $bufSize = strlen($buf);
+        if ($bufSize < $offset){
+            $buf .= str_repeat("\0", $offset - $bufSize);
+        }
         switch ($sz){
             case 1:
-                return pack('C', $val);
+                return $buf.pack('C', $val);
             case 2:
-                return pack('v', $val);
+                return $buf.pack('v', $val);
             case 4:
-                return pack('V', $val);
+                return $buf.pack('V', $val);
             case 8:
-                return pack('P', $val);
+                return $buf.pack('P', $val);
             default:
                 Console::unreachable(__FILE__, __LINE__);
         }
     }
 
-    public function writeGVarData(Initializer $init, Type $ty): string
+    public function writeGVarData(Initializer $init, Type $ty, string $buf, int $offset): string
     {
-        $buf = '';
         if ($ty->kind === TypeKind::TY_ARRAY){
             for ($i = 0; $i < $ty->arrayLen; $i++){
-                $buf .= $this->writeGVarData($init->children[$i], $ty->base);
+                $buf = $this->writeGVarData($init->children[$i], $ty->base, $buf, $offset + $ty->base->size * $i);
+            }
+            return $buf;
+        }
+
+        if ($ty->kind === TypeKind::TY_STRUCT){
+            foreach ($ty->members as $idx => $mem){
+                $buf = $this->writeGVarData($init->children[$idx], $mem->ty, $buf, $offset + $mem->offset);
             }
             return $buf;
         }
 
         if ($init->expr){
-            $buf .= $this->writeBuf($this->evaluate($init->expr), $ty->size);
+            $buf = $this->writeBuf($buf, $offset, $this->evaluate($init->expr), $ty->size);
         }
 
         return $buf;
@@ -838,7 +848,10 @@ class Parser
     public function gVarInitializer(Token $rest, Token $tok, Obj $var): Token
     {
         [$init, $rest] = $this->initializer($rest, $tok, $var->ty, $var);
-        $buf = $this->writeGVarData($init, $var->ty);
+        $buf = $this->writeGVarData($init, $var->ty, '', 0);
+        if (strlen($buf) < $var->ty->size){
+            $buf .= str_repeat("\0", $var->ty->size - strlen($buf));
+        }
         $var->initData = $buf;
         return $rest;
     }
@@ -1129,6 +1142,7 @@ class Parser
         $node->addType();
 
         $val = null;
+        /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_ADD:
                 $val = $this->evaluate($node->lhs) + $this->evaluate($node->rhs);

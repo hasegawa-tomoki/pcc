@@ -135,6 +135,7 @@ class Tokenizer
         $endPos = $this->stringLiteralEndPos($start + 1);
 
         $str = '';
+        $len = 0;
         for ($i = $start + 1; $i < $endPos; ){
             if ($this->currentInput[$i] === '\\'){
                 [$c, $i] = $this->readEscapedChar($i + 1);
@@ -143,10 +144,11 @@ class Tokenizer
                 $str .= $this->currentInput[$i];
                 $i++;
             }
+            $len++;
         }
 
-        $tok = new Token(TokenKind::TK_STR, $str, $start);
-        $tok->ty = Type::arrayOf(Type::tyChar(), strlen($tok->str) + 1);
+        $tok = new Token(TokenKind::TK_STR, $str."\0", $start);
+        $tok->ty = Type::arrayOf(Type::tyChar(), $len + 1);
         return [$tok, $endPos + 1];
     }
 
