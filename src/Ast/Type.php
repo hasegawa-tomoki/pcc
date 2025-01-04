@@ -9,6 +9,7 @@ class Type
     public TypeKind $kind;
     public int $size = 0;
     public int $align = 0;
+    public bool $isUnsigned = false;
     // Pointer
     public ?Type $base;
     // Declaration
@@ -24,66 +25,68 @@ class Type
     public array $params = [];
     public bool $isVariadic = false;
 
-    public function __construct(TypeKind $kind, ?Type $base = null)
+    public function __construct(TypeKind $kind, ?Type $base = null, int $size = 0, int $align = 0, bool $isUnsigned = false)
     {
         $this->kind = $kind;
         $this->base = $base;
+        $this->size = $size;
+        $this->align = $align;
+        $this->isUnsigned = $isUnsigned;
     }
 
     public static function tyVoid(): Type
     {
-        $ty = new Type(TypeKind::TY_VOID);
-        $ty->size = 1;
-        $ty->align = 1;
-        return $ty;
+        return new Type(TypeKind::TY_VOID, null, 1, 1);
     }
 
     public static function tyBool(): Type
     {
-        $ty = new Type(TypeKind::TY_BOOL);
-        $ty->size = 1;
-        $ty->align = 1;
-        return $ty;
+        return new Type(TypeKind::TY_BOOL, null, 1, 1);
     }
 
     public static function tyChar(): Type
     {
-        $ty = new Type(TypeKind::TY_CHAR);
-        $ty->size = 1;
-        $ty->align = 1;
-        return $ty;
+        return new Type(TypeKind::TY_CHAR, null, 1, 1);
     }
 
     public static function tyShort(): Type
     {
-        $ty = new Type(TypeKind::TY_SHORT);
-        $ty->size = 2;
-        $ty->align = 2;
-        return $ty;
+        return new Type(TypeKind::TY_SHORT, null, 2, 2);
     }
 
     public static function tyInt(): Type
     {
-        $ty = new Type(TypeKind::TY_INT);
-        $ty->size = 4;
-        $ty->align = 4;
-        return $ty;
+        return new Type(TypeKind::TY_INT, null, 4, 4);
     }
 
     public static function tyLong(): Type
     {
-        $ty = new Type(TypeKind::TY_LONG);
-        $ty->size = 8;
-        $ty->align = 8;
-        return $ty;
+        return new Type(TypeKind::TY_LONG, null, 8, 8);
+    }
+
+    public static function tyUChar(): Type
+    {
+        return new Type(TypeKind::TY_CHAR, null, 1, 1, true);
+    }
+
+    public static function tyUShort(): Type
+    {
+        return new Type(TypeKind::TY_SHORT, null, 2, 2, true);
+    }
+
+    public static function tyUInt(): Type
+    {
+        return new Type(TypeKind::TY_INT, null, 4, 4, true);
+    }
+
+    public static function tyULong(): Type
+    {
+        return new Type(TypeKind::TY_LONG, null, 8, 8, true);
     }
 
     public static function newType(TypeKind $kind, int $size, int $align): Type
     {
-        $ty = new Type($kind);
-        $ty->size = $size;
-        $ty->align = $align;
-        return $ty;
+        return new Type($kind, null, $size, $align);
     }
 
     public function isInteger(): bool
@@ -97,10 +100,7 @@ class Type
 
     public static function pointerTo(Type $base):Type
     {
-        $type = new Type(TypeKind::TY_PTR, $base);
-        $type->size = 8;
-        $type->align = 8;
-        return $type;
+        return new Type(TypeKind::TY_PTR, $base, 8, 8);
     }
 
     public static function funcType(Type $returnTy): Type
@@ -133,10 +133,22 @@ class Type
         if ($ty1->base){
             return self::pointerTo($ty1->base);
         }
-        if ($ty1->size === 8 or $ty2->size === 8){
-            return self::tyLong();
+
+        if ($ty1->size < 4){
+            $ty1 = self::tyInt();
         }
-        return self::tyInt();
+        if ($ty2->size < 4){
+            $ty2 = self::tyInt();
+        }
+
+        if ($ty1->size !== $ty2->size){
+            return ($ty1->size < $ty2->size)? $ty2: $ty1;
+        }
+
+        if ($ty2->isUnsigned){
+            return $ty2;
+        }
+        return $ty1;
     }
 
     /**

@@ -283,6 +283,8 @@ class Parser
                 $counter += TypeCount::LONG->value;
             } elseif ($this->tokenizer->equal($tok, 'signed')){
                 $counter |= TypeCount::SIGNED->value;
+            } elseif ($this->tokenizer->equal($tok, 'unsigned')){
+                $counter |= TypeCount::UNSIGNED->value;
             } else {
                 Console::unreachable(__FILE__, __LINE__);
             }
@@ -298,16 +300,27 @@ class Parser
                 case TypeCount::SIGNED->value + TypeCount::CHAR->value:
                     $ty = Type::tyChar();
                     break;
+                case TypeCount::UNSIGNED->value + TypeCount::CHAR->value:
+                    $ty = Type::tyUChar();
+                    break;
                 case TypeCount::SHORT->value:
                 case TypeCount::SHORT->value + TypeCount::INT->value:
                 case TypeCount::SIGNED->value + TypeCount::SHORT->value:
                 case TypeCount::SIGNED->value + TypeCount::SHORT->value + TypeCount::INT->value:
                     $ty = Type::tyShort();
                     break;
+                case TypeCount::UNSIGNED->value + TypeCount::SHORT->value:
+                case TypeCount::UNSIGNED->value + TypeCount::SHORT->value + TypeCount::INT->value:
+                    $ty = Type::tyUShort();
+                    break;
                 case TypeCount::INT->value:
                 case TypeCount::SIGNED->value:
                 case TypeCount::SIGNED->value + TypeCount::INT->value:
                     $ty = Type::tyInt();
+                    break;
+                case TypeCount::UNSIGNED->value:
+                case TypeCount::UNSIGNED->value + TypeCount::INT->value:
+                    $ty = Type::tyUInt();
                     break;
                 case TypeCount::LONG->value:
                 case TypeCount::LONG->value + TypeCount::INT->value:
@@ -318,6 +331,12 @@ class Parser
                 case TypeCount::SIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value:
                 case TypeCount::SIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value + TypeCount::INT->value:
                     $ty = Type::tyLong();
+                    break;
+                case TypeCount::UNSIGNED->value + TypeCount::LONG->value:
+                case TypeCount::UNSIGNED->value + TypeCount::LONG->value + TypeCount::INT->value:
+                case TypeCount::UNSIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value:
+                case TypeCount::UNSIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value + TypeCount::INT->value:
+                    $ty = Type::tyULong();
                     break;
                 default:
                     Console::errorTok($tok, 'invalid type');
@@ -1066,7 +1085,7 @@ class Parser
     {
         if (in_array($tok->str, [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
-            'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed',
+            'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
         ])){
             return true;
         }

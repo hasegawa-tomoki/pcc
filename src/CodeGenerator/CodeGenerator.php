@@ -23,8 +23,11 @@ class CodeGenerator
     public array $argreg64 = ['%rdi', '%rsi', '%rdx', '%rcx', '%r8', '%r9'];
 
     public string $i32i8 = "movsbl %al, %eax";
+    public string $i32u8 = "movzbl %al, %eax";
     public string $i32i16 = "movswl %ax, %eax";
+    public string $i32u16 = "movzwl %ax, %eax";
     public string $i32i64 = "movsxd %eax, %rax";
+    public string $u32i64 = "mov %eax, %eax";
     public array $castTable = [];
 
     public Obj $currentFn;
@@ -32,10 +35,15 @@ class CodeGenerator
     public function __construct()
     {
         $this->castTable = [
-            [null,          null,           null, $this->i32i64,    ], // I8
-            [$this->i32i8,  null,           null, $this->i32i64,    ], // I16
-            [$this->i32i8,  $this->i32i16,  null, $this->i32i64,    ], // I32
-            [$this->i32i8,  $this->i32i16,  null, null,             ], // I64
+             // i8          i16             i32   i64               u8              u16             u32   u64
+            [null,          null,           null, $this->i32i64,    $this->i32u8,   $this->i32u16,  null, $this->i32i64],   // i8
+            [$this->i32i8,  null,           null, $this->i32i64,    $this->i32u8,   $this->i32u16,  null, $this->i32i64],   // i16
+            [$this->i32i8,  $this->i32i16,  null, $this->i32i64,    $this->i32u8,   $this->i32u16,  null, $this->i32i64],   // i32
+            [$this->i32i8,  $this->i32i16,  null, null,             $this->i32u8,   $this->i32u16,  null, null],            // i64
+            [$this->i32i8,  null,           null, $this->i32i64,    null,           null,           null, $this->i32i64],   // u8
+            [$this->i32i8,  $this->i32i16,  null, $this->i32i64,    $this->i32u8,   null,           null, $this->i32i64],   // u16
+            [$this->i32i8,  $this->i32i16,  null, $this->u32i64,    $this->i32u8,   $this->i32u16,  null, $this->u32i64],   // u32
+            [$this->i32i8,  $this->i32i16,  null, null,             $this->i32u8,   $this->i32u16,  null, null],            // u64
         ];
     }
 
@@ -94,10 +102,12 @@ class CodeGenerator
             return;
         }
 
+        $insn = $ty->isUnsigned? 'movz' : 'movs';
+
         if ($ty->size === 1) {
-            Console::out("  movsbl (%%rax), %%eax");
+            Console::out("  %sbl (%%rax), %%eax", $insn);
         } elseif ($ty->size === 2) {
-            Console::out("  movswl (%%rax), %%eax");
+            Console::out("  %swl (%%rax), %%eax", $insn);
         } elseif ($ty->size === 4) {
             Console::out("  movsxd (%%rax), %%rax");
         } else {
@@ -140,10 +150,11 @@ class CodeGenerator
     public function getTypeId(Type $ty): int
     {
         return match ($ty->kind) {
-            TypeKind::TY_CHAR => TypeId::I8->value,
-            TypeKind::TY_SHORT => TypeId::I16->value,
-            TypeKind::TY_INT => TypeId::I32->value,
-            default => TypeId::I64->value,
+            TypeKind::TY_CHAR   => $ty->isUnsigned? TypeId::U8->value:  TypeId::I8->value,
+            TypeKind::TY_SHORT  => $ty->isUnsigned? TypeId::U16->value: TypeId::I16->value,
+            TypeKind::TY_INT    => $ty->isUnsigned? TypeId::U32->value: TypeId::I32->value,
+            TypeKind::TY_LONG   => $ty->isUnsigned? TypeId::U64->value: TypeId::I64->value,
+            default             => TypeId::U64->value,
         };
     }
 
@@ -291,10 +302,18 @@ class CodeGenerator
                         Console::out("  movzx %%al, %%eax");
                         return;
                     case TypeKind::TY_CHAR:
-                        Console::out("  movsbl %%al, %%eax");
+                        if ($node->ty->isUnsigned){
+                            Console::out("  movzbl %%al, %%eax");
+                        } else {
+                            Console::out("  movsbl %%al, %%eax");
+                        }
                         return;
                     case TypeKind::TY_SHORT:
-                        Console::out("  movswl %%ax, %%eax");
+                        if ($node->ty->isUnsigned){
+                            Console::out("  movzwl %%ax, %%eax");
+                        } else {
+                            Console::out("  movswl %%ax, %%eax");
+                        }
                         return;
                 }
 
@@ -309,9 +328,11 @@ class CodeGenerator
         if ($node->lhs->ty->kind === TypeKind::TY_LONG or $node->lhs->ty->base){
             $ax = '%rax';
             $di = '%rdi';
+            $dx = "%rdx";
         } else {
             $ax = '%eax';
             $di = '%edi';
+            $dx = "%edx";
         }
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
@@ -327,12 +348,17 @@ class CodeGenerator
                 return;
             case NodeKind::ND_DIV:
             case NodeKind::ND_MOD:
-                if ($node->lhs->ty->size === 8){
-                    Console::out("  cqo");
+                if ($node->ty->isUnsigned){
+                    Console::out("  mov \$0, %s", $dx);
+                    Console::out("  div %s", $di);
                 } else {
-                    Console::out("  cdq");
+                    if ($node->lhs->ty->size === 8){
+                        Console::out("  cqo");
+                    } else {
+                        Console::out("  cdq");
+                    }
+                    Console::out("  idiv %s", $di);
                 }
-                Console::out("  idiv %s", $di);
 
                 if ($node->kind === NodeKind::ND_MOD){
                     Console::out("  mov %%rdx, %%rax");
@@ -355,12 +381,20 @@ class CodeGenerator
 
                 if ($node->kind == NodeKind::ND_EQ) {
                     Console::out("  sete %%al");
-                } elseif ($node->kind == NodeKind::ND_NE) {
+                } elseif ($node->kind == NodeKind::ND_NE){
                     Console::out("  setne %%al");
-                } elseif ($node->kind == NodeKind::ND_LT) {
-                    Console::out("  setl %%al");
-                } elseif ($node->kind == NodeKind::ND_LE) {
-                    Console::out("  setle %%al");
+                } elseif ($node->kind == NodeKind::ND_LT){
+                    if ($node->lhs->ty->isUnsigned){
+                        Console::out("  setb %%al");
+                    } else {
+                        Console::out("  setl %%al");
+                    }
+                } elseif ($node->kind == NodeKind::ND_LE){
+                    if ($node->lhs->ty->isUnsigned){
+                        Console::out("  setbe %%al");
+                    } else {
+                        Console::out("  setle %%al");
+                    }
                 }
                 Console::out("  movzb %%al, %%rax");
                 return;
@@ -370,9 +404,8 @@ class CodeGenerator
                 return;
             case NodeKind::ND_SHR:
                 Console::out("  mov %%rdi, %%rcx");
-                // Maybe this is a bug in the original code of 1bb4c6d4b8a499eff3baf8241d009278bb436aab
-                if ($node->ty->size === 8){
-                    Console::out("  sar %%cl, %s", $ax);
+                if ($node->lhs->ty->isUnsigned){
+                    Console::out("  shr %%cl, %s", $ax);
                 } else {
                     Console::out("  sar %%cl, %s", $ax);
                 }
