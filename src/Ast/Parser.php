@@ -2510,6 +2510,10 @@ class Parser
         $this->createParamLVars($ty->params);
         $fn->params = $this->locals;
 
+        if ($ty->isVariadic){
+            $fn->vaArea = $this->newLvar('__va_area__', Type::arrayOf(Type::tyChar(), 136));
+        }
+
         $tok = $this->tokenizer->skip($tok, '{');
         [$compoundStmt, $tok] = $this->compoundStmt($tok, $tok);
         $fn->body = [$compoundStmt];

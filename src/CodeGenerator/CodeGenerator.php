@@ -590,6 +590,34 @@ class CodeGenerator
             Console::out("  mov %%rsp, %%rbp");
             Console::out("  sub \$%d, %%rsp", $fn->stackSize);
 
+            // Save arg registers if function is variadic
+            if ($fn->vaArea) {
+                $gp = count($fn->params);
+                $off = $fn->vaArea->offset;
+
+                // va_elem
+                Console::out("  movl $%d, %d(%%rbp)", $gp * 8, $off);
+                Console::out("  movl $0, %d(%%rbp)", $off + 4);
+                Console::out("  movq %%rbp, %d(%%rbp)", $off + 16);
+                Console::out("  addq $%d, %d(%%rbp)", $off + 24, $off + 16);
+
+                // __reg_save_area__
+                Console::out("  movq %%rdi, %d(%%rbp)", $off + 24);
+                Console::out("  movq %%rsi, %d(%%rbp)", $off + 32);
+                Console::out("  movq %%rdx, %d(%%rbp)", $off + 40);
+                Console::out("  movq %%rcx, %d(%%rbp)", $off + 48);
+                Console::out("  movq %%r8, %d(%%rbp)", $off + 56);
+                Console::out("  movq %%r9, %d(%%rbp)", $off + 64);
+                Console::out("  movsd %%xmm0, %d(%%rbp)", $off + 72);
+                Console::out("  movsd %%xmm1, %d(%%rbp)", $off + 80);
+                Console::out("  movsd %%xmm2, %d(%%rbp)", $off + 88);
+                Console::out("  movsd %%xmm3, %d(%%rbp)", $off + 96);
+                Console::out("  movsd %%xmm4, %d(%%rbp)", $off + 104);
+                Console::out("  movsd %%xmm5, %d(%%rbp)", $off + 112);
+                Console::out("  movsd %%xmm6, %d(%%rbp)", $off + 120);
+                Console::out("  movsd %%xmm7, %d(%%rbp)", $off + 128);
+            }
+
             // Save passed-by-register arguments to the stack
             $idx = 0;
             foreach ($fn->params as $param){

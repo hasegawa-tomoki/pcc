@@ -28,6 +28,7 @@ class Obj
     public array $body;
     /** @var array<string, \Pcc\Ast\Obj> */
     public array $locals = [];
+    public ?Obj $vaArea = null;
     public int $stackSize;
 
 
