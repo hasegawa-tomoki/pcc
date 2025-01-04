@@ -16,6 +16,7 @@
     },
     "require": {
         "spatie/ray": "^1.41",
-        "ext-ctype": "*"
+        "ext-ctype": "*",
+        "ext-bcmath": "*"
     }
 }

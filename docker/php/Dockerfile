@@ -11,6 +11,10 @@ RUN apt-get update  \
 RUN pecl install xdebug
 RUN docker-php-ext-enable xdebug
 
+
+RUN apt-get update && apt-get install -y libgmp-dev
+RUN docker-php-ext-install -j$(nproc) bcmath
+
 # Add ja_JP.UTF-8
 RUN apt-get update && apt-get install -y \
   locales \
