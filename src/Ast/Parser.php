@@ -281,6 +281,8 @@ class Parser
                 $counter += TypeCount::INT->value;
             } elseif ($this->tokenizer->equal($tok, 'long')){
                 $counter += TypeCount::LONG->value;
+            } elseif ($this->tokenizer->equal($tok, 'signed')){
+                $counter |= TypeCount::SIGNED->value;
             } else {
                 Console::unreachable(__FILE__, __LINE__);
             }
@@ -293,19 +295,28 @@ class Parser
                     $ty = Type::tyBool();
                     break;
                 case TypeCount::CHAR->value:
+                case TypeCount::SIGNED->value + TypeCount::CHAR->value:
                     $ty = Type::tyChar();
                     break;
                 case TypeCount::SHORT->value:
                 case TypeCount::SHORT->value + TypeCount::INT->value:
+                case TypeCount::SIGNED->value + TypeCount::SHORT->value:
+                case TypeCount::SIGNED->value + TypeCount::SHORT->value + TypeCount::INT->value:
                     $ty = Type::tyShort();
                     break;
                 case TypeCount::INT->value:
+                case TypeCount::SIGNED->value:
+                case TypeCount::SIGNED->value + TypeCount::INT->value:
                     $ty = Type::tyInt();
                     break;
                 case TypeCount::LONG->value:
                 case TypeCount::LONG->value + TypeCount::INT->value:
                 case TypeCount::LONG->value + TypeCount::LONG->value:
                 case TypeCount::LONG->value + TypeCount::LONG->value + TypeCount::INT->value:
+                case TypeCount::SIGNED->value + TypeCount::LONG->value:
+                case TypeCount::SIGNED->value + TypeCount::LONG->value + TypeCount::INT->value:
+                case TypeCount::SIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value:
+                case TypeCount::SIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value + TypeCount::INT->value:
                     $ty = Type::tyLong();
                     break;
                 default:
@@ -1055,7 +1066,7 @@ class Parser
     {
         if (in_array($tok->str, [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
-            'typedef', 'enum', 'static', 'extern', '_Alignas',
+            'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed',
         ])){
             return true;
         }
