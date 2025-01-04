@@ -314,8 +314,8 @@ class Tokenizer
             }
 
             // Three-letter punctuators
-            if (in_array($token = substr($this->currentInput, $pos, 3), ['<<=', '>>=', ])){
-                $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
+            if (in_array($token = substr($this->currentInput, $pos, 3), ['<<=', '>>=', '...', ])){
+                $tokens[] = $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $pos += 3;
                 continue;
             }

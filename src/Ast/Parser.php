@@ -319,7 +319,7 @@ class Parser
     }
 
     /**
-     * func-params = ("void" | param ("," param)*?)? ")"
+     * func-params = ("void" | param ("," param)* ("," "...")?)? ")"
      * param = typespec declarator
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -334,9 +334,18 @@ class Parser
         }
 
         $params = [];
+        $isVariadic = false;
+
         while (! $this->tokenizer->equal($tok, ')')){
             if (count($params) > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            if ($this->tokenizer->equal($tok, '...')){
+                $isVariadic = true;
+                $tok = $tok->next;
+                $this->tokenizer->skip($tok, ')');
+                break;
             }
 
             [$ty2, $tok] = $this->typespec($tok, $tok, null);
@@ -354,6 +363,7 @@ class Parser
 
         $ty = Type::funcType($ty);
         $ty->params = $params;
+        $ty->isVariadic = $isVariadic;
 
         return [$ty, $tok->next];
     }
