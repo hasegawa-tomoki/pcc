@@ -2,6 +2,8 @@
 
 namespace Pcc\Ast;
 
+use GMP;
+use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
 use Pcc\Tokenizer\Token;
 use Relay\KeyType;
@@ -55,6 +57,7 @@ class Node
     public Obj $var;
     // Numeric literal
     public int $val;
+    public GMP $gmpVal;
 
     public static function newNode(NodeKind $nodeKind, Token $tok): Node
     {
@@ -79,10 +82,16 @@ class Node
         return $node;
     }
 
-    public static function newNum(int $val, Token $tok): Node
+    public static function newNum(int|GMP $val, Token $tok): Node
     {
         $node = self::newNode(NodeKind::ND_NUM, $tok);
-        $node->val = $val;
+        if ($val instanceof GMP){
+            $node->gmpVal = $val;
+            $node->val = PccGMP::toSignedInt($val);
+        } else {
+            $node->gmpVal = gmp_init($val);
+            $node->val = $val;
+        }
         return $node;
     }
 
@@ -129,7 +138,7 @@ class Node
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($this->kind){
             case NodeKind::ND_NUM:
-                $this->ty = ($this->val > 2 ** 32) ? Type::tyLong() : Type::tyInt();
+                $this->ty = Type::tyInt();
                 return;
             case NodeKind::ND_ADD:
             case NodeKind::ND_SUB:

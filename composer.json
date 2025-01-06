@@ -17,6 +17,7 @@
     "require": {
         "spatie/ray": "^1.41",
         "ext-ctype": "*",
-        "ext-bcmath": "*"
+        "ext-bcmath": "*",
+        "ext-gmp": "*"
     }
 }

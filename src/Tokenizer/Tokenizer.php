@@ -2,7 +2,9 @@
 
 namespace Pcc\Tokenizer;
 
+use GMP;
 use Pcc\Ast\Type;
+use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
 
 class Tokenizer
@@ -188,6 +190,8 @@ class Tokenizer
             $signedVal = $val;
         }
         $tok->val = $signedVal;
+        $tok->gmpVal = gmp_init($signedVal);
+        $tok->ty = Type::tyInt();
         return [$tok, $pos + $end + 1];
     }
 
@@ -200,10 +204,10 @@ class Tokenizer
         $p = $start;
 
         $base = 10;
-        if (strtolower(substr($this->currentInput, $p, 2)) === '0x' and ctype_alnum($this->currentInput[$p + 2])){
+        if (strtolower(substr($this->currentInput, $p, 2)) === '0x' and ctype_xdigit($this->currentInput[$p + 2])){
             $p += 2;
             $base = 16;
-        } elseif (strtolower(substr($this->currentInput, $p, 2)) === '0b' and ctype_alnum($this->currentInput[$p + 2])){
+        } elseif (strtolower(substr($this->currentInput, $p, 2)) === '0b' and ($this->currentInput[$p + 2] === '0' or $this->currentInput[$p + 2] === '1')){
             $p += 2;
             $base = 2;
         } elseif ($this->currentInput[$p] === '0'){
@@ -211,17 +215,70 @@ class Tokenizer
         }
 
         if (! preg_match('/^([0-9a-fA-F]+)/', substr($this->currentInput, $p), $matches)){
-            $val = 0;
+            $gmpVal = gmp_init("0");
         } else {
-            $val = intval($matches[1], $base);
+            $gmpVal = gmp_init($matches[1], $base);
             $p += strlen($matches[1]);
         }
+
+        // Read U, L or LL suffixes
+        $l = false;
+        $u = false;
+
+        if (in_array(strtolower(substr($this->currentInput, $p, 3)), ['llu', 'ull', ])){
+            $p += 3;
+            $l = $u = true;
+        } elseif (in_array(strtolower(substr($this->currentInput, $p, 2)), ['lu', 'ul', ])) {
+            $p += 2;
+            $l = $u = true;
+        } elseif (strtolower(substr($this->currentInput, $p, 2)) === 'll'){
+            $p += 2;
+            $l = true;
+        } elseif (strtolower($this->currentInput[$p]) === 'l'){
+            $p++;
+            $l = true;
+        } elseif (strtolower($this->currentInput[$p]) === 'u'){
+            $p++;
+            $u = true;
+        }
+
         if (ctype_alnum($this->currentInput[$p])){
             Console::errorAt($p, 'invalid digit');
         }
 
+        // Infer a type
+        if ($base === 10){
+            if ($l and $u){
+                $ty = Type::tyULong();
+            } elseif ($l){
+                $ty = Type::tyLong();
+            } elseif ($u){
+                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 32)))? Type::tyULong(): Type::tyUInt();
+            } else {
+                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 31)))? Type::tyLong(): Type::tyInt();
+            }
+        } else {
+            if ($l and $u){
+                $ty = Type::tyULong();
+            } elseif ($l){
+                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 63)))? Type::tyULong(): Type::tyLong();
+            } elseif ($u){
+                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 32)))? Type::tyULong(): Type::tyUInt();
+            } elseif (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 63))){
+                $ty = Type::tyULong();
+            } elseif (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 32))){
+                $ty = Type::tyLong();
+            } elseif (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 31))){
+                $ty = Type::tyUInt();
+            } else {
+                $ty = Type::tyInt();
+            }
+        }
+
         $tok = new Token(TokenKind::TK_NUM, substr($this->currentInput, $start, $p - $start), $start);
-        $tok->val = $val;
+        $tok->val = PccGMP::toSignedInt($gmpVal);
+        $tok->gmpVal = $gmpVal;
+        $tok->ty = $ty;
 
         return [$tok, $p];
     }

@@ -1,6 +1,7 @@
 <?php
 namespace Pcc\Tokenizer;
 
+use GMP;
 use Pcc\Ast\Type;
 
 class Token
@@ -8,6 +9,7 @@ class Token
     public TokenKind $kind;
     public Token $next;
     public int $val;
+    public GMP $gmpVal;
     public string $str;
     public int $pos;
     public int $lineNo;

@@ -7,6 +7,7 @@ use Pcc\Ast\Obj;
 use Pcc\Ast\Node;
 use Pcc\Ast\NodeKind;
 use Pcc\Ast\Type;
+use Pcc\Ast\Type\PccGMP;
 use Pcc\Ast\TypeKind;
 use Pcc\Console;
 
@@ -187,7 +188,7 @@ class CodeGenerator
             case NodeKind::ND_NULL_EXPR:
                 return;
             case NodeKind::ND_NUM:
-                Console::out("  mov \$%ld, %%rax", $node->val);
+                Console::out("  mov \$%ld, %%rax", PccGMP::toSignedInt($node->gmpVal));
                 return;
             case NodeKind::ND_VAR:
             case NodeKind::ND_MEMBER:
@@ -470,7 +471,7 @@ class CodeGenerator
 
                 foreach ($node->cases as $n){
                     $reg = ($node->cond->ty->size == 8) ? '%rax' : '%eax';
-                    Console::out("  cmp \$%ld, %s", $n->val, $reg);
+                    Console::out("  cmp \$%ld, %s", PccGMP::toSignedInt($n->gmpVal), $reg);
                     Console::out("  je %s", $n->label);
                 }
 
