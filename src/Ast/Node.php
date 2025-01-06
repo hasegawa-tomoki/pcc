@@ -6,7 +6,6 @@ use GMP;
 use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
 use Pcc\Tokenizer\Token;
-use Relay\KeyType;
 
 class Node
 {
@@ -92,6 +91,13 @@ class Node
             $node->gmpVal = gmp_init($val);
             $node->val = $val;
         }
+        return $node;
+    }
+
+    public static function newUlong(int|GMP $val, Token $tok): Node
+    {
+        $node = self::newNum($val, $tok);
+        $node->ty = Type::tyULong();
         return $node;
     }
 

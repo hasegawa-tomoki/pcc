@@ -1933,7 +1933,7 @@ class Parser
         // ptr - ptr
         if ($lhs->ty->base and $rhs->ty->base){
             $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
-            $node->ty = Type::tyInt();
+            $node->ty = Type::tyLong();
             return Node::newBinary(NodeKind::ND_DIV, $node, Node::newNum($lhs->ty->base->size, $tok), $tok);
         }
 
@@ -2431,20 +2431,20 @@ class Parser
         if ($this->tokenizer->equal($tok, 'sizeof') and $this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
             [$ty, $tok] = $this->typename($tok, $tok->next->next);
             $rest = $this->tokenizer->skip($tok, ')');
-            return [Node::newNum($ty->size, $start), $rest];
+            return [Node::newUlong($ty->size, $start), $rest];
         }
 
         if ($this->tokenizer->equal($tok, 'sizeof')){
             [$node, $rest] = $this->unary($rest, $tok->next);
             $node->addType();
-            return [Node::newNum($node->ty->size, $tok), $rest];
+            return [Node::newUlong($node->ty->size, $tok), $rest];
         }
 
         if ($this->tokenizer->equal($tok, '_Alignof')){
             $tok = $this->tokenizer->skip($tok->next, '(');
             [$ty, $tok] = $this->typename($tok, $tok);
             $rest = $this->tokenizer->skip($tok, ')');
-            return [Node::newNum($ty->align, $tok), $rest];
+            return [Node::newUlong($ty->align, $tok), $rest];
         }
 
         if ($tok->isKind(TokenKind::TK_IDENT)){
