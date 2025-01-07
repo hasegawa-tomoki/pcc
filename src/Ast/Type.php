@@ -100,7 +100,7 @@ class Type
 
     public static function pointerTo(Type $base):Type
     {
-        return new Type(TypeKind::TY_PTR, $base, 8, 8);
+        return new Type(TypeKind::TY_PTR, $base, 8, 8, true);
     }
 
     public static function funcType(Type $returnTy): Type
