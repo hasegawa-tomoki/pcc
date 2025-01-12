@@ -253,22 +253,23 @@ class Tokenizer
             } elseif ($l){
                 $ty = Type::tyLong();
             } elseif ($u){
-                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 32)))? Type::tyULong(): Type::tyUInt();
+                $ty = (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 32)))? Type::tyULong(): Type::tyUInt();
             } else {
-                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 31)))? Type::tyLong(): Type::tyInt();
+                $ty = (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 31)))? Type::tyLong(): Type::tyInt();
             }
         } else {
             if ($l and $u){
                 $ty = Type::tyULong();
             } elseif ($l){
-                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 63)))? Type::tyULong(): Type::tyLong();
+                $target = PccGMP::shiftRArithmetic($gmpVal, 63);
+                $ty = (PccGMP::isTrue($target))? Type::tyULong(): Type::tyLong();
             } elseif ($u){
-                $ty = (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 32)))? Type::tyULong(): Type::tyUInt();
-            } elseif (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 63))){
+                $ty = (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 32)))? Type::tyULong(): Type::tyUInt();
+            } elseif (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 63))){
                 $ty = Type::tyULong();
-            } elseif (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 32))){
+            } elseif (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 32))){
                 $ty = Type::tyLong();
-            } elseif (PccGMP::isTrue(PccGMP::shiftR($gmpVal, 31))){
+            } elseif (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 31))){
                 $ty = Type::tyUInt();
             } else {
                 $ty = Type::tyInt();
@@ -276,7 +277,7 @@ class Tokenizer
         }
 
         $tok = new Token(TokenKind::TK_NUM, substr($this->currentInput, $start, $p - $start), $start);
-        $tok->val = PccGMP::toSignedInt($gmpVal);
+        $tok->val = PccGMP::toPHPInt($gmpVal);
         $tok->gmpVal = $gmpVal;
         $tok->ty = $ty;
 

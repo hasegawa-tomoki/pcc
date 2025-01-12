@@ -244,7 +244,7 @@ class Parser
                     $attr->align = $ty->align;
                 } else {
                     [$gmpVal, $tok] = $this->constExpr($tok, $tok);
-                    $attr->align = PccGMP::toSignedInt($gmpVal);
+                    $attr->align = PccGMP::toPHPInt($gmpVal);
                 }
                 $tok = $this->tokenizer->skip($tok, ')');
                 continue;
@@ -417,7 +417,7 @@ class Parser
         }
 
         [$gmpSz, $tok] = $this->constExpr($tok, $tok);
-        $sz = PccGMP::toSignedInt($gmpSz, 32);
+        $sz = PccGMP::toPHPInt($gmpSz, 32);
         $tok = $this->tokenizer->skip($tok, ']');
         [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
         return [Type::arrayOf($ty, $sz), $rest];
@@ -602,7 +602,7 @@ class Parser
 
             if ($this->tokenizer->equal($tok, '=')){
                 [$gmpVal, $tok] = $this->constExpr($tok, $tok->next);
-                $val = PccGMP::toSignedInt($gmpVal);
+                $val = PccGMP::toPHPInt($gmpVal);
             }
 
             $sc = $this->pushScope($name);
@@ -1064,11 +1064,11 @@ class Parser
         [$gmpVal, $label] = $this->evaluate2($init->expr, '');
 
         if (! $label){
-            $buf = $this->writeBuf($buf, $offset, PccGMP::toSignedInt($gmpVal), $ty->size);
+            $buf = $this->writeBuf($buf, $offset, PccGMP::toPHPInt($gmpVal), $ty->size);
             return [$buf, $rels];
         }
 
-        $rels[] = new Relocation($offset, $label, PccGMP::toSignedInt($gmpVal));
+        $rels[] = new Relocation($offset, $label, PccGMP::toPHPInt($gmpVal));
         return [$buf, $rels];
     }
 
@@ -1175,7 +1175,7 @@ class Parser
             $tok = $this->tokenizer->skip($tok, ':');
             $node->label = $this->newUniqueName();
             [$node->lhs, $rest] = $this->stmt($rest, $tok);
-            $node->val = PccGMP::toSignedInt($gmpVal);
+            $node->val = PccGMP::toPHPInt($gmpVal);
             $node->gmpVal = $gmpVal;
             array_unshift($this->currentSwitch->cases, $node);
 
@@ -1412,6 +1412,7 @@ class Parser
     }
 
     /**
+     * int64_t eval2(Node *node, char **label)
      * @param \Pcc\Ast\Node $node
      * @param ?string $label
      * @return array{0: GMP, 1: $string}
@@ -1435,10 +1436,18 @@ class Parser
                 $val = gmp_mul($this->evaluate($node->lhs), $this->evaluate($node->rhs));
                 break;
             case NodeKind::ND_DIV:
-                $val = gmp_div_q($this->evaluate($node->lhs), $this->evaluate($node->rhs));
+                if ($node->ty->isUnsigned){
+                    $val = gmp_div_q(PccGMP::toUint64t($this->evaluate($node->lhs)), $this->evaluate($node->rhs));
+                } else {
+                    $val = gmp_div_q($this->evaluate($node->lhs), $this->evaluate($node->rhs));
+                }
                 break;
             case NodeKind::ND_MOD:
-                $val = gmp_div_r($this->evaluate($node->lhs), $this->evaluate($node->rhs));
+                if ($node->ty->isUnsigned){
+                    $val = gmp_div_r(PccGMP::toUint64t($this->evaluate($node->lhs)), $this->evaluate($node->rhs));
+                } else {
+                    $val = gmp_div_r($this->evaluate($node->lhs), $this->evaluate($node->rhs));
+                }
                 break;
             case NodeKind::ND_BITAND:
                 $val = gmp_and($this->evaluate($node->lhs), $this->evaluate($node->rhs));
@@ -1450,10 +1459,14 @@ class Parser
                 $val = gmp_xor($this->evaluate($node->lhs), $this->evaluate($node->rhs));
                 break;
             case NodeKind::ND_SHL:
-                $val = PccGMP::shiftL($this->evaluate($node->lhs), PccGMP::toSignedInt($this->evaluate($node->rhs)));
+                $val = PccGMP::shiftL($this->evaluate($node->lhs), PccGMP::toPHPInt($this->evaluate($node->rhs)));
                 break;
             case NodeKind::ND_SHR:
-                $val = PccGMP::shiftR($this->evaluate($node->lhs), PccGMP::toSignedInt($this->evaluate($node->rhs)));
+                if ($node->ty->isUnsigned and $node->ty->size === 8){
+                    $val = PccGMP::shiftRLogical(PccGMP::toUint64t($this->evaluate($node->lhs)), PccGMP::toPHPInt($this->evaluate($node->rhs)));
+                } else {
+                    $val = PccGMP::shiftRArithmetic($this->evaluate($node->lhs), PccGMP::toPHPInt($this->evaluate($node->rhs)));
+                }
                 break;
             case NodeKind::ND_EQ:
                 $val = (gmp_cmp($this->evaluate($node->lhs), $this->evaluate($node->rhs)) === 0);
@@ -1462,10 +1475,18 @@ class Parser
                 $val = (gmp_cmp($this->evaluate($node->lhs), $this->evaluate($node->rhs)) !== 0);
                 break;
             case NodeKind::ND_LT:
-                $val = (gmp_cmp($this->evaluate($node->lhs), $this->evaluate($node->rhs)) < 0);
+                if ($node->lhs->ty->isUnsigned){
+                    $val = (gmp_cmp(PccGMP::toUint64t($this->evaluate($node->lhs)), $this->evaluate($node->rhs)) < 0);
+                } else {
+                    $val = (gmp_cmp($this->evaluate($node->lhs), $this->evaluate($node->rhs)) < 0);
+                }
                 break;
             case NodeKind::ND_LE:
-                $val = (gmp_cmp($this->evaluate($node->lhs), $this->evaluate($node->rhs)) <= 0);
+                if ($node->lhs->ty->isUnsigned){
+                    $val = (gmp_cmp(PccGMP::toUint64t($this->evaluate($node->lhs)), $this->evaluate($node->rhs)) <= 0);
+                } else {
+                    $val = (gmp_cmp($this->evaluate($node->lhs), $this->evaluate($node->rhs)) <= 0);
+                }
                 break;
             case NodeKind::ND_COND:
                 if (gmp_cmp($this->evaluate($node->cond), 0) !== 0){
@@ -1494,10 +1515,10 @@ class Parser
                 if ($node->ty->isInteger()){
                     return [
                         match ($node->ty->size){
-                            1 => gmp_and($val, 0xff),
-                            2 => gmp_and($val, 0xffff),
-                            4 => gmp_and($val, gmp_init('0xffffffff')),
-                            8 => gmp_and($val, gmp_init('0xffffffffffffffff')),
+                            1 => $node->ty->isUnsigned? PccGMP::toUint8t($val): PccGMP::toInt8t($val),
+                            2 => $node->ty->isUnsigned? PccGMP::toUint16t($val): PccGMP::toInt16t($val),
+                            4 => $node->ty->isUnsigned? PccGMP::toUint32t($val): PccGMP::toInt32t($val),
+                            8 => $val,
                         },
                         $label
                     ];
@@ -1534,10 +1555,10 @@ class Parser
             Console::errorTok($node->tok, 'not a compile-time constant (E)');
         }
 
-        if (in_array($val, [true, false])){
+        if ($val === true or $val === false){
             $val = gmp_init($val ? 1 : 0);
         }
-        $modValue = PccGMP::overFlow($val, 64);
+        $modValue = PccGMP::toInt64t($val);
 
         return [$modValue, $label];
     }
@@ -2631,6 +2652,7 @@ class Parser
             // Global variable
             $tok = $this->globalVariable($tok, $basety, $attr);
         }
+        ray($this->globals);
         return $this->globals;
     }
 }

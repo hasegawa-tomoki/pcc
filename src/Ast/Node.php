@@ -86,7 +86,7 @@ class Node
         $node = self::newNode(NodeKind::ND_NUM, $tok);
         if ($val instanceof GMP){
             $node->gmpVal = $val;
-            $node->val = PccGMP::toSignedInt($val);
+            $node->val = PccGMP::toPHPInt($val);
         } else {
             $node->gmpVal = gmp_init($val);
             $node->val = $val;

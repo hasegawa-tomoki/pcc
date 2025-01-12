@@ -188,7 +188,7 @@ class CodeGenerator
             case NodeKind::ND_NULL_EXPR:
                 return;
             case NodeKind::ND_NUM:
-                Console::out("  mov \$%ld, %%rax", PccGMP::toSignedInt($node->gmpVal));
+                Console::out("  mov \$%ld, %%rax", PccGMP::toPHPInt($node->gmpVal));
                 return;
             case NodeKind::ND_VAR:
             case NodeKind::ND_MEMBER:
@@ -471,7 +471,7 @@ class CodeGenerator
 
                 foreach ($node->cases as $n){
                     $reg = ($node->cond->ty->size == 8) ? '%rax' : '%eax';
-                    Console::out("  cmp \$%ld, %s", PccGMP::toSignedInt($n->gmpVal), $reg);
+                    Console::out("  cmp \$%ld, %s", PccGMP::toPHPInt($n->gmpVal), $reg);
                     Console::out("  je %s", $n->label);
                 }
 
