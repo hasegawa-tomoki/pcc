@@ -234,6 +234,14 @@ class Parser
                 continue;
             }
 
+            if (array_any(
+                ['const', 'volatile', 'auto', 'register', 'restrict', '__restrict', '__restrict__', '_Noreturn', ],
+                fn($kw) => $this->tokenizer->equal($tok, $kw))
+            ){
+                $tok = $tok->next;
+                continue;
+            }
+
             if ($this->tokenizer->equal($tok, '_Alignas')){
                 if (! $attr){
                     Console::errorTok($tok, '_Alignas is not allowed in this context');
@@ -446,21 +454,39 @@ class Parser
         return [$ty, $tok];
     }
 
+
     /**
-     * declarator = "*"* ("(" ident ")" | "(" declarator ")" | ident) type-suffix
+     * pointers = ("*" ("const" | "volatile" | "restrict")*)*
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Type $ty
      * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
-     *
-     * ({ char (*x)[3]; sizeof(x); })
      */
-    public function declarator(Token $rest, Token $tok, Type $ty): array
+    public function pointers(Token $rest, Token $tok, Type $ty): array
     {
         while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, '*') and $consumed){
             $ty = Type::pointerTo($ty);
+            while ($this->tokenizer->equal($tok, 'const') or $this->tokenizer->equal($tok, 'volatile') or $this->tokenizer->equal($tok, 'restrict') or
+                $this->tokenizer->equal($tok, '__restrict') or $this->tokenizer->equal($tok, '__restrict__')){
+                $tok = $tok->next;
+            }
         }
+        return [$ty, $tok];
+    }
+
+
+    /**
+     * declarator = pointers ("(" ident ")" | "(" declarator ")" | ident) type-suffix
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function declarator(Token $rest, Token $tok, Type $ty): array
+    {
+        [$ty, $tok] = $this->pointers($tok, $tok, $ty);
 
         if ($this->tokenizer->equal($tok, '(')){
             $start = $tok;
@@ -485,7 +511,7 @@ class Parser
     }
 
     /**
-     * abstract-declarator = "*"* ("(" abstract-declarator ")")? type-suffix
+     * abstract-declarator = pointers ("(" abstract-declarator ")")? type-suffix
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -494,10 +520,7 @@ class Parser
      */
     public function abstractDeclarator(Token $rest, Token $tok, Type $ty): array
     {
-        while ($this->tokenizer->equal($tok, '*')){
-            $ty = Type::pointerTo($ty);
-            $tok = $tok->next;
-        }
+        [$ty, $tok] = $this->pointers($tok, $tok, $ty);
 
         if ($this->tokenizer->equal($tok, '(')){
             $start = $tok;
@@ -1091,6 +1114,8 @@ class Parser
         if (in_array($tok->str, [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
+            'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
+            '__restrict__', '_Noreturn',
         ])){
             return true;
         }
