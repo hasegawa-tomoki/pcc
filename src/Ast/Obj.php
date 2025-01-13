@@ -1,9 +1,12 @@
 <?php
 namespace Pcc\Ast;
+use Pcc\Tokenizer\Token;
+
 class Obj
 {
     public string $name;
     public Type $ty;
+    public Token $tok;
     // Local or global/function
     public bool $isLocal = false;
     public int $align = 0;

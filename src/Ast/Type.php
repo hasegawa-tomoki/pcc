@@ -13,7 +13,8 @@ class Type
     // Pointer
     public ?Type $base;
     // Declaration
-    public Token $name;
+    public ?Token $name = null;
+    public ?Token $namePos = null;
     // Array
     public int $arrayLen;
     /** @var \Pcc\Ast\Member[] */

@@ -505,12 +505,17 @@ class Parser
             return [$type, $rest];
         }
 
-        if (! $tok->isKind(TokenKind::TK_IDENT)){
-            Console::errorTok($tok, 'expected a variable name');
+        $name = null;
+        $namePos = $tok;
+
+        if ($tok->isKind(TokenKind::TK_IDENT)){
+            $name = $tok;
+            $tok = $tok->next;
         }
 
-        [$ty, $rest] = $this->typeSuffix($rest, $tok->next, $ty);
-        $ty->name = $tok;
+        [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
+        $ty->name = $name;
+        $ty->namePos = $namePos;
         return [$ty, $rest];
     }
 
@@ -665,6 +670,9 @@ class Parser
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
             if ($ty->kind === TypeKind::TY_VOID){
                 Console::errorTok($tok, 'variable declared void');
+            }
+            if (! $ty->name){
+                Console::errorTok($ty->namePos, 'variable name omitted');
             }
 
             if ($attr and $attr->isStatic){
@@ -2543,6 +2551,9 @@ class Parser
             $first = false;
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            if (! $ty->name){
+                Console::errorTok($ty->namePos, 'typedef name omitted');
+            }
             $this->pushScope($this->getIdent($ty->name))->typeDef = $ty;
         }
 
@@ -2556,6 +2567,9 @@ class Parser
     public function createParamLVars(array $params): void
     {
         foreach ($params as $param){
+            if (! $param->name){
+                Console::errorTok($param->namePos, 'parameter name omitted');
+            }
             $this->newLvar($this->getIdent($param->name), $param);
         }
     }
@@ -2583,6 +2597,9 @@ class Parser
     public function func(Token $tok, Type $basety, VarAttr $attr): Token
     {
         [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+        if (! $ty->name){
+            Console::errorTok($ty->namePos, 'function name omitted');
+        }
 
         $fn = $this->newGVar($this->getIdent($ty->name), $ty);
         $fn->isFunction = true;
@@ -2627,6 +2644,10 @@ class Parser
             $first = false;
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            if (! $ty->name){
+                Console::errorTok($ty->namePos, 'variable name omitted');
+            }
+
             $var = $this->newGVar($this->getIdent($ty->name), $ty);
             $var->isDefinition = ! $attr->isExtern;
             $var->isStatic = $attr->isStatic;
