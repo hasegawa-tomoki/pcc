@@ -410,7 +410,7 @@ class Parser
     }
 
     /**
-     * array-dimensions = const-expr? "]" type-suffix
+     * array-dimensions = ("static" | "restrict")* const-expr? "]" type-suffix
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -419,6 +419,10 @@ class Parser
      */
     public function arrayDimensions(Token $rest, Token $tok, Type $ty): array
     {
+        while ($this->tokenizer->equal($tok, 'static') or $this->tokenizer->equal($tok, 'restrict')){
+            $tok = $tok->next;
+        }
+
         if ($this->tokenizer->equal($tok, ']')){
             [$ty, $rest] = $this->typeSuffix($rest, $tok->next, $ty);
             return [Type::arrayOf($ty, -1), $rest];
