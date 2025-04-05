@@ -85,6 +85,16 @@ class Type
         return new Type(TypeKind::TY_LONG, null, 8, 8, true);
     }
 
+    public static function tyFloat(): Type
+    {
+        return new Type(TypeKind::TY_FLOAT, null, 4, 4);
+    }
+
+    public static function tyDouble(): Type
+    {
+        return new Type(TypeKind::TY_DOUBLE, null, 8, 8);
+    }
+
     public static function newType(TypeKind $kind, int $size, int $align): Type
     {
         return new Type($kind, null, $size, $align);
@@ -97,6 +107,11 @@ class Type
             TypeKind::TY_INT, TypeKind::TY_LONG, TypeKind::TY_ENUM,
         ];
         return in_array($this->kind, $intTypes);
+    }
+
+    public function isFlonum(): bool
+    {
+        return $this->kind === TypeKind::TY_FLOAT || $this->kind === TypeKind::TY_DOUBLE;
     }
 
     public static function pointerTo(Type $base):Type

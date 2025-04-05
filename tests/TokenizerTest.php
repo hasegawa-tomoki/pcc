@@ -89,4 +89,32 @@ class TokenizerTest extends TestCase
         $this->assertEquals(97, $c->val);
         $this->assertEquals('\\x61', $c->str);
     }
+
+    public function testReadNumber()
+    {
+        file_put_contents('tmp.c', "0x10");
+        $tokenizer = new Tokenizer('tmp.c');
+        [$tok, $end] = $tokenizer->readNumber(0);
+        $this->assertEquals(0x10, $tok->val);
+
+        file_put_contents('tmp.c', "8192");
+        $tokenizer = new Tokenizer('tmp.c');
+        [$tok, $end] = $tokenizer->readNumber(0);
+        $this->assertEquals(8192, $tok->val);
+
+        file_put_contents('tmp.c', "0x10.1p0");
+        $tokenizer = new Tokenizer('tmp.c');
+        [$tok, $end] = $tokenizer->readNumber(0);
+        ray($tok, $end);
+
+        file_put_contents('tmp.c', "1.2345e-2f");
+        $tokenizer = new Tokenizer('tmp.c');
+        [$tok, $end] = $tokenizer->readNumber(0);
+        $this->assertEquals(1.2345e-2, $tok->fval);
+
+        file_put_contents('tmp.c', "3e+8");
+        $tokenizer = new Tokenizer('tmp.c');
+        [$tok, $end] = $tokenizer->readNumber(0);
+        $this->assertEquals(3e+8, $tok->fval);
+    }
 }

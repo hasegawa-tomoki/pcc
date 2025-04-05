@@ -188,6 +188,16 @@ class CodeGenerator
             case NodeKind::ND_NULL_EXPR:
                 return;
             case NodeKind::ND_NUM:
+                switch ($node->ty->kind){
+                    case TypeKind::TY_FLOAT:
+                        Console::out("  mov \$%u, %%eax   # float %f", PccGMP::toPHPInt(PccGMP::toUint32t($node->gmpVal)), $node->fval);
+                        Console::out("  movq %%rax, %%xmm0");
+                        break;
+                    case TypeKind::TY_DOUBLE:
+                        Console::out("  mov \$%lu, %%rax   # double %f", PccGMP::toPHPInt(PccGMP::toUint64t($node->gmpVal)), $node->fval);
+                        Console::out("  movq %%rax, %%xmm0");
+                        break;
+                }
                 Console::out("  mov \$%ld, %%rax", PccGMP::toPHPInt($node->gmpVal));
                 return;
             case NodeKind::ND_VAR:

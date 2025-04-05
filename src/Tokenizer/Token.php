@@ -10,6 +10,7 @@ class Token
     public Token $next;
     public int $val;
     public GMP $gmpVal;
+    public float $fval;
     public string $str;
     public int $pos;
     public int $lineNo;

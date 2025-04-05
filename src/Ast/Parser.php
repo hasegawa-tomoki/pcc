@@ -2532,9 +2532,16 @@ class Parser
         }
 
         if ($tok->isKind(TokenKind::TK_NUM)){
-            $num = Node::newNum($tok->gmpVal, $tok);
-            $num->ty = $tok->ty;
-            return [$num, $tok->next];
+            if ($tok->ty->isFlonum()){
+                $node = Node::newNode(NodeKind::ND_NUM, $tok);
+                $node->fval = $tok->fval;
+                $node->gmpVal = gmp_init(intval($tok->fval));
+            } else {
+                $node = Node::newNum($tok->gmpVal, $tok);
+            }
+
+            $node->ty = $tok->ty;
+            return [$node, $tok->next];
         }
 
         Console::errorTok($tok, 'expected an expression');

@@ -57,6 +57,7 @@ class Node
     // Numeric literal
     public int $val;
     public GMP $gmpVal;
+    public float $fval;
 
     public static function newNode(NodeKind $nodeKind, Token $tok): Node
     {

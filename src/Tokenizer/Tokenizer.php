@@ -6,6 +6,7 @@ use GMP;
 use Pcc\Ast\Type;
 use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
+use Pcc\Clib\Stdlib;
 
 class Tokenizer
 {
@@ -197,9 +198,9 @@ class Tokenizer
 
     /**
      * @param int $start
-     * @return array{0: \Pcc\Tokenizer\Token, 1: int}
+     * @return \Pcc\Tokenizer\Token
      */
-    public function readIntLiteral(int $start): array
+    public function readIntLiteral(int $start): Token
     {
         $p = $start;
 
@@ -214,12 +215,9 @@ class Tokenizer
             $base = 8;
         }
 
-        if (! preg_match('/^([0-9a-fA-F]+)/', substr($this->currentInput, $p), $matches)){
-            $gmpVal = gmp_init("0");
-        } else {
-            $gmpVal = gmp_init($matches[1], $base);
-            $p += strlen($matches[1]);
-        }
+        /** @var \GMP $gmpVal */
+        [$gmpVal, $end] = Stdlib::strtoul(substr($this->currentInput, $p), $base);
+        $p += $end;
 
         // Read U, L or LL suffixes
         $l = false;
@@ -240,10 +238,6 @@ class Tokenizer
         } elseif (strtolower($this->currentInput[$p]) === 'u'){
             $p++;
             $u = true;
-        }
-
-        if (ctype_alnum($this->currentInput[$p])){
-            Console::errorAt($p, 'invalid digit');
         }
 
         // Infer a type
@@ -281,10 +275,43 @@ class Tokenizer
         $tok->gmpVal = $gmpVal;
         $tok->ty = $ty;
 
-        return [$tok, $p];
+        return $tok;
     }
 
-     public function convertKeywords(): void
+    /**
+     * @param int $start
+     * @return array{0: \Pcc\Tokenizer\Token, 1: int}
+     */
+    public function readNumber(int $start): array
+    {
+        $tok = $this->readIntLiteral($start);
+        if (! in_array(strtolower($this->currentInput[$start + $tok->len]), ['.', 'e', 'f', ])){
+            return [$tok, $start + $tok->len];
+        }
+
+        if (! preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/', substr($this->currentInput, $start), $matches, PREG_OFFSET_CAPTURE)){
+            Console::errorAt($start, "invalid number: %s", substr($this->currentInput, $start));
+        }
+        [$val, $end] = Stdlib::strtod(substr($this->currentInput, $start));
+        $end += $start;
+        if (strtolower($this->currentInput[$end]) === 'f'){
+            $ty = Type::tyFloat();
+            $end++;
+        } elseif (strtolower($this->currentInput[$end]) === 'l') {
+            $ty = Type::tyDouble();
+            $end++;
+        } else {
+            $ty = Type::tyDouble();
+        }
+
+        $tok = new Token(TokenKind::TK_NUM, substr($this->currentInput, $start, $end), $start);
+        $tok->fval = $val;
+        $tok->ty = $ty;
+
+        return [$tok, $end];
+    }
+
+    public function convertKeywords(): void
     {
         foreach ($this->tokens as $idx => $token){
             if (in_array($token->str, $this->keywords)){
@@ -342,8 +369,8 @@ class Tokenizer
             }
 
             // Numeric literal
-            if (ctype_digit($this->currentInput[$pos])) {
-                [$token, $pos] = $this->readIntLiteral($pos);
+            if (ctype_digit($this->currentInput[$pos]) or ($this->currentInput[$pos] === '.' and ctype_digit($this->currentInput[$pos + 1]))){
+                [$token, $pos] = $this->readNumber($pos);
                 $tokens[] = $token;
                 continue;
             }
