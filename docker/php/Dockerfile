@@ -17,7 +17,8 @@ RUN docker-php-ext-enable xdebug
 
 RUN apt-get update && apt-get install -y libgmp-dev
 RUN docker-php-ext-configure gmp 
-RUN docker-php-ext-install -j$(nproc) bcmath gmp 
+#RUN docker-php-ext-install -j$(nproc) bcmath gmp
+RUN docker-php-ext-install -j$(nproc) gmp
 RUN apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Add ja_JP.UTF-8
