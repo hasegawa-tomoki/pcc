@@ -284,20 +284,50 @@ class Tokenizer
      */
     public function readNumber(int $start): array
     {
-        $tok = $this->readIntLiteral($start);
-        if (! in_array(strtolower($this->currentInput[$start + $tok->len]), ['.', 'e', 'f', ])){
-            return [$tok, $start + $tok->len];
-        }
+        // Check for hexadecimal float first
+        if (preg_match('/^0[xX]([0-9a-fA-F]*)(\\.([0-9a-fA-F]*))?[pP]([+-]?[0-9]+)/', substr($this->currentInput, $start), $matches)) {
+            $numStr = $matches[0];
+            $intPart = $matches[1];
+            $fracPart = $matches[3] ?? '';
+            $exponent = intval($matches[4]);
+            
+            // Convert hex integer part
+            $val = hexdec($intPart);
+            
+            // Convert hex fractional part
+            if ($fracPart !== '') {
+                $fracVal = 0;
+                for ($i = 0; $i < strlen($fracPart); $i++) {
+                    $digit = hexdec($fracPart[$i]);
+                    $fracVal += $digit / pow(16, $i + 1);
+                }
+                $val += $fracVal;
+            }
+            
+            // Apply binary exponent (2^exponent)
+            $val *= pow(2, $exponent);
+            
+            $end = $start + strlen($numStr);
+        } else {
+            $tok = $this->readIntLiteral($start);
+            $end = $start + $tok->len;
+            if ($end >= strlen($this->currentInput) || ! in_array(strtolower($this->currentInput[$end]), ['.', 'e', 'f'])){
+                return [$tok, $end];
+            }
 
-        if (! preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/', substr($this->currentInput, $start), $matches, PREG_OFFSET_CAPTURE)){
-            Console::errorAt($start, "invalid number: %s", substr($this->currentInput, $start));
+            if (! preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/', substr($this->currentInput, $start), $matches)){
+                Console::errorAt($start, "invalid number: %s", substr($this->currentInput, $start));
+            }
+            $numStr = $matches[0];
+            $val = floatval($numStr);
+            $end = $start + strlen($numStr);
         }
-        [$val, $end] = Stdlib::strtod(substr($this->currentInput, $start));
-        $end += $start;
-        if (strtolower($this->currentInput[$end]) === 'f'){
+        
+        // Check for suffix
+        if ($end < strlen($this->currentInput) && strtolower($this->currentInput[$end]) === 'f'){
             $ty = Type::tyFloat();
             $end++;
-        } elseif (strtolower($this->currentInput[$end]) === 'l') {
+        } elseif ($end < strlen($this->currentInput) && strtolower($this->currentInput[$end]) === 'l') {
             $ty = Type::tyDouble();
             $end++;
         } else {
@@ -368,8 +398,10 @@ class Tokenizer
                 continue;
             }
 
-            // Numeric literal
-            if (ctype_digit($this->currentInput[$pos]) or ($this->currentInput[$pos] === '.' and ctype_digit($this->currentInput[$pos + 1]))){
+            // Numeric literal  
+            if (ctype_digit($this->currentInput[$pos]) or ($this->currentInput[$pos] === '.' and ctype_digit($this->currentInput[$pos + 1])) or 
+                (substr($this->currentInput, $pos, 2) === '0x' or substr($this->currentInput, $pos, 2) === '0X') or
+                preg_match('/^0[xX][0-9a-fA-F]*\\.?[0-9a-fA-F]*[pP][+-]?[0-9]+/', substr($this->currentInput, $pos))){
                 [$token, $pos] = $this->readNumber($pos);
                 $tokens[] = $token;
                 continue;

@@ -150,6 +150,13 @@ class Type
             return self::pointerTo($ty1->base);
         }
 
+        if ($ty1->kind === TypeKind::TY_DOUBLE or $ty2->kind === TypeKind::TY_DOUBLE) {
+            return self::tyDouble();
+        }
+        if ($ty1->kind === TypeKind::TY_FLOAT or $ty2->kind === TypeKind::TY_FLOAT) {
+            return self::tyFloat();
+        }
+
         if ($ty1->size < 4){
             $ty1 = self::tyInt();
         }

@@ -105,6 +105,20 @@ class CodeGenerator
         $this->depth--;
     }
 
+    public function pushf(): void
+    {
+        Console::out("  sub $8, %%rsp");
+        Console::out("  movsd %%xmm0, (%%rsp)");
+        $this->depth++;
+    }
+
+    public function popf(string $arg): void
+    {
+        Console::out("  movsd (%%rsp), %s", $arg);
+        Console::out("  add $8, %%rsp");
+        $this->depth--;
+    }
+
     public function genAddr(Node $node): void
     {
         /** @noinspection PhpUncoveredEnumCasesInspection */
@@ -393,6 +407,43 @@ class CodeGenerator
                 }
 
                 return;
+        }
+
+        if ($node->lhs->ty->isFlonum()) {
+            $this->genExpr($node->rhs);
+            $this->pushf();
+            $this->genExpr($node->lhs);
+            $this->popf('%xmm1');
+
+            $sz = ($node->lhs->ty->kind === TypeKind::TY_FLOAT) ? 'ss' : 'sd';
+
+            switch ($node->kind) {
+                case NodeKind::ND_EQ:
+                case NodeKind::ND_NE:
+                case NodeKind::ND_LT:
+                case NodeKind::ND_LE:
+                    Console::out("  ucomi%s %%xmm0, %%xmm1", $sz);
+
+                    if ($node->kind === NodeKind::ND_EQ) {
+                        Console::out("  sete %%al");
+                        Console::out("  setnp %%dl");
+                        Console::out("  and %%dl, %%al");
+                    } elseif ($node->kind === NodeKind::ND_NE) {
+                        Console::out("  setne %%al");
+                        Console::out("  setp %%dl");
+                        Console::out("  or %%dl, %%al");
+                    } elseif ($node->kind === NodeKind::ND_LT) {
+                        Console::out("  seta %%al");
+                    } else {
+                        Console::out("  setae %%al");
+                    }
+
+                    Console::out("  and $1, %%al");
+                    Console::out("  movzb %%al, %%rax");
+                    return;
+            }
+
+            Console::errorTok($node->tok, 'invalid expression');
         }
 
         $this->genExpr($node->rhs);
