@@ -1551,6 +1551,9 @@ class Parser
             case NodeKind::ND_BITNOT:
                 $val = gmp_sub(gmp_neg($this->evaluate($node->lhs)), gmp_init(1));
                 break;
+            case NodeKind::ND_NEG:
+                $val = gmp_neg($this->evaluate($node->lhs));
+                break;
             case NodeKind::ND_LOGAND:
                 $val = PccGMP::logicalAnd($this->evaluate($node->lhs), $this->evaluate($node->rhs));
                 break;
@@ -1960,7 +1963,7 @@ class Parser
         $rhs->addType();
 
         // num + num
-        if ($lhs->ty->isInteger() and $rhs->ty->isInteger()){
+        if ($lhs->ty->isNumeric() and $rhs->ty->isNumeric()){
             return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
         }
         if ($lhs->ty->base and $rhs->ty->base){
@@ -1985,7 +1988,7 @@ class Parser
         $rhs->addType();
 
         // num - num
-        if ($lhs->ty->isInteger() and $rhs->ty->isInteger()){
+        if ($lhs->ty->isNumeric() and $rhs->ty->isNumeric()){
             return Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
         }
 
@@ -2141,7 +2144,7 @@ class Parser
         }
         if ($this->tokenizer->equal($tok, '-')){
             [$cast, $rest] = $this->cast($rest, $tok->next);
-            return [Node::newBinary(NodeKind::ND_SUB, Node::newNum(0, $tok), $cast, $tok), $rest];
+            return [Node::newUnary(NodeKind::ND_NEG, $cast, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '&')){
             [$cast, $rest] = $this->cast($rest, $tok->next);

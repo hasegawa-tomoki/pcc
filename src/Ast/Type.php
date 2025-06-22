@@ -114,6 +114,11 @@ class Type
         return $this->kind === TypeKind::TY_FLOAT || $this->kind === TypeKind::TY_DOUBLE;
     }
 
+    public function isNumeric(): bool
+    {
+        return $this->isInteger() || $this->isFlonum();
+    }
+
     public static function pointerTo(Type $base):Type
     {
         return new Type(TypeKind::TY_PTR, $base, 8, 8, true);

@@ -336,6 +336,26 @@ class CodeGenerator
                 $this->genExpr($node->lhs);
                 Console::out("  not %%rax");
                 return;
+            case NodeKind::ND_NEG:
+                $this->genExpr($node->lhs);
+                
+                switch ($node->ty->kind) {
+                    case TypeKind::TY_FLOAT:
+                        Console::out("  mov \$1, %%rax");
+                        Console::out("  shl \$31, %%rax");
+                        Console::out("  movq %%rax, %%xmm1");
+                        Console::out("  xorps %%xmm1, %%xmm0");
+                        return;
+                    case TypeKind::TY_DOUBLE:
+                        Console::out("  mov \$1, %%rax");
+                        Console::out("  shl \$63, %%rax");
+                        Console::out("  movq %%rax, %%xmm1");
+                        Console::out("  xorpd %%xmm1, %%xmm0");
+                        return;
+                }
+                
+                Console::out("  neg %%rax");
+                return;
             case NodeKind::ND_LOGAND:
                 $c = $this->cnt();
                 $this->genExpr($node->lhs);
@@ -418,6 +438,18 @@ class CodeGenerator
             $sz = ($node->lhs->ty->kind === TypeKind::TY_FLOAT) ? 'ss' : 'sd';
 
             switch ($node->kind) {
+                case NodeKind::ND_ADD:
+                    Console::out("  add%s %%xmm1, %%xmm0", $sz);
+                    return;
+                case NodeKind::ND_SUB:
+                    Console::out("  sub%s %%xmm1, %%xmm0", $sz);
+                    return;
+                case NodeKind::ND_MUL:
+                    Console::out("  mul%s %%xmm1, %%xmm0", $sz);
+                    return;
+                case NodeKind::ND_DIV:
+                    Console::out("  div%s %%xmm1, %%xmm0", $sz);
+                    return;
                 case NodeKind::ND_EQ:
                 case NodeKind::ND_NE:
                 case NodeKind::ND_LT:
