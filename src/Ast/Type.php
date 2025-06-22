@@ -155,6 +155,13 @@ class Type
             return self::pointerTo($ty1->base);
         }
 
+        if ($ty1->kind === TypeKind::TY_FUNC) {
+            return self::pointerTo($ty1);
+        }
+        if ($ty2->kind === TypeKind::TY_FUNC) {
+            return self::pointerTo($ty2);
+        }
+
         if ($ty1->kind === TypeKind::TY_DOUBLE or $ty2->kind === TypeKind::TY_DOUBLE) {
             return self::tyDouble();
         }
