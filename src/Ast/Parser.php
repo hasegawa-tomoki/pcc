@@ -2451,6 +2451,10 @@ class Parser
                 }
                 $arg = Node::newCast($arg, $paramTy[0]);
                 array_shift($paramTy);
+            } elseif ($arg->ty->kind === TypeKind::TY_FLOAT) {
+                // If parameter type is omitted (e.g. in "..."), float
+                // arguments are promoted to double.
+                $arg = Node::newCast($arg, Type::tyDouble());
             }
 
             $nodes[] = $arg;
