@@ -751,6 +751,19 @@ class CodeGenerator
         }
     }
 
+    public function storeFp(int $r, int $offset, int $sz): void
+    {
+        switch($sz){
+            case 4:
+                Console::out("  movss %%xmm%d, %d(%%rbp)", $r, $offset);
+                return;
+            case 8:
+                Console::out("  movsd %%xmm%d, %d(%%rbp)", $r, $offset);
+                return;
+        }
+        Console::unreachable(__FILE__, __LINE__);
+    }
+
     public function storeGp(int $r, int $offset, int $sz): void
     {
         switch($sz){
@@ -825,10 +838,14 @@ class CodeGenerator
             }
 
             // Save passed-by-register arguments to the stack
-            $idx = 0;
+            $gp = 0;
+            $fp = 0;
             foreach ($fn->params as $param){
-                $this->storeGp($idx, $param->offset, $param->ty->size);
-                $idx++;
+                if ($param->ty->isFlonum()) {
+                    $this->storeFp($fp++, $param->offset, $param->ty->size);
+                } else {
+                    $this->storeGp($gp++, $param->offset, $param->ty->size);
+                }
             }
 
             // Emit code
