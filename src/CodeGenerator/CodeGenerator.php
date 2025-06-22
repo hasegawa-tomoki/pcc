@@ -811,12 +811,21 @@ class CodeGenerator
 
             // Save arg registers if function is variadic
             if ($fn->vaArea) {
-                $gp = count($fn->params);
+                $gp = 0;
+                $fp = 0;
+                foreach ($fn->params as $var) {
+                    if ($var->ty->isFlonum()) {
+                        $fp++;
+                    } else {
+                        $gp++;
+                    }
+                }
+
                 $off = $fn->vaArea->offset;
 
                 // va_elem
                 Console::out("  movl $%d, %d(%%rbp)", $gp * 8, $off);
-                Console::out("  movl $0, %d(%%rbp)", $off + 4);
+                Console::out("  movl $%d, %d(%%rbp)", $fp * 8 + 48, $off + 4);
                 Console::out("  movq %%rbp, %d(%%rbp)", $off + 16);
                 Console::out("  addq $%d, %d(%%rbp)", $off + 24, $off + 16);
 
