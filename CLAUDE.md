@@ -64,6 +64,6 @@ $ docker compose run --rm php php pcc.php     # pcc.phpを単体で実行
 ```
 ├ /                           # プロジェクトルート。make ctest はこのディレクトリをカレントディレクトリとして実行する。
 ├ chibicc/                    # chibiccのソースコードと .git ディレクトリ。chibiccのソースコードに対する git status や git diff はこのディレクトリをカレントディレクトリとして実行する。
-├ ctest/                      # テストコード。テストはここに追加する。
+├ ctest/TestCase              # テストコード。テストはここに追加する。
 ├ src/                        # pccのソースコード。開発ではここを編集する。
 ```
