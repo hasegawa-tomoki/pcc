@@ -10,3 +10,7 @@ a.out
 
 /ctests/TestCase/*.s
 /ctests/TestCase/*.out
+
+/chibicc/
+/.claude/settings.local.json
+
