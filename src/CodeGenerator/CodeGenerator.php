@@ -27,8 +27,43 @@ class CodeGenerator
     public string $i32u8 = "movzbl %al, %eax";
     public string $i32i16 = "movswl %ax, %eax";
     public string $i32u16 = "movzwl %ax, %eax";
+    public string $i32f32 = "cvtsi2ssl %eax, %xmm0";
     public string $i32i64 = "movsxd %eax, %rax";
+    public string $i32f64 = "cvtsi2sdl %eax, %xmm0";
+    
+    public string $u32f32 = "mov %eax, %eax; cvtsi2ssq %rax, %xmm0";
     public string $u32i64 = "mov %eax, %eax";
+    public string $u32f64 = "mov %eax, %eax; cvtsi2sdq %rax, %xmm0";
+    
+    public string $i64f32 = "cvtsi2ssq %rax, %xmm0";
+    public string $i64f64 = "cvtsi2sdq %rax, %xmm0";
+    
+    public string $u64f32 = "cvtsi2ssq %rax, %xmm0";
+    public string $u64f64 = 
+        "test %rax,%rax; js 1f; pxor %xmm0,%xmm0; cvtsi2sd %rax,%xmm0; jmp 2f; ".
+        "1: mov %rax,%rdi; and $1,%eax; pxor %xmm0,%xmm0; shr %rdi; ".
+        "or %rax,%rdi; cvtsi2sd %rdi,%xmm0; addsd %xmm0,%xmm0; 2:";
+    
+    public string $f32i8 = "cvttss2sil %xmm0, %eax; movsbl %al, %eax";
+    public string $f32u8 = "cvttss2sil %xmm0, %eax; movzbl %al, %eax";
+    public string $f32i16 = "cvttss2sil %xmm0, %eax; movswl %ax, %eax";
+    public string $f32u16 = "cvttss2sil %xmm0, %eax; movzwl %ax, %eax";
+    public string $f32i32 = "cvttss2sil %xmm0, %eax";
+    public string $f32u32 = "cvttss2siq %xmm0, %rax";
+    public string $f32i64 = "cvttss2siq %xmm0, %rax";
+    public string $f32u64 = "cvttss2siq %xmm0, %rax";
+    public string $f32f64 = "cvtss2sd %xmm0, %xmm0";
+    
+    public string $f64i8 = "cvttsd2sil %xmm0, %eax; movsbl %al, %eax";
+    public string $f64u8 = "cvttsd2sil %xmm0, %eax; movzbl %al, %eax";
+    public string $f64i16 = "cvttsd2sil %xmm0, %eax; movswl %ax, %eax";
+    public string $f64u16 = "cvttsd2sil %xmm0, %eax; movzwl %ax, %eax";
+    public string $f64i32 = "cvttsd2sil %xmm0, %eax";
+    public string $f64u32 = "cvttsd2siq %xmm0, %rax";
+    public string $f64f32 = "cvtsd2ss %xmm0, %xmm0";
+    public string $f64i64 = "cvttsd2siq %xmm0, %rax";
+    public string $f64u64 = "cvttsd2siq %xmm0, %rax";
+    
     public array $castTable = [];
 
     public Obj $currentFn;
@@ -36,15 +71,19 @@ class CodeGenerator
     public function __construct()
     {
         $this->castTable = [
-             // i8          i16             i32   i64               u8              u16             u32   u64
-            [null,          null,           null, $this->i32i64,    $this->i32u8,   $this->i32u16,  null, $this->i32i64],   // i8
-            [$this->i32i8,  null,           null, $this->i32i64,    $this->i32u8,   $this->i32u16,  null, $this->i32i64],   // i16
-            [$this->i32i8,  $this->i32i16,  null, $this->i32i64,    $this->i32u8,   $this->i32u16,  null, $this->i32i64],   // i32
-            [$this->i32i8,  $this->i32i16,  null, null,             $this->i32u8,   $this->i32u16,  null, null],            // i64
-            [$this->i32i8,  null,           null, $this->i32i64,    null,           null,           null, $this->i32i64],   // u8
-            [$this->i32i8,  $this->i32i16,  null, $this->i32i64,    $this->i32u8,   null,           null, $this->i32i64],   // u16
-            [$this->i32i8,  $this->i32i16,  null, $this->u32i64,    $this->i32u8,   $this->i32u16,  null, $this->u32i64],   // u32
-            [$this->i32i8,  $this->i32i16,  null, null,             $this->i32u8,   $this->i32u16,  null, null],            // u64
+             // i8         i16            i32            i64            u8            u16            u32            u64            f32            f64
+            [null,         null,          null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // i8
+            [$this->i32i8, null,          null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // i16
+            [$this->i32i8, $this->i32i16, null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // i32
+            [$this->i32i8, $this->i32i16, null,          null,          $this->i32u8, $this->i32u16, null,          null,          $this->i64f32, $this->i64f64, ], // i64
+            
+            [$this->i32i8, null,          null,          $this->i32i64, null,         null,          null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // u8
+            [$this->i32i8, $this->i32i16, null,          $this->i32i64, $this->i32u8, null,          null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // u16
+            [$this->i32i8, $this->i32i16, null,          $this->u32i64, $this->i32u8, $this->i32u16, null,          $this->u32i64, $this->u32f32, $this->u32f64, ], // u32
+            [$this->i32i8, $this->i32i16, null,          null,          $this->i32u8, $this->i32u16, null,          null,          $this->u64f32, $this->u64f64, ], // u64
+            
+            [$this->f32i8, $this->f32i16, $this->f32i32, $this->f32i64, $this->f32u8, $this->f32u16, $this->f32u32, $this->f32u64, null,          $this->f32f64, ], // f32
+            [$this->f64i8, $this->f64i16, $this->f64i32, $this->f64i64, $this->f64u8, $this->f64u16, $this->f64u32, $this->f64u64, $this->f64f32, null, ],          // f64
         ];
     }
 
@@ -99,8 +138,17 @@ class CodeGenerator
     // Load a value from where %rax is pointing to.
     public function load(Type $ty): void
     {
-        if ($ty->kind === TypeKind::TY_ARRAY || $ty->kind === TypeKind::TY_STRUCT || $ty->kind === TypeKind::TY_UNION){
-            return;
+        switch ($ty->kind) {
+            case TypeKind::TY_ARRAY:
+            case TypeKind::TY_STRUCT:
+            case TypeKind::TY_UNION:
+                return;
+            case TypeKind::TY_FLOAT:
+                Console::out("  movss (%%rax), %%xmm0");
+                return;
+            case TypeKind::TY_DOUBLE:
+                Console::out("  movsd (%%rax), %%xmm0");
+                return;
         }
 
         $insn = $ty->isUnsigned? 'movz' : 'movs';
@@ -120,12 +168,20 @@ class CodeGenerator
     {
         $this->pop('%rdi');
 
-        if ($ty->kind === TypeKind::TY_STRUCT || $ty->kind === TypeKind::TY_UNION){
-            for ($i = 0; $i < $ty->size; $i++){
-                Console::out("  mov %d(%%rax), %%r8b", $i);
-                Console::out("  mov %%r8b, %d(%%rdi)", $i);
-            }
-            return;
+        switch ($ty->kind) {
+            case TypeKind::TY_STRUCT:
+            case TypeKind::TY_UNION:
+                for ($i = 0; $i < $ty->size; $i++){
+                    Console::out("  mov %d(%%rax), %%r8b", $i);
+                    Console::out("  mov %%r8b, %d(%%rdi)", $i);
+                }
+                return;
+            case TypeKind::TY_FLOAT:
+                Console::out("  movss %%xmm0, (%%rdi)");
+                return;
+            case TypeKind::TY_DOUBLE:
+                Console::out("  movsd %%xmm0, (%%rdi)");
+                return;
         }
 
         if ($ty->size === 1){
@@ -141,7 +197,13 @@ class CodeGenerator
 
     public function cmpZero(Type $ty): void
     {
-        if ($ty->isInteger() and $ty->size <= 4){
+        if ($ty->kind === TypeKind::TY_FLOAT) {
+            Console::out("  xorps %%xmm1, %%xmm1");
+            Console::out("  ucomiss %%xmm1, %%xmm0");
+        } elseif ($ty->kind === TypeKind::TY_DOUBLE) {
+            Console::out("  xorpd %%xmm1, %%xmm1");
+            Console::out("  ucomisd %%xmm1, %%xmm0");
+        } elseif ($ty->isInteger() and $ty->size <= 4){
             Console::out("  cmp \$0, %%eax");
         } else {
             Console::out("  cmp \$0, %%rax");
@@ -155,6 +217,8 @@ class CodeGenerator
             TypeKind::TY_SHORT  => $ty->isUnsigned? TypeId::U16->value: TypeId::I16->value,
             TypeKind::TY_INT    => $ty->isUnsigned? TypeId::U32->value: TypeId::I32->value,
             TypeKind::TY_LONG   => $ty->isUnsigned? TypeId::U64->value: TypeId::I64->value,
+            TypeKind::TY_FLOAT  => TypeId::F32->value,
+            TypeKind::TY_DOUBLE => TypeId::F64->value,
             default             => TypeId::U64->value,
         };
     }

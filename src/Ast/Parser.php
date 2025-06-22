@@ -292,6 +292,10 @@ class Parser
                 $counter += TypeCount::INT->value;
             } elseif ($this->tokenizer->equal($tok, 'long')){
                 $counter += TypeCount::LONG->value;
+            } elseif ($this->tokenizer->equal($tok, 'float')){
+                $counter += TypeCount::FLOAT->value;
+            } elseif ($this->tokenizer->equal($tok, 'double')){
+                $counter += TypeCount::DOUBLE->value;
             } elseif ($this->tokenizer->equal($tok, 'signed')){
                 $counter |= TypeCount::SIGNED->value;
             } elseif ($this->tokenizer->equal($tok, 'unsigned')){
@@ -348,6 +352,12 @@ class Parser
                 case TypeCount::UNSIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value:
                 case TypeCount::UNSIGNED->value + TypeCount::LONG->value + TypeCount::LONG->value + TypeCount::INT->value:
                     $ty = Type::tyULong();
+                    break;
+                case TypeCount::FLOAT->value:
+                    $ty = Type::tyFloat();
+                    break;
+                case TypeCount::DOUBLE->value:
+                    $ty = Type::tyDouble();
                     break;
                 default:
                     Console::errorTok($tok, 'invalid type');
@@ -1127,7 +1137,7 @@ class Parser
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
             'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
-            '__restrict__', '_Noreturn',
+            '__restrict__', '_Noreturn', 'float', 'double',
         ])){
             return true;
         }
@@ -2535,7 +2545,15 @@ class Parser
             if ($tok->ty->isFlonum()){
                 $node = Node::newNode(NodeKind::ND_NUM, $tok);
                 $node->fval = $tok->fval;
-                $node->gmpVal = gmp_init(intval($tok->fval));
+                if ($tok->ty->kind === TypeKind::TY_FLOAT) {
+                    // Convert float to 32-bit IEEE 754 representation
+                    $bits = unpack('L', pack('f', $tok->fval))[1];
+                    $node->gmpVal = gmp_init($bits);
+                } else {
+                    // Convert double to 64-bit IEEE 754 representation
+                    $bits = unpack('Q', pack('d', $tok->fval))[1];
+                    $node->gmpVal = gmp_init($bits);
+                }
             } else {
                 $node = Node::newNum($tok->gmpVal, $tok);
             }

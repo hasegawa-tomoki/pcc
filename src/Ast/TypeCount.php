@@ -10,7 +10,9 @@ enum TypeCount: int
     case SHORT  =   1 << 6;
     case INT    =   1 << 8;
     case LONG   =   1 << 10;
-    case OTHER  =   1 << 12;
-    case SIGNED =   1 << 13;
-    case UNSIGNED = 1 << 14;
+    case FLOAT  =   1 << 12;
+    case DOUBLE =   1 << 14;
+    case OTHER  =   1 << 16;
+    case SIGNED =   1 << 17;
+    case UNSIGNED = 1 << 18;
 }
