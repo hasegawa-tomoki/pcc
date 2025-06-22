@@ -284,44 +284,18 @@ class Tokenizer
      */
     public function readNumber(int $start): array
     {
-        // Check for hexadecimal float first
-        if (preg_match('/^0[xX]([0-9a-fA-F]*)(\\.([0-9a-fA-F]*))?[pP]([+-]?[0-9]+)/', substr($this->currentInput, $start), $matches)) {
-            $numStr = $matches[0];
-            $intPart = $matches[1];
-            $fracPart = $matches[3] ?? '';
-            $exponent = intval($matches[4]);
-            
-            // Convert hex integer part
-            $val = hexdec($intPart);
-            
-            // Convert hex fractional part
-            if ($fracPart !== '') {
-                $fracVal = 0;
-                for ($i = 0; $i < strlen($fracPart); $i++) {
-                    $digit = hexdec($fracPart[$i]);
-                    $fracVal += $digit / pow(16, $i + 1);
-                }
-                $val += $fracVal;
-            }
-            
-            // Apply binary exponent (2^exponent)
-            $val *= pow(2, $exponent);
-            
-            $end = $start + strlen($numStr);
-        } else {
-            $tok = $this->readIntLiteral($start);
-            $end = $start + $tok->len;
-            if ($end >= strlen($this->currentInput) || ! in_array(strtolower($this->currentInput[$end]), ['.', 'e', 'f'])){
-                return [$tok, $end];
-            }
-
-            if (! preg_match('/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?/', substr($this->currentInput, $start), $matches)){
-                Console::errorAt($start, "invalid number: %s", substr($this->currentInput, $start));
-            }
-            $numStr = $matches[0];
-            $val = floatval($numStr);
-            $end = $start + strlen($numStr);
+        // Try to parse as integer first
+        $tok = $this->readIntLiteral($start);
+        $end = $start + $tok->len;
+        
+        // If no decimal point, 'e'/'E' exponent, or 'f' suffix, return integer
+        if ($end >= strlen($this->currentInput) || ! in_array(strtolower($this->currentInput[$end]), ['.', 'e', 'f'])){
+            return [$tok, $end];
         }
+
+        // Use C's strtod() for floating-point parsing
+        [$val, $consumed] = Stdlib::strtod(substr($this->currentInput, $start));
+        $end = $start + $consumed;
         
         // Check for suffix
         if ($end < strlen($this->currentInput) && strtolower($this->currentInput[$end]) === 'f'){

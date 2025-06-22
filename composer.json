@@ -18,6 +18,7 @@
         "spatie/ray": "^1.41",
         "ext-ctype": "*",
         "ext-bcmath": "*",
-        "ext-gmp": "*"
+        "ext-gmp": "*",
+        "ext-ffi": "*"
     }
 }
