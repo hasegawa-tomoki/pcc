@@ -1,4 +1,8 @@
+ifdef FILE
+TEST_SRCS=TestCase/$(FILE)
+else
 TEST_SRCS=$(wildcard TestCase/*.c)
+endif
 #TEST_SRCS=TestCase/union.c
 TESTS=$(TEST_SRCS:.c=.out)
 

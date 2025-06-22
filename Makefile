@@ -27,7 +27,7 @@ clean:
 .PHONY: clean
 
 ctest:
-	docker compose run --rm php ./ctest.sh test
+	docker compose run --rm php ./ctest.sh test $(file)
 .PHONY: ctest
 
 cclean:

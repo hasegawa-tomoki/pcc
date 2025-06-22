@@ -1,18 +1,25 @@
 #!/bin/bash
 if [ $# -eq 0 ]; then
-  echo "Usage: $0 [clean|test]"
+  echo "Usage: $0 [clean|test] [filename.c (optional)]"
   exit 1
 fi
 
-case "$1" in
+CMD="$1"
+FILE="$2"
+
+case "$CMD" in
   clean)
     cd ctests && make clean
     ;;
   test)
-    cd ctests && make clean && make test
+    if [ -n "ctests/TestCase/$FILE" ]; then
+      cd ctests && make clean && make test FILE="$FILE"
+    else
+      cd ctests && make clean && make test
+    fi
     ;;
   *)
-    echo "Usage: $0 [clean|test]"
+    echo "Usage: $0 [clean|test] [filename.c (optional)]"
     exit 1
     ;;
 esac
