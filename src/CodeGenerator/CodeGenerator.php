@@ -318,7 +318,7 @@ class CodeGenerator
             case NodeKind::ND_COND:
                 $c = $this->cnt();
                 $this->genExpr($node->cond);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->cond->ty);
                 Console::out("  je .L.else.%d", $c);
                 $this->genExpr($node->then);
                 Console::out("  jmp .L.end.%d", $c);
@@ -328,7 +328,7 @@ class CodeGenerator
                 return;
             case NodeKind::ND_NOT:
                 $this->genExpr($node->lhs);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->lhs->ty);
                 Console::out("  sete %%al");
                 Console::out("  movzx %%al, %%rax");
                 return;
@@ -359,10 +359,10 @@ class CodeGenerator
             case NodeKind::ND_LOGAND:
                 $c = $this->cnt();
                 $this->genExpr($node->lhs);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->lhs->ty);
                 Console::out("  je .L.false.%d", $c);
                 $this->genExpr($node->rhs);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->rhs->ty);
                 Console::out("  je .L.false.%d", $c);
                 Console::out("  mov \$1, %%rax");
                 Console::out("  jmp .L.end.%d", $c);
@@ -373,10 +373,10 @@ class CodeGenerator
             case NodeKind::ND_LOGOR:
                 $c = $this->cnt();
                 $this->genExpr($node->lhs);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->lhs->ty);
                 Console::out("  jne .L.true.%d", $c);
                 $this->genExpr($node->rhs);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->rhs->ty);
                 Console::out("  jne .L.true.%d", $c);
                 Console::out("  mov \$0, %%rax");
                 Console::out("  jmp .L.end.%d", $c);
@@ -582,7 +582,7 @@ class CodeGenerator
             case NodeKind::ND_IF: {
                 $c = $this->cnt();
                 $this->genExpr($node->cond);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->cond->ty);
                 Console::out("  je  .L.else.%d", $c);
                 $this->genStmt($node->then);
                 Console::out("  jmp .L.end.%d", $c);
@@ -601,7 +601,7 @@ class CodeGenerator
                 Console::out(".L.begin.%d:", $c);
                 if ($node->cond) {
                     $this->genExpr($node->cond);
-                    Console::out("  cmp \$0, %%rax");
+                    $this->cmpZero($node->cond->ty);
                     Console::out("  je  %s", $node->brkLabel);
                 }
                 $this->genStmt($node->then);
@@ -619,7 +619,7 @@ class CodeGenerator
                 $this->genStmt($node->then);
                 Console::out("%s:", $node->contLabel);
                 $this->genExpr($node->cond);
-                Console::out("  cmp \$0, %%rax");
+                $this->cmpZero($node->cond->ty);
                 Console::out("  jne .L.begin.%d", $c);
                 Console::out("%s:", $node->brkLabel);
                 return;
