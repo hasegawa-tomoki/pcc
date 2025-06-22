@@ -112,11 +112,24 @@ class CodeGenerator
         $this->depth++;
     }
 
-    public function popf(string $arg): void
+    public function popf(int $reg): void
     {
-        Console::out("  movsd (%%rsp), %s", $arg);
+        Console::out("  movsd (%%rsp), %%xmm%d", $reg);
         Console::out("  add $8, %%rsp");
         $this->depth--;
+    }
+
+    public function pushArgs(array $args): void
+    {
+        // 引数を逆順でプッシュ（スタックの性質を考慮）
+        for ($i = count($args) - 1; $i >= 0; $i--) {
+            $this->genExpr($args[$i]);
+            if ($args[$i]->ty->isFlonum()) {
+                $this->pushf();
+            } else {
+                $this->push();
+            }
+        }
     }
 
     public function genAddr(Node $node): void
@@ -385,15 +398,17 @@ class CodeGenerator
                 Console::out(".L.end.%d:", $c);
                 return;
             case NodeKind::ND_FUNCALL:
-                foreach ($node->args as $arg){
-                    $this->genExpr($arg);
-                    $this->push();
-                }
-                for ($i = count($node->args) - 1; $i >= 0; $i--){
-                    $this->pop($this->argreg64[$i]);
-                }
+                $this->pushArgs($node->args);
 
-                Console::out("  mov $0, %%rax");
+                $gp = 0;
+                $fp = 0;
+                foreach ($node->args as $arg) {
+                    if ($arg->ty->isFlonum()) {
+                        $this->popf($fp++);
+                    } else {
+                        $this->pop($this->argreg64[$gp++]);
+                    }
+                }
 
                 if ($this->depth %2 === 0){
                     Console::out("  call %s", $node->funcname);
@@ -433,7 +448,7 @@ class CodeGenerator
             $this->genExpr($node->rhs);
             $this->pushf();
             $this->genExpr($node->lhs);
-            $this->popf('%xmm1');
+            $this->popf(1);
 
             $sz = ($node->lhs->ty->kind === TypeKind::TY_FLOAT) ? 'ss' : 'sd';
 
