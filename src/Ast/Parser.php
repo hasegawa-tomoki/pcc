@@ -359,6 +359,9 @@ class Parser
                 case TypeCount::DOUBLE->value:
                     $ty = Type::tyDouble();
                     break;
+                case TypeCount::LONG->value + TypeCount::DOUBLE->value:
+                    $ty = Type::tyDouble();
+                    break;
                 default:
                     Console::errorTok($tok, 'invalid type');
             }
