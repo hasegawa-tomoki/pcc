@@ -405,11 +405,17 @@ class Parser
             [$ty2, $tok] = $this->typespec($tok, $tok, null);
             [$ty2, $tok] = $this->declarator($tok, $tok, $ty2);
 
-            // "array of T" is converted to "pointer to T" only in the parameter context.
-            // For example, *argv[] is converted to **argv by this.
+            $name = $ty2->name;
+
             if ($ty2->kind === TypeKind::TY_ARRAY){
-                $name = $ty2->name;
+                // "array of T" is converted to "pointer to T" only in the parameter context.
+                // For example, *argv[] is converted to **argv by this.
                 $ty2 = Type::pointerTo($ty2->base);
+                $ty2->name = $name;
+            } elseif ($ty2->kind === TypeKind::TY_FUNC) {
+                // Likewise, a function is converted to a pointer to a function
+                // only in the parameter context.
+                $ty2 = Type::pointerTo($ty2);
                 $ty2->name = $name;
             }
             $params[] = clone $ty2;
