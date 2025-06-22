@@ -1106,6 +1106,24 @@ class Parser
             return [$buf, $rels];
         }
 
+        if ($ty->kind === TypeKind::TY_FLOAT) {
+            $floatVal = $this->evalDouble($init->expr);
+            $packed = pack('f', $floatVal);
+            for ($i = 0; $i < 4; $i++) {
+                $buf[$offset + $i] = $packed[$i];
+            }
+            return [$buf, $rels];
+        }
+
+        if ($ty->kind === TypeKind::TY_DOUBLE) {
+            $doubleVal = $this->evalDouble($init->expr);
+            $packed = pack('d', $doubleVal);
+            for ($i = 0; $i < 8; $i++) {
+                $buf[$offset + $i] = $packed[$i];
+            }
+            return [$buf, $rels];
+        }
+
         [$gmpVal, $label] = $this->evaluate2($init->expr, '');
 
         if (! $label){
@@ -1563,6 +1581,9 @@ class Parser
             case NodeKind::ND_CAST:
                 [$val, $label] = $this->evaluate2($node->lhs, $label);
                 if ($node->ty->isInteger()){
+                    if (is_float($val)) {
+                        $val = gmp_init((int)$val);
+                    }
                     return [
                         match ($node->ty->size){
                             1 => $node->ty->isUnsigned? PccGMP::toUint8t($val): PccGMP::toInt8t($val),
@@ -1601,6 +1622,10 @@ class Parser
                 $val = $node->gmpVal;
                 break;
         }
+        if ($node->ty->isFlonum()) {
+            return [$this->evalDouble($node), $label];
+        }
+
         if (is_null($val)){
             Console::errorTok($node->tok, 'not a compile-time constant (E)');
         }
@@ -1647,6 +1672,44 @@ class Parser
         [$node, $rest] = $this->conditional($rest, $tok);
         $val = $this->evaluate($node);
         return [$val, $rest];
+    }
+
+    private function evalDouble(Node $node): float
+    {
+        $node->addType();
+
+        if ($node->ty->isInteger()) {
+            if ($node->ty->isUnsigned) {
+                return (float)gmp_intval(PccGMP::toUint64t($this->evaluate($node)));
+            }
+            return (float)gmp_intval($this->evaluate($node));
+        }
+
+        switch ($node->kind) {
+            case NodeKind::ND_ADD:
+                return $this->evalDouble($node->lhs) + $this->evalDouble($node->rhs);
+            case NodeKind::ND_SUB:
+                return $this->evalDouble($node->lhs) - $this->evalDouble($node->rhs);
+            case NodeKind::ND_MUL:
+                return $this->evalDouble($node->lhs) * $this->evalDouble($node->rhs);
+            case NodeKind::ND_DIV:
+                return $this->evalDouble($node->lhs) / $this->evalDouble($node->rhs);
+            case NodeKind::ND_NEG:
+                return -$this->evalDouble($node->lhs);
+            case NodeKind::ND_COND:
+                return $this->evalDouble($node->cond) ? $this->evalDouble($node->then) : $this->evalDouble($node->els);
+            case NodeKind::ND_COMMA:
+                return $this->evalDouble($node->rhs);
+            case NodeKind::ND_CAST:
+                if ($node->lhs->ty->isFlonum()) {
+                    return $this->evalDouble($node->lhs);
+                }
+                return (float)gmp_intval($this->evaluate($node->lhs));
+            case NodeKind::ND_NUM:
+                return $node->fval;
+        }
+
+        Console::errorTok($node->tok, 'not a compile-time constant');
     }
 
     /**
