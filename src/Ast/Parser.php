@@ -2441,6 +2441,11 @@ class Parser
         [$node, $tok] = $this->primary($tok, $tok);
 
         for (;;){
+            if ($this->tokenizer->equal($tok, '(')){
+                [$node, $tok] = $this->funcall($tok, $tok->next, $node);
+                continue;
+            }
+
             if ($this->tokenizer->equal($tok, '[')){
                 // x[y] is short for *(x+y)
                 $start = $tok;
@@ -2481,26 +2486,23 @@ class Parser
     }
 
     /**
-     * funcall = ident "(" (assign ("," assign)*)? ")"
+     * funcall = (assign ("," assign)*)? ")"
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Node $fn
      * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
      */
-    public function funcall(Token $rest, Token $tok): array
+    public function funcall(Token $rest, Token $tok, Node $fn): array
     {
-        $start = $tok;
-        $tok = $tok->next->next;
+        $fn->addType();
 
-        $sc = $this->findVar($start);
-        if (! $sc){
-            Console::errorTok($start, 'implicit declaration of a function');
-        }
-        if ((! $sc->var) or $sc->var->ty->kind !== TypeKind::TY_FUNC){
-            Console::errorTok($start, 'not a function');
+        if ($fn->ty->kind !== TypeKind::TY_FUNC and
+            !($fn->ty->kind === TypeKind::TY_PTR and $fn->ty->base->kind === TypeKind::TY_FUNC)) {
+            Console::errorTok($fn->tok, 'not a function');
         }
 
-        $ty = $sc->var->ty;
+        $ty = ($fn->ty->kind === TypeKind::TY_FUNC) ? $fn->ty : $fn->ty->base;
         $paramTy = $ty->params;
 
         $nodes = [];
@@ -2528,8 +2530,7 @@ class Parser
 
         $rest = $this->tokenizer->skip($tok, ')');
 
-        $node = Node::newNode(NodeKind::ND_FUNCALL, $start);
-        $node->funcname = $start->str;
+        $node = Node::newUnary(NodeKind::ND_FUNCALL, $fn, $tok);
         $node->funcTy = $ty;
         $node->ty = $ty->returnTy;
         $node->args = $nodes;
@@ -2589,24 +2590,23 @@ class Parser
         }
 
         if ($tok->isKind(TokenKind::TK_IDENT)){
-            // Function call
-            if ($this->tokenizer->equal($tok->next, '(')){
-                return $this->funcall($rest, $tok);
-            }
-
             // Variable or enum constant
             $sc = $this->findVar($tok);
-            if ((! $sc) or ((! $sc->var) and (! $sc->enumTy))){
-                Console::errorTok($tok, 'undefined variable');
+            $rest = $tok->next;
+
+            if ($sc) {
+                if ($sc->var) {
+                    return [Node::newVarNode($sc->var, $tok), $rest];
+                }
+                if ($sc->enumTy) {
+                    return [Node::newNum($sc->enumVal, $tok), $rest];
+                }
             }
 
-            if ($sc->var){
-                $node = Node::newVarNode($sc->var, $tok);
-            } else {
-                $node = Node::newNum($sc->enumVal, $tok);
+            if ($this->tokenizer->equal($tok->next, '(')) {
+                Console::errorTok($tok, 'implicit declaration of a function');
             }
-
-            return [$node, $tok->next];
+            Console::errorTok($tok, 'undefined variable');
         }
 
         if ($tok->isKind(TokenKind::TK_STR)){

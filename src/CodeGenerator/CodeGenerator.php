@@ -137,15 +137,25 @@ class CodeGenerator
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_VAR:
+                // Local variable
                 if ($node->var->isLocal){
-                    // Local variable
                     Console::out("  lea %d(%%rbp), %%rax", $node->var->offset);
                     return;
-                } else {
-                    // Global variable
-                    Console::out("  lea %s(%%rip), %%rax", $node->var->name);
+                }
+
+                // Function
+                if ($node->ty->kind === TypeKind::TY_FUNC) {
+                    if ($node->var->isDefinition) {
+                        Console::out("  lea %s(%%rip), %%rax", $node->var->name);
+                    } else {
+                        Console::out("  mov %s@GOTPCREL(%%rip), %%rax", $node->var->name);
+                    }
                     return;
                 }
+
+                // Global variable
+                Console::out("  lea %s(%%rip), %%rax", $node->var->name);
+                return;
             case NodeKind::ND_DEREF:
                 $this->genExpr($node->lhs);
                 return;
@@ -169,6 +179,7 @@ class CodeGenerator
             case TypeKind::TY_ARRAY:
             case TypeKind::TY_STRUCT:
             case TypeKind::TY_UNION:
+            case TypeKind::TY_FUNC:
                 return;
             case TypeKind::TY_FLOAT:
                 Console::out("  movss (%%rax), %%xmm0");
@@ -399,6 +410,7 @@ class CodeGenerator
                 return;
             case NodeKind::ND_FUNCALL:
                 $this->pushArgs($node->args);
+                $this->genExpr($node->lhs);
 
                 $gp = 0;
                 $fp = 0;
@@ -411,10 +423,10 @@ class CodeGenerator
                 }
 
                 if ($this->depth %2 === 0){
-                    Console::out("  call %s", $node->funcname);
+                    Console::out("  call *%%rax");
                 } else {
                     Console::out("  sub \$8, %%rsp");
-                    Console::out("  call %s", $node->funcname);
+                    Console::out("  call *%%rax");
                     Console::out("  add \$8, %%rsp");
                 }
 

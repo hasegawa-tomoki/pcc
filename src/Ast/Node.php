@@ -38,7 +38,6 @@ class Node
     public array $members = [];
 
     // Function call
-    public ?string $funcname = null;
     public Type $funcTy;
     /** @var Node[] */
     public array $args = [];
@@ -205,13 +204,15 @@ class Node
             case NodeKind::ND_MEMBER:
                 $this->ty = $this->members[0]->ty;
                 return;
-            case NodeKind::ND_ADDR:
-                if ($this->lhs->ty->kind === TypeKind::TY_ARRAY){
-                    $this->ty = Type::pointerTo($this->lhs->ty->base);
+            case NodeKind::ND_ADDR: {
+                $ty = $this->lhs->ty;
+                if ($ty->kind === TypeKind::TY_ARRAY) {
+                    $this->ty = Type::pointerTo($ty->base);
                 } else {
-                    $this->ty = Type::pointerTo($this->lhs->ty);
+                    $this->ty = Type::pointerTo($ty);
                 }
                 return;
+            }
             case NodeKind::ND_DEREF:
                 if (! $this->lhs->ty->base){
                     Console::errorTok($this->tok, 'invalid pointer dereference');
