@@ -7,8 +7,8 @@ endif
 TESTS=$(TEST_SRCS:.c=.out)
 
 TestCase/%.out: TestCase/%.c
-	$(CC) -o- -E -P -C TestCase/$*.c | php ../pcc.php -o TestCase/$*.s -
-	$(CC) -Wa,--noexecstack -o $@ TestCase/$*.s -xc common
+	$(CC) -o- -E -P -C TestCase/$*.c | php ../pcc.php -o TestCase/$*.o -
+	$(CC) -Wa,--noexecstack -o $@ TestCase/$*.o -xc common
 
 test: $(TESTS)
 	#./driver.sh
