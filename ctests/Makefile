@@ -11,7 +11,7 @@ TestCase/%.out: TestCase/%.c
 	$(CC) -Wa,--noexecstack -o $@ TestCase/$*.o -xc common
 
 test: $(TESTS)
-	#./driver.sh
+	./driver.sh
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
 
 clean:
