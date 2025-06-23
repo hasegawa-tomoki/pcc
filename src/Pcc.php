@@ -11,15 +11,31 @@ class Pcc
     //private static bool $optHashHashHash = false;
     private static array $options = [];
     private static StringArray $tmpFiles;
+    private static StringArray $inputPaths;
 
     public static function displayHelp(): void
     {
         echo "Usage: pcc [ -o <output> ] <file>\n";
     }
-
-    private static function parseArgs(int $argc, array $argv): array
+    
+    private static function takeArg(string $arg): bool
     {
-        $args = [];
+        return $arg === '-o';
+    }
+
+    private static function parseArgs(int $argc, array $argv): void
+    {
+        // Make sure that all command line options that take an argument
+        // have an argument.
+        for ($i = 1; $i < $argc; $i++) {
+            if (self::takeArg($argv[$i])) {
+                if (!isset($argv[$i + 1])) {
+                    self::displayHelp();
+                    exit(1);
+                }
+                $i++;
+            }
+        }
 
         for ($i = 1; $i < $argc; $i++) {
             if ($argv[$i] === '-###') {
@@ -52,11 +68,29 @@ class Pcc
                 self::$options['S'] = true;
                 continue;
             }
+            
+            if ($argv[$i] === '-cc1-input' and isset($argv[$i + 1])) {
+                self::$options['base_file'] = $argv[$i + 1];
+                $i++;
+                continue;
+            }
+            
+            if ($argv[$i] === '-cc1-output' and isset($argv[$i + 1])) {
+                self::$options['output_file'] = $argv[$i + 1];
+                $i++;
+                continue;
+            }
+            
+            if (str_starts_with($argv[$i], '-') and $argv[$i] !== '-') {
+                Console::error("unknown argument: {$argv[$i]}");
+            }
 
-            $args[] = $argv[$i];
+            self::$inputPaths->push($argv[$i]);
         }
-
-        return $args;
+        
+        if (self::$inputPaths->getLength() === 0) {
+            Console::error('no input files');
+        }
     }
 
     private static function runSubprocess(array $argv): void
@@ -84,11 +118,12 @@ class Pcc
         $args[] = '-cc1';
 
         if (! is_null($inputPath)){
+            $args[] = '-cc1-input';
             $args[] = $inputPath;
         }
 
         if (! is_null($outputPath)){
-            $args[] = '-o';
+            $args[] = '-cc1-output';
             $args[] = $outputPath;
         }
 
@@ -96,13 +131,16 @@ class Pcc
         self::runSubprocess($args);
     }
 
-    private static function cc1(string $inputPath, string $outputPath): int
+    private static function cc1(): int
     {
-        $fpOut = fopen($outputPath, 'w');
-        fprintf($fpOut, ".file 1 \"%s\"\n", $inputPath);
+        $baseFile = self::$options['base_file'] ?? '';
+        $outputFile = self::$options['output_file'] ?? '';
+        
+        $fpOut = fopen($outputFile, 'w');
+        fprintf($fpOut, ".file 1 \"%s\"\n", $baseFile);
         Console::$outputFile = $fpOut;
 
-        $tokenizer = new Tokenizer($inputPath);
+        $tokenizer = new Tokenizer($baseFile);
         $tokenizer->tokenize();
         $parser = new Ast\Parser($tokenizer);
         $prog = $parser->parse();
@@ -149,45 +187,46 @@ class Pcc
     public static function main(?int $argc = null, ?array $argv = null): int
     {
         self::$tmpFiles = new StringArray();
+        self::$inputPaths = new StringArray();
         register_shutdown_function([self::class, 'cleanup']);
 
-        $args = self::parseArgs($argc, $argv);
+        self::parseArgs($argc, $argv);
 
         if (self::$options['help'] ?? false) {
             self::displayHelp();
-
             return 0;
         }
 
-        if (! isset($args[0])){
-            self::displayHelp();
-            return 1;
+        if (self::$options['cc1'] ?? false){
+            return self::cc1();
         }
-        $inputPath = $args[0];
-
-        if (isset(self::$options['o'])) {
-            $outputPath = self::$options['o'];
-        } else if (self::$options['S']?? false) {
-            $outputPath = self::replaceExt($inputPath, '.s');
-        } else {
-            $outputPath = self::replaceExt($inputPath, '.o');
+        
+        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o'])) {
+            Console::error("cannot specify '-o' with multiple files");
         }
+        
+        $inputFiles = self::$inputPaths->getData();
+        foreach ($inputFiles as $inputPath) {
+            if (isset(self::$options['o'])) {
+                $outputPath = self::$options['o'];
+            } else if (self::$options['S'] ?? false) {
+                $outputPath = self::replaceExt($inputPath, '.s');
+            } else {
+                $outputPath = self::replaceExt($inputPath, '.o');
+            }
 
-        if (self::$options['cc1']?? false){
-            return self::cc1($inputPath, $outputPath);
+            // if -S is given, the assembly text is the final output
+            if (self::$options['S'] ?? false){
+                self::runCc1($argc, $argv, $inputPath, $outputPath);
+                continue;
+            }
+
+            // Otherwise, run the assembler to assemble our output.
+            $tmpPath = self::createTmpfile();
+            self::runCc1($argc, $argv, $inputPath, $tmpPath);
+            self::assemble($tmpPath, $outputPath);
         }
-
-        // if -S is given, the assembly text is the final output
-        if (self::$options['S']?? false){
-            self::runCc1($argc, $argv, $inputPath, $outputPath);
-            return 0;
-        }
-
-        // Otherwise, run the assembler to assemble our output.
-        $tmpPath = self::createTmpfile();
-        self::runCc1($argc, $argv, $inputPath, $tmpPath);
-        self::assemble($tmpPath, $outputPath);
-        unlink($tmpPath);
+        
         return 0;
     }
 }
