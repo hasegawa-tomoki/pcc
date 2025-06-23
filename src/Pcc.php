@@ -22,6 +22,13 @@ class Pcc
     {
         return $arg === '-o';
     }
+    
+    private static function endswith(string $p, string $q): bool
+    {
+        $len1 = strlen($p);
+        $len2 = strlen($q);
+        return ($len1 >= $len2) && (substr($p, $len1 - $len2) === $q);
+    }
 
     private static function parseArgs(int $argc, array $argv): void
     {
@@ -49,8 +56,8 @@ class Pcc
             }
 
             if ($argv[$i] === '--help') {
-                self::$options['help'] = true;
-                continue;
+                self::displayHelp();
+                exit(0);
             }
 
             if ($argv[$i] === '-o' and isset($argv[$i + 1])) {
@@ -66,6 +73,11 @@ class Pcc
 
             if ($argv[$i] === '-S') {
                 self::$options['S'] = true;
+                continue;
+            }
+            
+            if ($argv[$i] === '-c') {
+                self::$options['c'] = true;
                 continue;
             }
             
@@ -135,8 +147,12 @@ class Pcc
     {
         $baseFile = self::$options['base_file'] ?? '';
         $outputFile = self::$options['output_file'] ?? '';
-        
-        $fpOut = fopen($outputFile, 'w');
+
+        if ($outputFile === '-'){
+            $fpOut = fopen('php://output', 'w');
+        } else {
+            $fpOut = fopen($outputFile, 'w');
+        }
         fprintf($fpOut, ".file 1 \"%s\"\n", $baseFile);
         Console::$outputFile = $fpOut;
 
@@ -180,8 +196,95 @@ class Pcc
 
     private static function assemble(string $input, string $output): void
     {
-        $cmd = ['as', '-c', $input, '-o', $output];
+        $cmd = ['as', '--noexecstack', '-c', $input, '-o', $output];
         self::runSubprocess($cmd);
+    }
+    
+    private static function findFile(string $pattern): ?string
+    {
+        $files = glob($pattern);
+        if (empty($files)) {
+            return null;
+        }
+        return end($files);
+    }
+    
+    private static function fileExists(string $path): bool
+    {
+        return file_exists($path);
+    }
+    
+    private static function findLibPath(): string
+    {
+        if (self::fileExists('/usr/lib/x86_64-linux-gnu/crti.o')) {
+            return '/usr/lib/x86_64-linux-gnu';
+        }
+        if (self::fileExists('/usr/lib64/crti.o')) {
+            return '/usr/lib64';
+        }
+        Console::error('library path is not found');
+    }
+    
+    private static function findGccLibpath(): string
+    {
+        $paths = [
+            '/usr/lib/gcc/x86_64-linux-gnu/*/crtbegin.o',
+            '/usr/lib/gcc/x86_64-pc-linux-gnu/*/crtbegin.o',
+            '/usr/lib/gcc/x86_64-redhat-linux/*/crtbegin.o',
+        ];
+        
+        foreach ($paths as $pattern) {
+            $path = self::findFile($pattern);
+            if ($path) {
+                return dirname($path);
+            }
+        }
+        
+        Console::error('gcc library path is not found');
+    }
+    
+    private static function runLinker(StringArray $inputs, string $output): void
+    {
+        $arr = new StringArray();
+        
+        $arr->push('ld');
+        $arr->push('-o');
+        $arr->push($output);
+        $arr->push('-m');
+        $arr->push('elf_x86_64');
+        $arr->push('-dynamic-linker');
+        $arr->push('/lib64/ld-linux-x86-64.so.2');
+        
+        $libpath = self::findLibPath();
+        $gccLibpath = self::findGccLibpath();
+        
+        $arr->push("$libpath/crt1.o");
+        $arr->push("$libpath/crti.o");
+        $arr->push("$gccLibpath/crtbegin.o");
+        $arr->push("-L$gccLibpath");
+        $arr->push("-L$libpath");
+        $arr->push("-L$libpath/..");
+        $arr->push('-L/usr/lib64');
+        $arr->push('-L/lib64');
+        $arr->push('-L/usr/lib/x86_64-linux-gnu');
+        $arr->push('-L/usr/lib/x86_64-pc-linux-gnu');
+        $arr->push('-L/usr/lib/x86_64-redhat-linux');
+        $arr->push('-L/usr/lib');
+        $arr->push('-L/lib');
+        
+        foreach ($inputs->getData() as $input) {
+            $arr->push($input);
+        }
+        
+        $arr->push('-lc');
+        $arr->push('-lgcc');
+        $arr->push('--as-needed');
+        $arr->push('-lgcc_s');
+        $arr->push('--no-as-needed');
+        $arr->push("$gccLibpath/crtend.o");
+        $arr->push("$libpath/crtn.o");
+        
+        self::runSubprocess($arr->getData());
     }
 
     public static function main(?int $argc = null, ?array $argv = null): int
@@ -201,9 +304,11 @@ class Pcc
             return self::cc1();
         }
         
-        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o'])) {
-            Console::error("cannot specify '-o' with multiple files");
+        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (self::$options['c'] ?? false or self::$options['S'] ?? false)) {
+            Console::error("cannot specify '-o' with '-c' or '-S' with multiple files");
         }
+        
+        $ldArgs = new StringArray();
         
         $inputFiles = self::$inputPaths->getData();
         foreach ($inputFiles as $inputPath) {
@@ -215,16 +320,50 @@ class Pcc
                 $outputPath = self::replaceExt($inputPath, '.o');
             }
 
-            // if -S is given, the assembly text is the final output
-            if (self::$options['S'] ?? false){
+            // Handle .o
+            if (self::endswith($inputPath, '.o')) {
+                $ldArgs->push($inputPath);
+                continue;
+            }
+            
+            // Handle .s
+            if (self::endswith($inputPath, '.s')) {
+                if (!(self::$options['S'] ?? false)) {
+                    self::assemble($inputPath, $outputPath);
+                }
+                continue;
+            }
+            
+            // Handle .c
+            if (!self::endswith($inputPath, '.c') and $inputPath !== '-') {
+                Console::error("unknown file extension: $inputPath");
+            }
+            
+            // Just compile
+            if (self::$options['S'] ?? false) {
                 self::runCc1($argc, $argv, $inputPath, $outputPath);
                 continue;
             }
-
-            // Otherwise, run the assembler to assemble our output.
-            $tmpPath = self::createTmpfile();
-            self::runCc1($argc, $argv, $inputPath, $tmpPath);
-            self::assemble($tmpPath, $outputPath);
+            
+            // Compile and assemble
+            if (self::$options['c'] ?? false) {
+                $tmp = self::createTmpfile();
+                self::runCc1($argc, $argv, $inputPath, $tmp);
+                self::assemble($tmp, $outputPath);
+                continue;
+            }
+            
+            // Compile, assemble and link
+            $tmp1 = self::createTmpfile();
+            $tmp2 = self::createTmpfile();
+            self::runCc1($argc, $argv, $inputPath, $tmp1);
+            self::assemble($tmp1, $tmp2);
+            $ldArgs->push($tmp2);
+        }
+        
+        if ($ldArgs->getLength() > 0) {
+            $output = self::$options['o'] ?? 'a.out';
+            self::runLinker($ldArgs, $output);
         }
         
         return 0;

@@ -7,7 +7,7 @@ endif
 TESTS=$(TEST_SRCS:.c=.out)
 
 TestCase/%.out: TestCase/%.c
-	$(CC) -o- -E -P -C TestCase/$*.c | php ../pcc.php -o TestCase/$*.o -
+	$(CC) -o- -E -P -C TestCase/$*.c | php ../pcc.php -c -o TestCase/$*.o -
 	$(CC) -Wa,--noexecstack -o $@ TestCase/$*.o -xc common
 
 test: $(TESTS)
