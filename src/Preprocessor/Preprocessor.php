@@ -175,7 +175,9 @@ class Preprocessor
     private static function skipCondIncl2(Token $tok): Token
     {
         while ($tok->kind !== TokenKind::TK_EOF) {
-            if (self::isHash($tok) && $tok->next->str === 'if') {
+            if (self::isHash($tok) && 
+                ($tok->next->str === 'if' or $tok->next->str === 'ifdef' or
+                 $tok->next->str === 'ifndef')) {
                 $tok = self::skipCondIncl2($tok->next->next);
                 continue;
             }
@@ -192,7 +194,9 @@ class Preprocessor
     private static function skipCondIncl(Token $tok): Token
     {
         while ($tok->kind !== TokenKind::TK_EOF) {
-            if (self::isHash($tok) && $tok->next->str === 'if') {
+            if (self::isHash($tok) && 
+                ($tok->next->str === 'if' or $tok->next->str === 'ifdef' or
+                 $tok->next->str === 'ifndef')) {
                 $tok = self::skipCondIncl2($tok->next->next);
                 continue;
             }
@@ -375,6 +379,26 @@ class Preprocessor
                 $val = self::evalConstExpr($tok, $tok);
                 self::pushCondIncl($start, $val);
                 if (!$val) {
+                    $tok = self::skipCondIncl($tok);
+                }
+                continue;
+            }
+
+            if ($tok->str === 'ifdef') {
+                $defined = self::findMacro($tok->next) !== null;
+                self::pushCondIncl($tok, $defined);
+                $tok = self::skipLine($tok->next->next);
+                if (!$defined) {
+                    $tok = self::skipCondIncl($tok);
+                }
+                continue;
+            }
+
+            if ($tok->str === 'ifndef') {
+                $defined = self::findMacro($tok->next) !== null;
+                self::pushCondIncl($tok, !$defined);
+                $tok = self::skipLine($tok->next->next);
+                if ($defined) {
                     $tok = self::skipCondIncl($tok);
                 }
                 continue;
