@@ -24,16 +24,16 @@ $ make ctest                         # Cで書いたテスト
 
 ### Coding Standards
 
-コードはすべて PSR-12 に従って書いてください。
-ただし、以下を優先してください。
-
+* プログラム中のコメントは英語で記述してください。
+* コードはすべて PSR-12 に従って書いてください。
 * 条件文の中の or, and はそれぞれ ||, && でなく or, and を使用してください。
 
 ### Testing Policy
 
 テストコードは chibicc と同じものを使用します。
 テストコードを変更することは禁じられています。
-デバッグのためにテストコードを追加する時は ctest/TestCase 配下に追加し、 make ctest file=filename.c の様に実行してください。
+デバッグのためにテストコードを追加する時は ctests/TestCase 配下に追加してください。
+テストコードを単体で実行する場合は make ctest file=filename.c の様に実行してください。
 phpコマンドを実行する場合は必ず docker compose run --rm php php pcc.php のように実行してください。
 
 ### External Dependencies
