@@ -7,6 +7,7 @@ use Pcc\Ast\Type;
 use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
 use Pcc\Clib\Stdlib;
+use Pcc\File;
 
 class Tokenizer
 {
@@ -25,23 +26,25 @@ class Tokenizer
         }
     }
     public string $currentInput;
+    private File $currentFile;
+    private static array $inputFiles = [];
+    private static int $fileNo = 0;
 
     public function __construct(
         public readonly string $currentFilename,
     )
     {
-        if ($currentFilename === '-'){
-            $this->currentInput = file_get_contents('php://stdin');
-        } else {
-            if (! is_file($currentFilename)){
-                Console::error("cannot open: %s", $currentFilename);
-            }
-            $this->currentInput = file_get_contents($currentFilename);
+        $this->currentInput = $this->readFile($currentFilename);
+        if ($this->currentInput === null) {
+            Console::error("cannot open: %s", $currentFilename);
         }
-        if (! str_ends_with($this->currentInput, "\n")){
-            $this->currentInput .= "\n";
-        }
-
+        
+        self::$fileNo++;
+        $this->currentFile = new File($currentFilename, self::$fileNo, $this->currentInput);
+        
+        // Save the file for .file directive
+        self::$inputFiles[] = $this->currentFile;
+        
         Console::$currentFilename = $currentFilename;
         Console::$currentInput = $this->currentInput;
     }
@@ -387,6 +390,7 @@ class Tokenizer
                 preg_match('/^0[xX][0-9a-fA-F]*\\.?[0-9a-fA-F]*[pP][+-]?[0-9]+/', substr($this->currentInput, $pos))){
                 [$token, $pos] = $this->readNumber($pos);
                 $token->atBol = $atBol;
+                $token->file = $this->currentFile;
                 $atBol = false;
                 $tokens[] = $token;
                 continue;
@@ -396,6 +400,7 @@ class Tokenizer
             if ($this->currentInput[$pos] === '"') {
                 [$token, $pos] = $this->readStringLiteral($pos);
                 $token->atBol = $atBol;
+                $token->file = $this->currentFile;
                 $atBol = false;
                 $tokens[] = $token;
                 continue;
@@ -405,6 +410,7 @@ class Tokenizer
             if ($this->currentInput[$pos] === "'") {
                 [$token, $pos] = $this->readCharLiteral($pos);
                 $token->atBol = $atBol;
+                $token->file = $this->currentFile;
                 $atBol = false;
                 $tokens[] = $token;
                 continue;
@@ -418,6 +424,7 @@ class Tokenizer
                 }
                 $token = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $start, $pos - $start), $start);
                 $token->atBol = $atBol;
+                $token->file = $this->currentFile;
                 $atBol = false;
                 $tokens[] = $token;
                 continue;
@@ -427,6 +434,7 @@ class Tokenizer
             if (in_array($token = substr($this->currentInput, $pos, 3), ['<<=', '>>=', '...', ])){
                 $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $tok->atBol = $atBol;
+                $tok->file = $this->currentFile;
                 $atBol = false;
                 $tokens[] = $tok;
                 $pos += 3;
@@ -437,6 +445,7 @@ class Tokenizer
             if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', '<<', '>>', ])) {
                 $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $tok->atBol = $atBol;
+                $tok->file = $this->currentFile;
                 $atBol = false;
                 $tokens[] = $tok;
                 $pos += 2;
@@ -445,6 +454,7 @@ class Tokenizer
             if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->currentInput[$pos])) {
                 $tok = new Token(TokenKind::TK_RESERVED, $this->currentInput[$pos], $pos);
                 $tok->atBol = $atBol;
+                $tok->file = $this->currentFile;
                 $atBol = false;
                 $tokens[] = $tok;
                 $pos++;
@@ -454,11 +464,36 @@ class Tokenizer
             Console::errorAt($pos, "invalid token: %s\n", $this->currentInput[$pos]);
         }
 
-        $tokens[] = new Token(TokenKind::TK_EOF, '', $pos);
+        $eofToken = new Token(TokenKind::TK_EOF, '', $pos);
+        $eofToken->file = $this->currentFile;
+        $tokens[] = $eofToken;
         $this->tokens = $tokens;
         for ($i = 0; $i < count($this->tokens) - 1; $i++){
             $this->tokens[$i]->next = $this->tokens[$i + 1];
         }
         $this->addLineNumbers();
    }
+   
+    private function readFile(string $path): ?string
+    {
+        if ($path === '-') {
+            $contents = file_get_contents('php://stdin');
+        } else {
+            $contents = @file_get_contents($path);
+            if ($contents === false) {
+                return null;
+            }
+        }
+        
+        if (!str_ends_with($contents, "\n")) {
+            $contents .= "\n";
+        }
+        
+        return $contents;
+    }
+    
+    public static function getInputFiles(): array
+    {
+        return self::$inputFiles;
+    }
 }

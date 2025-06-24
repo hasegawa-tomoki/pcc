@@ -7,7 +7,7 @@ use Pcc\Ast\Type;
 class Token
 {
     public TokenKind $kind;
-    public Token $next;
+    public ?Token $next = null;
     public int $val;
     public GMP $gmpVal;
     public float $fval;
@@ -21,6 +21,7 @@ class Token
     }
     public Type $ty;
     public bool $atBol = false;
+    public ?\Pcc\File $file = null;
 
     public function __construct(TokenKind $kind, string $str, int $pos)
     {
@@ -44,7 +45,7 @@ class Token
             'unsigned', 'float', 'double',
         ];
 
-        for ($tok = $this; $tok->kind !== TokenKind::TK_EOF; $tok = $tok->next) {
+        for ($tok = $this; $tok->kind !== TokenKind::TK_EOF && $tok->next !== null; $tok = $tok->next) {
             if (in_array($tok->str, $keywords)) {
                 $tok->kind = TokenKind::TK_KEYWORD;
             }

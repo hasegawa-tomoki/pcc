@@ -8,8 +8,8 @@ use Pcc\Ast\Node;
 use Pcc\Ast\NodeKind;
 use Pcc\Ast\Type;
 use Pcc\Ast\Type\PccGMP;
-use Pcc\Ast\TypeKind;
 use Pcc\Console;
+use Pcc\Ast\TypeKind;
 
 class CodeGenerator
 {
@@ -283,7 +283,9 @@ class CodeGenerator
 
     public function genExpr(Node $node): void
     {
-        Console::out("  .loc 1 %d", $node->tok->lineNo);
+        if ($node->tok->file !== null) {
+            Console::out("  .loc %d %d", $node->tok->file->fileNo, $node->tok->lineNo);
+        }
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
@@ -602,7 +604,7 @@ class CodeGenerator
 
     public function genStmt(Node $node): void
     {
-        Console::out("  .loc 1 %d", $node->tok->lineNo);
+        Console::out("  .loc %d %d", $node->tok->file->fileNo, $node->tok->lineNo);
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
@@ -889,6 +891,12 @@ class CodeGenerator
      */
     public function gen(array $funcs): void
     {
+        // Output file directives
+        $files = \Pcc\Tokenizer\Tokenizer::getInputFiles();
+        foreach ($files as $file) {
+            Console::out("  .file %d \"%s\"", $file->fileNo, $file->name);
+        }
+        
         $funcs = $this->assignLVarOffsets($funcs);
         $this->emitData($funcs);
         $this->emitText($funcs);

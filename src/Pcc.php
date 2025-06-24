@@ -154,7 +154,6 @@ class Pcc
         } else {
             $fpOut = fopen($outputFile, 'w');
         }
-        fprintf($fpOut, ".file 1 \"%s\"\n", $baseFile);
         Console::$outputFile = $fpOut;
 
         $tokenizer = new Tokenizer($baseFile);
