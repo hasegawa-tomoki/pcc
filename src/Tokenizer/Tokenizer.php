@@ -346,7 +346,16 @@ class Tokenizer
     {
         $pos = 0;
         $tokens = [];
+        $atBol = true;
+        
         while ($pos < strlen($this->currentInput)) {
+            // Skip newline
+            if ($this->currentInput[$pos] === "\n") {
+                $pos++;
+                $atBol = true;
+                continue;
+            }
+            
             // Skip whitespace characters
             if (ctype_space($this->currentInput[$pos])) {
                 $pos++;
@@ -377,6 +386,8 @@ class Tokenizer
                 (substr($this->currentInput, $pos, 2) === '0x' or substr($this->currentInput, $pos, 2) === '0X') or
                 preg_match('/^0[xX][0-9a-fA-F]*\\.?[0-9a-fA-F]*[pP][+-]?[0-9]+/', substr($this->currentInput, $pos))){
                 [$token, $pos] = $this->readNumber($pos);
+                $token->atBol = $atBol;
+                $atBol = false;
                 $tokens[] = $token;
                 continue;
             }
@@ -384,6 +395,8 @@ class Tokenizer
             // String literal
             if ($this->currentInput[$pos] === '"') {
                 [$token, $pos] = $this->readStringLiteral($pos);
+                $token->atBol = $atBol;
+                $atBol = false;
                 $tokens[] = $token;
                 continue;
             }
@@ -391,6 +404,8 @@ class Tokenizer
             // Character literal
             if ($this->currentInput[$pos] === "'") {
                 [$token, $pos] = $this->readCharLiteral($pos);
+                $token->atBol = $atBol;
+                $atBol = false;
                 $tokens[] = $token;
                 continue;
             }
@@ -401,25 +416,37 @@ class Tokenizer
                 while ($pos < strlen($this->currentInput) && $this->isIdent2($this->currentInput[$pos])){
                     $pos++;
                 }
-                $tokens[] = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $start, $pos - $start), $start);
+                $token = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $start, $pos - $start), $start);
+                $token->atBol = $atBol;
+                $atBol = false;
+                $tokens[] = $token;
                 continue;
             }
 
             // Three-letter punctuators
             if (in_array($token = substr($this->currentInput, $pos, 3), ['<<=', '>>=', '...', ])){
-                $tokens[] = $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $tok->atBol = $atBol;
+                $atBol = false;
+                $tokens[] = $tok;
                 $pos += 3;
                 continue;
             }
 
             // Two-letter punctuators
             if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', '<<', '>>', ])) {
-                $tokens[] = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $tok->atBol = $atBol;
+                $atBol = false;
+                $tokens[] = $tok;
                 $pos += 2;
                 continue;
             }
             if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->currentInput[$pos])) {
-                $tokens[] = new Token(TokenKind::TK_RESERVED, $this->currentInput[$pos], $pos);
+                $tok = new Token(TokenKind::TK_RESERVED, $this->currentInput[$pos], $pos);
+                $tok->atBol = $atBol;
+                $atBol = false;
+                $tokens[] = $tok;
                 $pos++;
                 continue;
             }

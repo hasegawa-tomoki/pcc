@@ -20,6 +20,7 @@ class Token
         }
     }
     public Type $ty;
+    public bool $atBol = false;
 
     public function __construct(TokenKind $kind, string $str, int $pos)
     {

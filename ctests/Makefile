@@ -6,6 +6,11 @@ endif
 #TEST_SRCS=TestCase/union.c
 TESTS=$(TEST_SRCS:.c=.out)
 
+# Special rule for macro.c
+TestCase/macro.out: TestCase/macro.c
+	php ../pcc.php -c -o TestCase/macro.o TestCase/macro.c
+	$(CC) -Wa,--noexecstack -o $@ TestCase/macro.o -xc common
+
 TestCase/%.out: TestCase/%.c
 	$(CC) -o- -E -P -C TestCase/$*.c | php ../pcc.php -c -o TestCase/$*.o -
 	$(CC) -Wa,--noexecstack -o $@ TestCase/$*.o -xc common
