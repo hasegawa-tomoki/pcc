@@ -433,6 +433,5 @@ class Tokenizer
             $this->tokens[$i]->next = $this->tokens[$i + 1];
         }
         $this->addLineNumbers();
-        $this->convertKeywords();
    }
 }

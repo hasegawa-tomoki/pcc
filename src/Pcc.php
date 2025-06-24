@@ -3,6 +3,7 @@ namespace Pcc;
 
 use Pcc\CodeGenerator\CodeGenerator;
 use Pcc\Tokenizer\Tokenizer;
+use Pcc\Preprocessor\Preprocessor;
 
 class Pcc
 {
@@ -158,6 +159,7 @@ class Pcc
 
         $tokenizer = new Tokenizer($baseFile);
         $tokenizer->tokenize();
+        $tok = Preprocessor::preprocess($tokenizer->tok);
         $parser = new Ast\Parser($tokenizer);
         $prog = $parser->parse();
 

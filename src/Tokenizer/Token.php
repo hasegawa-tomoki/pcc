@@ -32,4 +32,21 @@ class Token
     {
         return $this->kind === $kind;
     }
+
+    public function convertKeywords(): void
+    {
+        $keywords = [
+            'return', 'if', 'else', 'for', 'while', 'int', 'sizeof', 'char',
+            'struct', 'union', 'short', 'long', 'void', 'typedef', '_Bool',
+            'enum', 'static', 'goto', 'break', 'continue', 'switch', 'case',
+            'default', 'extern', '_Alignof', '_Alignas', 'do', 'signed',
+            'unsigned', 'float', 'double',
+        ];
+
+        for ($tok = $this; $tok->kind !== TokenKind::TK_EOF; $tok = $tok->next) {
+            if (in_array($tok->str, $keywords)) {
+                $tok->kind = TokenKind::TK_KEYWORD;
+            }
+        }
+    }
 }
