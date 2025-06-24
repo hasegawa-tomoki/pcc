@@ -101,7 +101,30 @@ class Console
 
     public static function warnTok(Token $tok, string $format, ...$args): void
     {
-        self::vErrorAt($tok->lineNo, $tok->pos, $format, ...$args);
+        if ($tok->file === null) {
+            return;
+        }
+        
+        // Use file-specific information from the token
+        $filename = $tok->file->name;
+        $input = $tok->file->contents;
+        $lineNo = $tok->lineNo;
+        
+        // Calculate position in the specific file
+        $lines = explode("\n", $input);
+        $pos = $tok->pos;
+        foreach ($lines as $idx => $line) {
+            if ($idx + 1 >= $lineNo) {
+                break;
+            }
+            $pos -= strlen($line) + 1;
+        }
+        
+        $indent = sprintf("%s:%d: ", $filename, $lineNo);
+        printf("%s%s".PHP_EOL, $indent, $lines[$lineNo - 1]);
+        printf(str_repeat(" ", strlen($indent) + $pos));
+        printf("^ ");
+        printf($format.PHP_EOL, ...$args);
     }
 
     public static function out(string $format, ...$args): void

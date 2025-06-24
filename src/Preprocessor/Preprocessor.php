@@ -14,6 +14,22 @@ class Preprocessor
     }
 
     /**
+     * Some preprocessor directives such as #include allow extraneous
+     * tokens before newline. This function skips such tokens.
+     */
+    private static function skipLine(Token $tok): Token
+    {
+        if ($tok->atBol) {
+            return $tok;
+        }
+        Console::warnTok($tok, "extra token");
+        while ($tok !== null && !$tok->atBol) {
+            $tok = $tok->next;
+        }
+        return $tok;
+    }
+
+    /**
      * Copy a token
      */
     private static function copyToken(Token $tok): Token
@@ -102,7 +118,8 @@ class Preprocessor
                     Console::errorTok($tok, "%s", $e->getMessage());
                 }
                 
-                $tok = self::append($tok2, $tok->next);
+                $tok = self::skipLine($tok->next);
+                $tok = self::append($tok2, $tok);
                 continue;
             }
 
