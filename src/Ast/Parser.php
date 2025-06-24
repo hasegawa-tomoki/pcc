@@ -2051,8 +2051,7 @@ class Parser
         }
 
         // ptr + num
-        $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum($lhs->ty->base->size, $tok), $tok);
-        return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
+        return Node::newBinary(NodeKind::ND_ADD, $lhs, Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newLong($lhs->ty->base->size, $tok), $tok), $tok);
     }
 
     public function newSub(Node $lhs, Node $rhs, Token $tok): ?Node
@@ -2067,7 +2066,7 @@ class Parser
 
         // ptr - num
         if ($lhs->ty->base and $rhs->ty->isInteger()){
-            $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newNum($lhs->ty->base->size, $tok), $tok);
+            $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newLong($lhs->ty->base->size, $tok), $tok);
             $rhs->addType();
             $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
             $node->ty = $lhs->ty;
@@ -2078,7 +2077,7 @@ class Parser
         if ($lhs->ty->base and $rhs->ty->base){
             $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
             $node->ty = Type::tyLong();
-            return Node::newBinary(NodeKind::ND_DIV, $node, Node::newNum($lhs->ty->base->size, $tok), $tok);
+            return Node::newBinary(NodeKind::ND_DIV, $node, Node::newLong($lhs->ty->base->size, $tok), $tok);
         }
 
         Console::errorTok($tok, 'invalid operands');

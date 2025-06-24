@@ -94,6 +94,13 @@ class Node
         return $node;
     }
 
+    public static function newLong(int|GMP $val, Token $tok): Node
+    {
+        $node = self::newNum($val, $tok);
+        $node->ty = Type::tyLong();
+        return $node;
+    }
+
     public static function newUlong(int|GMP $val, Token $tok): Node
     {
         $node = self::newNum($val, $tok);
