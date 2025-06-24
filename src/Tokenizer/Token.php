@@ -22,6 +22,7 @@ class Token
     public Type $ty;
     public bool $atBol = false;
     public ?\Pcc\File $file = null;
+    public ?\Pcc\Preprocessor\Hideset $hideset = null;
 
     public function __construct(TokenKind $kind, string $str, int $pos)
     {

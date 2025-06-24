@@ -95,6 +95,9 @@ class Preprocessor
         if (isset($tok->file)) {
             $t->file = $tok->file;
         }
+        if (isset($tok->hideset)) {
+            $t->hideset = $tok->hideset;
+        }
         // nextプロパティは呼び出し側で設定する
         return $t;
     }
@@ -105,6 +108,48 @@ class Preprocessor
         $t->kind = TokenKind::TK_EOF;
         $t->str = '';
         return $t;
+    }
+
+    private static function newHideset(string $name): Hideset
+    {
+        return new Hideset($name);
+    }
+
+    private static function hidesetUnion(?Hideset $hs1, ?Hideset $hs2): ?Hideset
+    {
+        $head = new Hideset('');
+        $cur = $head;
+
+        for (; $hs1; $hs1 = $hs1->next) {
+            $cur->next = self::newHideset($hs1->name);
+            $cur = $cur->next;
+        }
+        $cur->next = $hs2;
+        return $head->next;
+    }
+
+    private static function hidesetContains(?Hideset $hs, string $s, int $len): bool
+    {
+        for (; $hs; $hs = $hs->next) {
+            if (strlen($hs->name) === $len && substr($hs->name, 0, $len) === $s) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static function addHideset(Token $tok, ?Hideset $hs): Token
+    {
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+
+        for (; $tok; $tok = $tok->next) {
+            $t = self::copyToken($tok);
+            $t->hideset = self::hidesetUnion($t->hideset, $hs);
+            $cur->next = $t;
+            $cur = $t;
+        }
+        return $head->next;
     }
     
     /**
@@ -232,11 +277,18 @@ class Preprocessor
     // Otherwise, do nothing and return false.
     private static function expandMacro(Token &$rest, Token $tok): bool
     {
+        if (self::hidesetContains($tok->hideset, $tok->str, strlen($tok->str))) {
+            return false;
+        }
+
         $m = self::findMacro($tok);
         if (!$m) {
             return false;
         }
-        $rest = self::append($m->body, $tok->next);
+
+        $hs = self::hidesetUnion($tok->hideset, self::newHideset($m->name));
+        $body = self::addHideset($m->body, $hs);
+        $rest = self::append($body, $tok->next);
         return true;
     }
 
