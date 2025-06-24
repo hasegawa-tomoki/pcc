@@ -890,6 +890,7 @@ class Parser
     {
         if ($this->tokenizer->equal($tok, '{')){
             [$init->children[0], $rest] = $this->initializer2($tok, $tok->next, $init->children[0]);
+            [$consumed, $rest] = $this->tokenizer->consume($rest, $rest, ',');
             $rest = $this->tokenizer->skip($rest, '}');
         } else {
             [$init->children[0], $rest] = $this->initializer2($tok, $tok, $init->children[0]);
