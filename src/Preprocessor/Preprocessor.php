@@ -10,13 +10,20 @@ use Pcc\Ast\Parser;
 // `#if` can be nested, so we use a stack to manage nested `#if`s.
 class CondIncl
 {
-    public ?CondIncl $next;
-    public Token $tok;
+    public const IN_THEN = 0;
+    public const IN_ELSE = 1;
 
-    public function __construct(?CondIncl $next, Token $tok)
+    public ?CondIncl $next;
+    public int $ctx;
+    public Token $tok;
+    public bool $included;
+
+    public function __construct(?CondIncl $next, Token $tok, bool $included)
     {
         $this->next = $next;
+        $this->ctx = self::IN_THEN;
         $this->tok = $tok;
+        $this->included = $included;
     }
 }
 
@@ -102,17 +109,33 @@ class Preprocessor
         return $head->next;
     }
 
-    // Skip until next `#endif`.
+    private static function skipCondIncl2(Token $tok): Token
+    {
+        while ($tok->kind !== TokenKind::TK_EOF) {
+            if (self::isHash($tok) && $tok->next->str === 'if') {
+                $tok = self::skipCondIncl2($tok->next->next);
+                continue;
+            }
+            if (self::isHash($tok) && $tok->next->str === 'endif') {
+                return $tok->next->next;
+            }
+            $tok = $tok->next;
+        }
+        return $tok;
+    }
+
+    // Skip until next `#else` or `#endif`.
     // Nested `#if` and `#endif` are skipped.
     private static function skipCondIncl(Token $tok): Token
     {
         while ($tok->kind !== TokenKind::TK_EOF) {
             if (self::isHash($tok) && $tok->next->str === 'if') {
-                $tok = self::skipCondIncl($tok->next->next);
-                $tok = $tok->next;
+                $tok = self::skipCondIncl2($tok->next->next);
                 continue;
             }
-            if (self::isHash($tok) && $tok->next->str === 'endif') {
+
+            if (self::isHash($tok) and
+                ($tok->next->str === 'else' or $tok->next->str === 'endif')) {
                 break;
             }
             $tok = $tok->next;
@@ -157,9 +180,9 @@ class Preprocessor
         return gmp_intval($val);
     }
 
-    private static function pushCondIncl(Token $tok): CondIncl
+    private static function pushCondIncl(Token $tok, bool $included): CondIncl
     {
-        $ci = new CondIncl(self::$condIncl, $tok);
+        $ci = new CondIncl(self::$condIncl, $tok, $included);
         self::$condIncl = $ci;
         return $ci;
     }
@@ -217,8 +240,21 @@ class Preprocessor
 
             if ($tok->str === 'if') {
                 $val = self::evalConstExpr($tok, $tok);
-                self::pushCondIncl($start);
+                self::pushCondIncl($start, $val);
                 if (!$val) {
+                    $tok = self::skipCondIncl($tok);
+                }
+                continue;
+            }
+
+            if ($tok->str === 'else') {
+                if (!self::$condIncl or self::$condIncl->ctx === CondIncl::IN_ELSE) {
+                    Console::errorTok($start, "stray #else");
+                }
+                self::$condIncl->ctx = CondIncl::IN_ELSE;
+                $tok = self::skipLine($tok->next);
+
+                if (self::$condIncl->included) {
                     $tok = self::skipCondIncl($tok);
                 }
                 continue;
