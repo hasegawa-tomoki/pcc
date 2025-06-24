@@ -186,6 +186,7 @@ class Preprocessor
     {
         $start = $tok;
         $expr = self::copyLine($rest, $tok->next);
+        $expr = self::preprocess2($expr);
 
         if ($expr->kind === TokenKind::TK_EOF) {
             Console::errorTok($start, "no expression");
