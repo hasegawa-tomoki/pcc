@@ -359,18 +359,21 @@ class Tokenizer
         $pos = 0;
         $tokens = [];
         $atBol = true;
+        $hasSpace = false;
         
         while ($pos < strlen($this->currentInput)) {
             // Skip newline
             if ($this->currentInput[$pos] === "\n") {
                 $pos++;
                 $atBol = true;
+                $hasSpace = false;
                 continue;
             }
             
             // Skip whitespace characters
             if (ctype_space($this->currentInput[$pos])) {
                 $pos++;
+                $hasSpace = true;
                 continue;
             }
 
@@ -380,6 +383,7 @@ class Tokenizer
                 while ($this->currentInput[$pos] !== "\n") {
                     $pos++;
                 }
+                $hasSpace = true;
                 continue;
             }
 
@@ -390,6 +394,7 @@ class Tokenizer
                     $pos++;
                 }
                 $pos += 2;
+                $hasSpace = true;
                 continue;
             }
 
@@ -399,8 +404,9 @@ class Tokenizer
                 preg_match('/^0[xX][0-9a-fA-F]*\\.?[0-9a-fA-F]*[pP][+-]?[0-9]+/', substr($this->currentInput, $pos))){
                 [$token, $pos] = $this->readNumber($pos);
                 $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
-                $atBol = false;
+                $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 continue;
             }
@@ -409,8 +415,9 @@ class Tokenizer
             if ($this->currentInput[$pos] === '"') {
                 [$token, $pos] = $this->readStringLiteral($pos);
                 $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
-                $atBol = false;
+                $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 continue;
             }
@@ -419,8 +426,9 @@ class Tokenizer
             if ($this->currentInput[$pos] === "'") {
                 [$token, $pos] = $this->readCharLiteral($pos);
                 $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
-                $atBol = false;
+                $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 continue;
             }
@@ -433,8 +441,9 @@ class Tokenizer
                 }
                 $token = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $start, $pos - $start), $start);
                 $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
-                $atBol = false;
+                $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 continue;
             }
@@ -443,8 +452,9 @@ class Tokenizer
             if (in_array($token = substr($this->currentInput, $pos, 3), ['<<=', '>>=', '...', ])){
                 $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $tok->atBol = $atBol;
+                $tok->hasSpace = $hasSpace;
                 $tok->file = $this->currentFile;
-                $atBol = false;
+                $atBol = $hasSpace = false;
                 $tokens[] = $tok;
                 $pos += 3;
                 continue;
@@ -454,8 +464,9 @@ class Tokenizer
             if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', '<<', '>>', ])) {
                 $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $tok->atBol = $atBol;
+                $tok->hasSpace = $hasSpace;
                 $tok->file = $this->currentFile;
-                $atBol = false;
+                $atBol = $hasSpace = false;
                 $tokens[] = $tok;
                 $pos += 2;
                 continue;
@@ -463,8 +474,9 @@ class Tokenizer
             if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->currentInput[$pos])) {
                 $tok = new Token(TokenKind::TK_RESERVED, $this->currentInput[$pos], $pos);
                 $tok->atBol = $atBol;
+                $tok->hasSpace = $hasSpace;
                 $tok->file = $this->currentFile;
-                $atBol = false;
+                $atBol = $hasSpace = false;
                 $tokens[] = $tok;
                 $pos++;
                 continue;

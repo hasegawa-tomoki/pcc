@@ -11,13 +11,15 @@ class Macro
 {
     public ?Macro $next;
     public string $name;
+    public bool $isObjlike;
     public Token $body;
     public bool $deleted;
 
-    public function __construct(?Macro $next, string $name, Token $body)
+    public function __construct(?Macro $next, string $name, bool $isObjlike, Token $body)
     {
         $this->next = $next;
         $this->name = $name;
+        $this->isObjlike = $isObjlike;
         $this->body = $body;
         $this->deleted = false;
     }
@@ -92,6 +94,7 @@ class Preprocessor
             $t->lineNo = $tok->lineNo;
         }
         $t->atBol = $tok->atBol;
+        $t->hasSpace = $tok->hasSpace;
         if (isset($tok->file)) {
             $t->file = $tok->file;
         }
@@ -270,11 +273,33 @@ class Preprocessor
         return null;
     }
 
-    private static function addMacro(string $name, Token $body): Macro
+    private static function addMacro(string $name, bool $isObjlike, Token $body): Macro
     {
-        $m = new Macro(self::$macros, $name, $body);
+        $m = new Macro(self::$macros, $name, $isObjlike, $body);
         self::$macros = $m;
         return $m;
+    }
+
+    private static function readMacroDefinition(Token &$rest, Token $tok): void
+    {
+        if ($tok->kind !== TokenKind::TK_IDENT) {
+            Console::errorTok($tok, "macro name must be an identifier");
+        }
+        $name = $tok->str;
+        $tok = $tok->next;
+
+        if (!$tok->hasSpace && $tok->str === '(') {
+            // Function-like macro
+            $tok = $tok->next;
+            if ($tok->str !== ')') {
+                Console::errorTok($tok, "expected ')'");
+            }
+            $tok = $tok->next;
+            self::addMacro($name, false, self::copyLine($rest, $tok));
+        } else {
+            // Object-like macro
+            self::addMacro($name, true, self::copyLine($rest, $tok));
+        }
     }
 
     // If tok is a macro, expand it and return true.
@@ -290,9 +315,26 @@ class Preprocessor
             return false;
         }
 
-        $hs = self::hidesetUnion($tok->hideset, self::newHideset($m->name));
-        $body = self::addHideset($m->body, $hs);
-        $rest = self::append($body, $tok->next);
+        // Object-like macro application
+        if ($m->isObjlike) {
+            $hs = self::hidesetUnion($tok->hideset, self::newHideset($m->name));
+            $body = self::addHideset($m->body, $hs);
+            $rest = self::append($body, $tok->next);
+            return true;
+        }
+
+        // If a funclike macro token is not followed by an argument list,
+        // treat it as a normal identifier.
+        if (!$tok->next || $tok->next->str !== '(') {
+            return false;
+        }
+
+        // Function-like macro application
+        $tok = $tok->next->next; // skip '('
+        if ($tok->str !== ')') {
+            Console::errorTok($tok, "expected ')'");
+        }
+        $rest = self::append($m->body, $tok->next);
         return true;
     }
 
@@ -353,12 +395,7 @@ class Preprocessor
             }
 
             if ($tok->str === 'define') {
-                $tok = $tok->next;
-                if ($tok->kind !== TokenKind::TK_IDENT) {
-                    Console::errorTok($tok, "macro name must be an identifier");
-                }
-                $name = $tok->str;
-                self::addMacro($name, self::copyLine($tok, $tok->next));
+                self::readMacroDefinition($tok, $tok->next);
                 continue;
             }
 
@@ -370,7 +407,7 @@ class Preprocessor
                 $name = $tok->str;
                 $tok = self::skipLine($tok->next);
 
-                $m = self::addMacro($name, new Token(TokenKind::TK_EOF, '', 0));
+                $m = self::addMacro($name, true, new Token(TokenKind::TK_EOF, '', 0));
                 $m->deleted = true;
                 continue;
             }
