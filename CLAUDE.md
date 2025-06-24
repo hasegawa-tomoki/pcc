@@ -9,10 +9,6 @@
 ### Communication
 
 思考過程などログの出力や、Todoの内容は日本語でしてください。  
-ユーザの入力を待つ時は、その前に以下のコマンドを実行して通知を出し、ユーザに知らせてください。
-```bash
-echo "Claude Code: Waiting user input."|/opt/homebrew/bin/terminal-notifier
-```
 
 ### Code Quality
 
