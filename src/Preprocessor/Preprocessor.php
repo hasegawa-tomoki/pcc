@@ -103,11 +103,17 @@ class Preprocessor
     }
 
     // Skip until next `#endif`.
+    // Nested `#if` and `#endif` are skipped.
     private static function skipCondIncl(Token $tok): Token
     {
         while ($tok->kind !== TokenKind::TK_EOF) {
+            if (self::isHash($tok) && $tok->next->str === 'if') {
+                $tok = self::skipCondIncl($tok->next->next);
+                $tok = $tok->next;
+                continue;
+            }
             if (self::isHash($tok) && $tok->next->str === 'endif') {
-                return $tok;
+                break;
             }
             $tok = $tok->next;
         }
