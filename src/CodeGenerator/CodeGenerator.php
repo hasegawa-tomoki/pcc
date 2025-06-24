@@ -196,7 +196,7 @@ class CodeGenerator
         } elseif ($ty->size === 2) {
             Console::out("  %swl (%%rax), %%eax", $insn);
         } elseif ($ty->size === 4) {
-            Console::out("  movsxd (%%rax), %%rax");
+            Console::out("  mov (%%rax), %%eax");
         } else {
             Console::out("  mov (%%rax), %%rax");
         }
@@ -512,7 +512,8 @@ class CodeGenerator
         $this->genExpr($node->lhs);
         $this->pop('%rdi');
 
-        if ($node->lhs->ty->kind === TypeKind::TY_LONG or $node->lhs->ty->base){
+        if ($node->lhs->ty->kind === TypeKind::TY_LONG or $node->lhs->ty->base or
+            $node->rhs->ty->kind === TypeKind::TY_LONG or $node->rhs->ty->base){
             $ax = '%rax';
             $di = '%rdi';
             $dx = "%rdx";
