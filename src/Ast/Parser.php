@@ -2549,6 +2549,7 @@ class Parser
      *         | "sizeof" "(" type-name ")"
      *         | "sizeof" unary
      *         | "_Alignof" "(" type-name ")"
+     *         | "_Alignof" unary
      *         | ident func-args?
      *         | str
      *         | number
@@ -2588,11 +2589,16 @@ class Parser
             return [Node::newUlong($node->ty->size, $tok), $rest];
         }
 
-        if ($this->tokenizer->equal($tok, '_Alignof')){
-            $tok = $this->tokenizer->skip($tok->next, '(');
-            [$ty, $tok] = $this->typename($tok, $tok);
+        if ($this->tokenizer->equal($tok, '_Alignof') and $this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
+            [$ty, $tok] = $this->typename($tok, $tok->next->next);
             $rest = $this->tokenizer->skip($tok, ')');
-            return [Node::newUlong($ty->align, $tok), $rest];
+            return [Node::newUlong($ty->align, $start), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '_Alignof')){
+            [$node, $rest] = $this->unary($rest, $tok->next);
+            $node->addType();
+            return [Node::newUlong($node->ty->align, $tok), $rest];
         }
 
         if ($tok->isKind(TokenKind::TK_IDENT)){
