@@ -7,6 +7,20 @@ use Pcc\Tokenizer\Tokenizer;
 use Pcc\Console;
 use Pcc\Ast\Parser;
 
+class Macro
+{
+    public ?Macro $next;
+    public string $name;
+    public Token $body;
+
+    public function __construct(?Macro $next, string $name, Token $body)
+    {
+        $this->next = $next;
+        $this->name = $name;
+        $this->body = $body;
+    }
+}
+
 // `#if` can be nested, so we use a stack to manage nested `#if`s.
 class CondIncl
 {
@@ -30,6 +44,7 @@ class CondIncl
 
 class Preprocessor
 {
+    private static ?Macro $macros = null;
     private static ?CondIncl $condIncl = null;
 
     private static function isHash(Token $tok): bool
@@ -93,16 +108,16 @@ class Preprocessor
     /**
      * Append tok2 to the end of tok1
      */
-    private static function append(?Token $tok1, Token $tok2): Token
+    private static function append(Token $tok1, Token $tok2): Token
     {
-        if (!$tok1 || $tok1->kind === TokenKind::TK_EOF) {
+        if ($tok1->kind === TokenKind::TK_EOF) {
             return $tok2;
         }
         
         $head = new Token(TokenKind::TK_EOF, '', 0);
         $cur = $head;
         
-        for (; $tok1 && $tok1->kind !== TokenKind::TK_EOF; $tok1 = $tok1->next) {
+        for (; $tok1->kind !== TokenKind::TK_EOF; $tok1 = $tok1->next) {
             $cur->next = self::copyToken($tok1);
             $cur = $cur->next;
         }
@@ -189,6 +204,39 @@ class Preprocessor
         return $ci;
     }
 
+    private static function findMacro(Token $tok): ?Macro
+    {
+        if ($tok->kind !== TokenKind::TK_IDENT) {
+            return null;
+        }
+
+        for ($m = self::$macros; $m; $m = $m->next) {
+            if (strlen($m->name) === strlen($tok->str) && $m->name === $tok->str) {
+                return $m;
+            }
+        }
+        return null;
+    }
+
+    private static function addMacro(string $name, Token $body): Macro
+    {
+        $m = new Macro(self::$macros, $name, $body);
+        self::$macros = $m;
+        return $m;
+    }
+
+    // If tok is a macro, expand it and return true.
+    // Otherwise, do nothing and return false.
+    private static function expandMacro(Token &$rest, Token $tok): bool
+    {
+        $m = self::findMacro($tok);
+        if (!$m) {
+            return false;
+        }
+        $rest = self::append($m->body, $tok->next);
+        return true;
+    }
+
     /**
      * すべてのトークンを訪問し、プリプロセッサのマクロとディレクティブを評価する
      */
@@ -198,6 +246,11 @@ class Preprocessor
         $cur = $head;
 
         while ($tok->kind !== TokenKind::TK_EOF) {
+            // If it is a macro, expand it.
+            if (self::expandMacro($tok, $tok)) {
+                continue;
+            }
+
             // "#"でない場合はそのまま通す
             if (!self::isHash($tok)) {
                 $cur->next = $tok;
@@ -237,6 +290,16 @@ class Preprocessor
                 
                 $tok = self::skipLine($tok->next);
                 $tok = self::append($tok2, $tok);
+                continue;
+            }
+
+            if ($tok->str === 'define') {
+                $tok = $tok->next;
+                if ($tok->kind !== TokenKind::TK_IDENT) {
+                    Console::errorTok($tok, "macro name must be an identifier");
+                }
+                $name = $tok->str;
+                self::addMacro($name, self::copyLine($tok, $tok->next));
                 continue;
             }
 
