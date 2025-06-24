@@ -77,6 +77,11 @@ class Pcc
                 continue;
             }
             
+            if ($argv[$i] === '-E') {
+                self::$options['E'] = true;
+                continue;
+            }
+            
             if ($argv[$i] === '-c') {
                 self::$options['c'] = true;
                 continue;
@@ -144,12 +149,41 @@ class Pcc
         self::runSubprocess($args);
     }
 
+    /**
+     * Print tokens to stdout. Used for -E.
+     */
+    private static function printTokens(\Pcc\Tokenizer\Token $tok): void
+    {
+        $output = self::$options['o'] ?? '-';
+        
+        if ($output === '-' || empty($output)) {
+            $fpOut = fopen('php://output', 'w');
+        } else {
+            $fpOut = fopen($output, 'w');
+        }
+        
+        $line = 1;
+        while ($tok->kind !== \Pcc\Tokenizer\TokenKind::TK_EOF) {
+            if ($line > 1 && $tok->atBol) {
+                fprintf($fpOut, "\n");
+            }
+            fprintf($fpOut, " %s", $tok->str);
+            $tok = $tok->next;
+            $line++;
+        }
+        fprintf($fpOut, "\n");
+        
+        if ($output !== '-' && !empty($output)) {
+            fclose($fpOut);
+        }
+    }
+
     private static function cc1(): int
     {
         $baseFile = self::$options['base_file'] ?? '';
         $outputFile = self::$options['output_file'] ?? '';
 
-        if ($outputFile === '-'){
+        if ($outputFile === '-' || $outputFile === ''){
             $fpOut = fopen('php://output', 'w');
         } else {
             $fpOut = fopen($outputFile, 'w');
@@ -159,6 +193,13 @@ class Pcc
         $tokenizer = new Tokenizer($baseFile);
         $tokenizer->tokenize();
         $tok = Preprocessor::preprocess($tokenizer->tok);
+
+        // If -E is given, print out preprocessed C code as a result.
+        if (self::$options['E'] ?? false) {
+            self::printTokens($tok);
+            return 0;
+        }
+
         $parser = new Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
@@ -305,8 +346,8 @@ class Pcc
             return self::cc1();
         }
         
-        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (self::$options['c'] ?? false or self::$options['S'] ?? false)) {
-            Console::error("cannot specify '-o' with '-c' or '-S' with multiple files");
+        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (self::$options['c'] ?? false or self::$options['S'] ?? false or self::$options['E'] ?? false)) {
+            Console::error("cannot specify '-o' with '-c,' '-S' or '-E' with multiple files");
         }
         
         $ldArgs = new StringArray();
@@ -338,6 +379,12 @@ class Pcc
             // Handle .c
             if (!self::endswith($inputPath, '.c') and $inputPath !== '-') {
                 Console::error("unknown file extension: $inputPath");
+            }
+            
+            // Just preprocess
+            if (self::$options['E'] ?? false) {
+                self::runCc1($argc, $argv, $inputPath, null);
+                continue;
             }
             
             // Just compile

@@ -23,10 +23,10 @@ class Preprocessor
             return $tok;
         }
         Console::warnTok($tok, "extra token");
-        while ($tok !== null && !$tok->atBol) {
+        while ($tok !== null && !$tok->atBol && $tok->kind !== TokenKind::TK_EOF) {
             $tok = $tok->next;
         }
-        return $tok;
+        return $tok ?? new Token(TokenKind::TK_EOF, '', 0);
     }
 
     /**
@@ -107,8 +107,13 @@ class Preprocessor
                 
                 // Extract filename from string literal (remove null terminator)
                 $filename = rtrim($tok->str, "\0");
-                $dir = dirname($tok->file->name);
-                $path = $dir . '/' . $filename;
+                
+                if ($filename[0] === '/') {
+                    $path = $filename;
+                } else {
+                    $dir = dirname($tok->file->name);
+                    $path = $dir . '/' . $filename;
+                }
                 
                 $tokenizer = new Tokenizer($path);
                 try {
