@@ -11,7 +11,8 @@ use Pcc\Ast\Parser;
 class CondIncl
 {
     public const IN_THEN = 0;
-    public const IN_ELSE = 1;
+    public const IN_ELIF = 1;
+    public const IN_ELSE = 2;
 
     public ?CondIncl $next;
     public int $ctx;
@@ -124,7 +125,7 @@ class Preprocessor
         return $tok;
     }
 
-    // Skip until next `#else` or `#endif`.
+    // Skip until next `#else`, `#elif` or `#endif`.
     // Nested `#if` and `#endif` are skipped.
     private static function skipCondIncl(Token $tok): Token
     {
@@ -135,7 +136,8 @@ class Preprocessor
             }
 
             if (self::isHash($tok) and
-                ($tok->next->str === 'else' or $tok->next->str === 'endif')) {
+                ($tok->next->str === 'elif' or $tok->next->str === 'else' or
+                 $tok->next->str === 'endif')) {
                 break;
             }
             $tok = $tok->next;
@@ -242,6 +244,20 @@ class Preprocessor
                 $val = self::evalConstExpr($tok, $tok);
                 self::pushCondIncl($start, $val);
                 if (!$val) {
+                    $tok = self::skipCondIncl($tok);
+                }
+                continue;
+            }
+
+            if ($tok->str === 'elif') {
+                if (!self::$condIncl or self::$condIncl->ctx === CondIncl::IN_ELSE) {
+                    Console::errorTok($start, "stray #elif");
+                }
+                self::$condIncl->ctx = CondIncl::IN_ELIF;
+
+                if (!self::$condIncl->included && self::evalConstExpr($tok, $tok)) {
+                    self::$condIncl->included = true;
+                } else {
                     $tok = self::skipCondIncl($tok);
                 }
                 continue;
