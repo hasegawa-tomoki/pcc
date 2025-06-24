@@ -32,8 +32,17 @@ class Tokenizer
 
     public function __construct(
         public readonly string $currentFilename,
+        ?Token $tok = null
     )
     {
+        if ($tok !== null) {
+            // Initialize from token
+            $this->tokens = [$tok];
+            $this->currentInput = '';
+            $this->currentFile = $tok->file ?? new File('', 0, '');
+            return;
+        }
+        
         $this->currentInput = $this->readFile($currentFilename);
         if ($this->currentInput === null) {
             Console::error("cannot open: %s", $currentFilename);

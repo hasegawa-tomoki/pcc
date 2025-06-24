@@ -5,9 +5,25 @@ use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\TokenKind;
 use Pcc\Tokenizer\Tokenizer;
 use Pcc\Console;
+use Pcc\Ast\Parser;
+
+// `#if` can be nested, so we use a stack to manage nested `#if`s.
+class CondIncl
+{
+    public ?CondIncl $next;
+    public Token $tok;
+
+    public function __construct(?CondIncl $next, Token $tok)
+    {
+        $this->next = $next;
+        $this->tok = $tok;
+    }
+}
 
 class Preprocessor
 {
+    private static ?CondIncl $condIncl = null;
+
     private static function isHash(Token $tok): bool
     {
         return $tok->atBol && $tok->str === '#';
@@ -57,6 +73,14 @@ class Preprocessor
         // nextプロパティは呼び出し側で設定する
         return $t;
     }
+
+    private static function newEof(Token $tok): Token
+    {
+        $t = self::copyToken($tok);
+        $t->kind = TokenKind::TK_EOF;
+        $t->str = '';
+        return $t;
+    }
     
     /**
      * Append tok2 to the end of tok1
@@ -78,6 +102,62 @@ class Preprocessor
         return $head->next;
     }
 
+    // Skip until next `#endif`.
+    private static function skipCondIncl(Token $tok): Token
+    {
+        while ($tok->kind !== TokenKind::TK_EOF) {
+            if (self::isHash($tok) && $tok->next->str === 'endif') {
+                return $tok;
+            }
+            $tok = $tok->next;
+        }
+        return $tok;
+    }
+
+    // Copy all tokens until the next newline, terminate them with
+    // an EOF token and then returns them. This function is used to
+    // create a new list of tokens for `#if` arguments.
+    private static function copyLine(Token &$rest, Token $tok): Token
+    {
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+
+        while (!$tok->atBol && $tok->kind !== TokenKind::TK_EOF) {
+            $cur->next = self::copyToken($tok);
+            $cur = $cur->next;
+            $tok = $tok->next;
+        }
+
+        $cur->next = self::newEof($tok);
+        $rest = $tok;
+        return $head->next;
+    }
+
+    // Read and evaluate a constant expression.
+    private static function evalConstExpr(Token &$rest, Token $tok): int
+    {
+        $start = $tok;
+        $expr = self::copyLine($rest, $tok->next);
+
+        if ($expr->kind === TokenKind::TK_EOF) {
+            Console::errorTok($start, "no expression");
+        }
+
+        $parser = new Parser(new Tokenizer('', $expr));
+        [$val, $rest2] = $parser->constExpr($expr, $expr);
+        if ($rest2->kind !== TokenKind::TK_EOF) {
+            Console::errorTok($rest2, "extra token");
+        }
+        return gmp_intval($val);
+    }
+
+    private static function pushCondIncl(Token $tok): CondIncl
+    {
+        $ci = new CondIncl(self::$condIncl, $tok);
+        self::$condIncl = $ci;
+        return $ci;
+    }
+
     /**
      * すべてのトークンを訪問し、プリプロセッサのマクロとディレクティブを評価する
      */
@@ -95,6 +175,7 @@ class Preprocessor
                 continue;
             }
 
+            $start = $tok;
             $tok = $tok->next;
 
             // Handle #include directive
@@ -128,6 +209,24 @@ class Preprocessor
                 continue;
             }
 
+            if ($tok->str === 'if') {
+                $val = self::evalConstExpr($tok, $tok);
+                self::pushCondIncl($start);
+                if (!$val) {
+                    $tok = self::skipCondIncl($tok);
+                }
+                continue;
+            }
+
+            if ($tok->str === 'endif') {
+                if (self::$condIncl === null) {
+                    Console::errorTok($start, "stray #endif");
+                }
+                self::$condIncl = self::$condIncl->next;
+                $tok = self::skipLine($tok->next);
+                continue;
+            }
+
             // `#`のみの行は合法です。これはnull directiveと呼ばれます。
             if ($tok->atBol) {
                 continue;
@@ -146,6 +245,9 @@ class Preprocessor
     public static function preprocess(Token $tok): Token
     {
         $tok = self::preprocess2($tok);
+        if (self::$condIncl !== null) {
+            Console::errorTok(self::$condIncl->tok, "unterminated conditional directive");
+        }
         // キーワードを変換
         $tok->convertKeywords();
         return $tok;

@@ -44,15 +44,17 @@ class Console
     public static function vErrorAt(int $lineNo, int $pos, string $format, ...$args): void
     {
         $lines = explode("\n", Console::$currentInput);
-        foreach ($lines as $line){
-            if ($pos < strlen($line)){
+        $line = '';
+        foreach ($lines as $l){
+            if ($pos < strlen($l)){
+                $line = $l;
                 break;
             }
-            $pos -= strlen($line) + 1;
+            $pos -= strlen($l) + 1;
         }
 
         $indent = sprintf("%s:%d: ", Console::$currentFilename, $lineNo);
-        printf("%s%s".PHP_EOL, $indent, $lines[$lineNo - 1]);
+        printf("%s%s".PHP_EOL, $indent, $line);
         printf(str_repeat(" ", strlen($indent) + $pos));
         printf("^ ");
         printf($format.PHP_EOL, ...$args);
@@ -84,15 +86,17 @@ class Console
         // Calculate position in the specific file
         $lines = explode("\n", $input);
         $pos = $tok->pos;
-        foreach ($lines as $idx => $line) {
+        $line = '';
+        foreach ($lines as $idx => $l) {
             if ($idx + 1 >= $lineNo) {
+                $line = $l;
                 break;
             }
-            $pos -= strlen($line) + 1;
+            $pos -= strlen($l) + 1;
         }
         
         $indent = sprintf("%s:%d: ", $filename, $lineNo);
-        printf("%s%s".PHP_EOL, $indent, $lines[$lineNo - 1]);
+        printf("%s%s".PHP_EOL, $indent, $line);
         printf(str_repeat(" ", strlen($indent) + $pos));
         printf("^ ");
         printf($format.PHP_EOL, ...$args);
@@ -113,15 +117,17 @@ class Console
         // Calculate position in the specific file
         $lines = explode("\n", $input);
         $pos = $tok->pos;
-        foreach ($lines as $idx => $line) {
+        $line = '';
+        foreach ($lines as $idx => $l) {
             if ($idx + 1 >= $lineNo) {
+                $line = $l;
                 break;
             }
-            $pos -= strlen($line) + 1;
+            $pos -= strlen($l) + 1;
         }
         
         $indent = sprintf("%s:%d: ", $filename, $lineNo);
-        printf("%s%s".PHP_EOL, $indent, $lines[$lineNo - 1]);
+        printf("%s%s".PHP_EOL, $indent, $line);
         printf(str_repeat(" ", strlen($indent) + $pos));
         printf("^ ");
         printf($format.PHP_EOL, ...$args);
