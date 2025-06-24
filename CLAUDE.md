@@ -37,7 +37,9 @@ $ make ctest                         # Cで書いたテスト
 テストコードは chibicc の対象コミットに含まれるものと同じものを使用します。
 テストコードを変更することは禁じられています。
 デバッグのためにテストコードを追加する時は ctests/TestCase 配下に追加してください。
-テストコードを単体で実行する場合は make ctest file=filename.c の様に実行してください。
+
+テストコードをすべて実行する場合はプロジェクトルートで make ctest としてください。
+テストコードを単体で実行する場合はプロジェクトルートで make ctest file=filename.c としてください。
 phpコマンドを実行する場合は必ず docker compose run --rm php php pcc.php のように実行してください。
 
 ### External Dependencies
