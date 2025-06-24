@@ -12,12 +12,14 @@ class Macro
     public ?Macro $next;
     public string $name;
     public Token $body;
+    public bool $deleted;
 
     public function __construct(?Macro $next, string $name, Token $body)
     {
         $this->next = $next;
         $this->name = $name;
         $this->body = $body;
+        $this->deleted = false;
     }
 }
 
@@ -212,7 +214,7 @@ class Preprocessor
 
         for ($m = self::$macros; $m; $m = $m->next) {
             if (strlen($m->name) === strlen($tok->str) && $m->name === $tok->str) {
-                return $m;
+                return $m->deleted ? null : $m;
             }
         }
         return null;
@@ -300,6 +302,19 @@ class Preprocessor
                 }
                 $name = $tok->str;
                 self::addMacro($name, self::copyLine($tok, $tok->next));
+                continue;
+            }
+
+            if ($tok->str === 'undef') {
+                $tok = $tok->next;
+                if ($tok->kind !== TokenKind::TK_IDENT) {
+                    Console::errorTok($tok, "macro name must be an identifier");
+                }
+                $name = $tok->str;
+                $tok = self::skipLine($tok->next);
+
+                $m = self::addMacro($name, new Token(TokenKind::TK_EOF, '', 0));
+                $m->deleted = true;
                 continue;
             }
 
