@@ -931,6 +931,15 @@ class CodeGenerator
             case NodeKind::ND_RETURN:
                 if ($node->lhs){
                     $this->genExpr($node->lhs);
+
+                    $ty = $node->lhs->ty;
+                    if ($ty->kind === TypeKind::TY_STRUCT || $ty->kind === TypeKind::TY_UNION) {
+                        if ($ty->size <= 16) {
+                            $this->copyStructReg();
+                        } else {
+                            $this->copyStructMem();
+                        }
+                    }
                 }
                 Console::out("  jmp .L.return.%s", $this->currentFn->name);
                 return;
@@ -1226,5 +1235,65 @@ class CodeGenerator
         $funcs = $this->assignLVarOffsets($funcs);
         $this->emitData($funcs);
         $this->emitText($funcs);
+    }
+
+    private function copyStructReg(): void
+    {
+        $ty = $this->currentFn->ty->returnTy;
+        $gp = 0;
+        $fp = 0;
+
+        Console::out("  mov %%rax, %%rdi");
+
+        if ($this->hasFlonum($ty, 0, 8, 0)) {
+            assert($ty->size == 4 || 8 <= $ty->size);
+            if ($ty->size == 4) {
+                Console::out("  movss (%%rdi), %%xmm0");
+            } else {
+                Console::out("  movsd (%%rdi), %%xmm0");
+            }
+            $fp++;
+        } else {
+            Console::out("  mov $0, %%rax");
+            for ($i = min(8, $ty->size) - 1; $i >= 0; $i--) {
+                Console::out("  shl $8, %%rax");
+                Console::out("  mov %d(%%rdi), %%al", $i);
+            }
+            $gp++;
+        }
+
+        if ($ty->size > 8) {
+            if ($this->hasFlonum($ty, 8, 16, 0)) {
+                assert($ty->size == 12 || $ty->size == 16);
+                if ($ty->size == 4) {
+                    Console::out("  movss 8(%%rdi), %%xmm%d", $fp);
+                } else {
+                    Console::out("  movsd 8(%%rdi), %%xmm%d", $fp);
+                }
+            } else {
+                $reg1 = ($gp == 0) ? "%al" : "%dl";
+                $reg2 = ($gp == 0) ? "%rax" : "%rdx";
+                Console::out("  mov $0, %s", $reg2);
+                for ($i = min(16, $ty->size) - 1; $i >= 8; $i--) {
+                    Console::out("  shl $8, %s", $reg2);
+                    Console::out("  mov %d(%%rdi), %s", $i, $reg1);
+                }
+            }
+        }
+    }
+
+    private function copyStructMem(): void
+    {
+        $ty = $this->currentFn->ty->returnTy;
+        $var = $this->currentFn->params[0] ?? null;
+
+        if ($var && isset($var->offset)) {
+            Console::out("  mov %d(%%rbp), %%rdi", $var->offset);
+
+            for ($i = 0; $i < $ty->size; $i++) {
+                Console::out("  mov %d(%%rax), %%dl", $i);
+                Console::out("  mov %%dl, %d(%%rdi)", $i);
+            }
+        }
     }
 }

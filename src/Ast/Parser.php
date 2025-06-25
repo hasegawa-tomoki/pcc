@@ -1205,7 +1205,11 @@ class Parser
             $rest = $this->tokenizer->skip($tok, ';');
 
             $exp->addType();
-            $node->lhs = Node::newCast($exp, $this->currentFn->ty->returnTy);
+            $ty = $this->currentFn->ty->returnTy;
+            if ($ty->kind !== TypeKind::TY_STRUCT && $ty->kind !== TypeKind::TY_UNION) {
+                $exp = Node::newCast($exp, $this->currentFn->ty->returnTy);
+            }
+            $node->lhs = $exp;
             return [$node, $rest];
         }
 
@@ -2745,6 +2749,14 @@ class Parser
         $this->enterScope();
 
         $this->createParamLVars($ty->params);
+
+        // A buffer for a struct/union return value is passed
+        // as the hidden first parameter.
+        $rty = $ty->returnTy;
+        if (($rty->kind === TypeKind::TY_STRUCT || $rty->kind === TypeKind::TY_UNION) && $rty->size > 16) {
+            $this->newLvar('', Type::pointerTo($rty));
+        }
+
         $fn->params = $this->locals;
 
         if ($ty->isVariadic){
