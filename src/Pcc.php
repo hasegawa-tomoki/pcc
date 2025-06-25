@@ -36,6 +36,18 @@ class Pcc
         }
         return false;
     }
+
+    private static function addDefaultIncludePaths(string $argv0): void
+    {
+        // We expect that chibicc-specific include files are installed
+        // to ./include relative to argv[0].
+        self::$includePaths->push(dirname($argv0) . '/include');
+
+        // Add standard include paths.
+        self::$includePaths->push('/usr/local/include');
+        self::$includePaths->push('/usr/include/x86_64-linux-gnu');
+        self::$includePaths->push('/usr/include');
+    }
     
     private static function endswith(string $p, string $q): bool
     {
@@ -377,6 +389,7 @@ class Pcc
         }
 
         if (self::$options['cc1'] ?? false){
+            self::addDefaultIncludePaths($argv[0]);
             return self::cc1();
         }
         
