@@ -58,6 +58,12 @@ class Preprocessor
         return $tok->atBol && $tok->str === '#';
     }
 
+    // Returns true if a given file exists.
+    private static function fileExists(string $path): bool
+    {
+        return file_exists($path);
+    }
+
     /**
      * Some preprocessor directives such as #include allow extraneous
      * tokens before newline. This function skips such tokens.
@@ -288,12 +294,12 @@ class Preprocessor
     }
 
     // Concatenates all tokens in `tok` and returns a new string.
-    private static function joinTokens(Token $tok): string
+    private static function joinTokens(Token $tok, ?Token $end = null): string
     {
         $buf = '';
 
         // Copy token texts.
-        for ($t = $tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+        for ($t = $tok; $t !== $end && $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
             if ($t !== $tok && $t->hasSpace) {
                 $buf .= ' ';
             }
@@ -366,6 +372,91 @@ class Preprocessor
         $cur->next = self::newEof($tok);
         $rest = $tok;
         return $head->next;
+    }
+
+    // Read an #include argument.
+    private static function readIncludeFilename(Token &$rest, Token $tok, bool &$isDquote): string
+    {
+        // Pattern 1: #include "foo.h"
+        if ($tok->kind === TokenKind::TK_STR) {
+            // A double-quoted filename for #include is a special kind of
+            // token, and we don't want to interpret any escape sequences in it.
+            // For example, "\f" in "C:\foo" is not a formfeed character but
+            // just two non-control characters, backslash and f.
+            // So we don't want to use token->str.
+            $isDquote = true;
+            $rest = self::skipLine($tok->next);
+            
+            // Extract filename from string literal (remove null terminator)
+            $filename = rtrim($tok->str, "\0");
+            return $filename;
+        }
+
+        // Pattern 2: #include <foo.h>
+        if ($tok->str === '<') {
+            // Reconstruct a filename from a sequence of tokens between
+            // "<" and ">".
+            $start = $tok;
+
+            // Find closing ">".
+            for (; $tok->str !== '>'; $tok = $tok->next) {
+                if ($tok->atBol || $tok->kind === TokenKind::TK_EOF) {
+                    Console::errorTok($tok, "expected '>'");
+                }
+            }
+
+            $isDquote = false;
+            $rest = self::skipLine($tok->next);
+            return self::joinTokens($start->next, $tok);
+        }
+
+        // Pattern 3: #include FOO
+        // In this case FOO must be macro-expanded to either
+        // a single string token or a sequence of "<" ... ">".
+        if ($tok->kind === TokenKind::TK_IDENT) {
+            // Find the macro for this identifier
+            $macro = self::findMacro($tok);
+            if (!$macro) {
+                Console::errorTok($tok, "undefined macro: %s", $tok->str);
+            }
+            
+            // For now, only support simple object-like macros
+            if (!$macro->isObjlike) {
+                Console::errorTok($tok, "function-like macros not supported in #include");
+            }
+            
+            // Get the body of the macro and append the rest of the line
+            $body = $macro->body;
+            
+            // Skip the identifier and get the rest of the line
+            $restLine = $tok->next;
+            
+            // Concatenate macro body with rest of line
+            // For #define M13 < include4.h and #include M13 >
+            // This should create < include4.h >
+            $combined = self::append($body, $restLine);
+            
+            // Process the combined result
+            return self::readIncludeFilename($rest, $combined, $isDquote);
+        }
+
+        Console::errorTok($tok, "expected a filename");
+        return ""; // This line should never be reached
+    }
+
+    private static function includeFile(Token $tok, string $path, Token $filenameTok): Token
+    {
+        // Check if file exists first
+        if (!self::fileExists($path)) {
+            Console::errorTok($filenameTok, "%s: cannot open file", $path);
+        }
+        
+        // Create a new tokenizer for the file
+        $tokenizer = new Tokenizer($path);
+        $tokenizer->tokenize();
+        $tok2 = $tokenizer->tok;
+        
+        return self::append($tok2, $tok);
     }
 
     private static function readConstExpr(Token &$rest, Token $tok): Token
@@ -811,34 +902,21 @@ class Preprocessor
             $start = $tok;
             $tok = $tok->next;
 
-            // Handle #include directive
             if ($tok->str === 'include') {
-                $tok = $tok->next;
-                
-                if ($tok->kind !== TokenKind::TK_STR) {
-                    Console::errorTok($tok, "expected a filename");
+                $isDquote = false;
+                $restTok = $tok; // Initialize with current token
+                $filename = self::readIncludeFilename($restTok, $tok->next, $isDquote);
+
+                if ($filename[0] !== '/') {
+                    $path = dirname($start->file->name) . '/' . $filename;
+                    if (self::fileExists($path)) {
+                        $tok = self::includeFile($restTok, $path, $start->next->next);
+                        continue;
+                    }
                 }
-                
-                // Extract filename from string literal (remove null terminator)
-                $filename = rtrim($tok->str, "\0");
-                
-                if ($filename[0] === '/') {
-                    $path = $filename;
-                } else {
-                    $dir = dirname($tok->file->name);
-                    $path = $dir . '/' . $filename;
-                }
-                
-                $tokenizer = new Tokenizer($path);
-                try {
-                    $tokenizer->tokenize();
-                    $tok2 = $tokenizer->tok;
-                } catch (\Exception $e) {
-                    Console::errorTok($tok, "%s", $e->getMessage());
-                }
-                
-                $tok = self::skipLine($tok->next);
-                $tok = self::append($tok2, $tok);
+
+                // TODO: Search a file from the include paths.
+                $tok = self::includeFile($restTok, $filename, $start->next->next);
                 continue;
             }
 
