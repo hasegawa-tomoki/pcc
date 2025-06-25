@@ -758,13 +758,46 @@ class CodeGenerator
                 continue;
             }
 
-            $offset = 0;
-            foreach (array_reverse($fn->locals) as $var){
-                $offset += $var->ty->size;
-                $offset = Align::alignTo($offset, $var->align);
-                $var->offset = -1 * $offset;
+            // If a function has many parameters, some parameters are
+            // inevitably passed by stack rather than by register.
+            // The first passed-by-stack parameter resides at RBP+16.
+            $top = 16;
+            $bottom = 0;
+
+            $gp = 0;
+            $fp = 0;
+
+            // Assign offsets to pass-by-stack parameters.
+            if (isset($fn->params)) {
+                foreach ($fn->params as $var) {
+                    if ($var->ty->isFlonum()) {
+                        if ($fp++ < self::FP_MAX) {
+                            continue;
+                        }
+                    } else {
+                        if ($gp++ < self::GP_MAX) {
+                            continue;
+                        }
+                    }
+
+                    $top = Align::alignTo($top, 8);
+                    $var->offset = $top;
+                    $top += $var->ty->size;
+                }
             }
-            $fn->stackSize = Align::alignTo($offset, 16);
+
+            // Assign offsets to pass-by-register parameters and local variables.
+            foreach (array_reverse($fn->locals) as $var) {
+                if (isset($var->offset) && $var->offset) {
+                    continue;
+                }
+
+                $bottom += $var->ty->size;
+                $bottom = Align::alignTo($bottom, $var->align);
+                $var->offset = -1 * $bottom;
+            }
+
+            $fn->stackSize = Align::alignTo($bottom, 16);
         }
 
         return $funcs;
@@ -911,11 +944,17 @@ class CodeGenerator
             // Save passed-by-register arguments to the stack
             $gp = 0;
             $fp = 0;
-            foreach ($fn->params as $param){
-                if ($param->ty->isFlonum()) {
-                    $this->storeFp($fp++, $param->offset, $param->ty->size);
-                } else {
-                    $this->storeGp($gp++, $param->offset, $param->ty->size);
+            if (isset($fn->params)) {
+                foreach ($fn->params as $param){
+                    if (isset($param->offset) && $param->offset > 0) {
+                        continue;
+                    }
+
+                    if ($param->ty->isFlonum()) {
+                        $this->storeFp($fp++, $param->offset, $param->ty->size);
+                    } else {
+                        $this->storeGp($gp++, $param->offset, $param->ty->size);
+                    }
                 }
             }
 
