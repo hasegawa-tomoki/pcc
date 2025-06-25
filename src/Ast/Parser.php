@@ -2733,6 +2733,12 @@ class Parser
         }
 
         $tok = $this->tokenizer->skip($tok, '{');
+
+        // __func__ is automatically defined as a local variable containing the
+        // current function name.
+        $funcVar = $this->pushScope('__func__');
+        $funcVar->var = $this->newStringLiteral($fn->name . "\0", Type::arrayOf(Type::tyChar(), strlen($fn->name) + 1));
+
         [$compoundStmt, $tok] = $this->compoundStmt($tok, $tok);
         $fn->body = [$compoundStmt];
 

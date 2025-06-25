@@ -1174,6 +1174,7 @@ class Preprocessor
         return self::newNumToken($tmpl->lineNo ?? 1, $tmpl);
     }
 
+
     /**
      * プリプロセッサのエントリーポイント関数
      */
