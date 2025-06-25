@@ -14,6 +14,7 @@ class Macro
     public string $name;
     public bool $isObjlike;
     public ?MacroParam $params = null;
+    public bool $isVariadic = false;
     public ?Token $body;
     public bool $deleted;
     public $handler = null; // callable|null for dynamic macros
@@ -588,7 +589,7 @@ class Preprocessor
         return $m;
     }
 
-    private static function readMacroParams(Token &$rest, Token $tok): ?MacroParam
+    private static function readMacroParams(Token &$rest, Token $tok, bool &$isVariadic): ?MacroParam
     {
         $head = new MacroParam('');
         $cur = $head;
@@ -599,6 +600,12 @@ class Preprocessor
                     Console::errorTok($tok, "expected ',' in macro parameters");
                 }
                 $tok = $tok->next;
+            }
+
+            if ($tok->str === '...') {
+                $isVariadic = true;
+                $rest = $tok->next->next; // skip "..." and ")"
+                return $head->next;
             }
 
             if ($tok->kind !== TokenKind::TK_IDENT) {
@@ -623,22 +630,31 @@ class Preprocessor
 
         if (!$tok->hasSpace && $tok->str === '(') {
             // Function-like macro
-            $params = self::readMacroParams($tok, $tok->next);
+            $isVariadic = false;
+            $params = self::readMacroParams($tok, $tok->next, $isVariadic);
             $m = self::addMacro($name, false, self::copyLine($rest, $tok));
             $m->params = $params;
+            $m->isVariadic = $isVariadic;
         } else {
             // Object-like macro
             self::addMacro($name, true, self::copyLine($rest, $tok));
         }
     }
 
-    private static function readMacroArgOne(Token &$rest, Token $tok): MacroArg
+    private static function readMacroArgOne(Token &$rest, Token $tok, bool $readRest): MacroArg
     {
         $head = new Token(TokenKind::TK_EOF, '', 0);
         $cur = $head;
         $level = 0;
 
-        while ($level > 0 || ($tok->str !== ',' && $tok->str !== ')')) {
+        while (true) {
+            if ($level === 0 && $tok->str === ')') {
+                break;
+            }
+            if ($level === 0 && !$readRest && $tok->str === ',') {
+                break;
+            }
+
             if ($tok->kind === TokenKind::TK_EOF) {
                 Console::errorTok($tok, "premature end of input");
             }
@@ -661,20 +677,13 @@ class Preprocessor
         return $arg;
     }
 
-    private static function readMacroArgs(Token &$rest, Token $tok, ?MacroParam $params): ?MacroArg
+    private static function readMacroArgs(Token &$rest, Token $tok, ?MacroParam $params, bool $isVariadic): ?MacroArg
     {
         $start = $tok;
         $tok = $tok->next->next; // skip identifier and '('
 
         $head = new MacroArg('', new Token(TokenKind::TK_EOF, '', 0));
         $cur = $head;
-
-        // If no parameters, just ensure we have a closing parenthesis
-        if (!$params) {
-            self::skip($tok, ')');
-            $rest = $tok;
-            return null;
-        }
 
         $pp = $params;
         for (; $pp; $pp = $pp->next) {
@@ -684,15 +693,27 @@ class Preprocessor
                 }
                 $tok = $tok->next;
             }
-            $arg = self::readMacroArgOne($tok, $tok);
+            $arg = self::readMacroArgOne($tok, $tok, false);
             $cur->next = $arg;
             $cur = $cur->next;
             $cur->name = $pp->name;
         }
 
-        if ($pp) {
+        if ($isVariadic) {
+            if ($tok->str === ')') {
+                $arg = new MacroArg('__VA_ARGS__', self::newEof($tok));
+            } else {
+                if ($pp !== $params) {
+                    self::skip($tok, ',');
+                }
+                $arg = self::readMacroArgOne($tok, $tok, true);
+                $arg->name = '__VA_ARGS__';
+            }
+            $cur->next = $arg;
+        } elseif ($pp) {
             Console::errorTok($start, "too many arguments");
         }
+
         self::skip($tok, ')');
         $rest = $tok;
         return $head->next;
@@ -886,7 +907,7 @@ class Preprocessor
 
         // Function-like macro application
         $macroToken = $tok;
-        $args = self::readMacroArgs($tok, $tok, $m->params);
+        $args = self::readMacroArgs($tok, $tok, $m->params, $m->isVariadic);
         $rparen = $tok;
 
         // Tokens that consist a func-like macro invocation may have different
