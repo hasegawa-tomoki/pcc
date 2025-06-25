@@ -427,6 +427,27 @@ class Preprocessor
             Console::errorTok($start, "no expression");
         }
 
+        // [https://www.sigbus.info/n1570#6.10.1p4] The standard requires
+        // we replace remaining non-macro identifiers with "0" before
+        // evaluating a constant expression. For example, `#if foo` is
+        // equivalent to `#if 0` if foo is not defined.
+        for ($t = $expr; $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+            if ($t->kind === TokenKind::TK_IDENT) {
+                $next = $t->next;
+                $zeroToken = self::newNumToken(0, $t);
+                $t->kind = $zeroToken->kind;
+                $t->str = $zeroToken->str;
+                $t->val = $zeroToken->val;
+                if (isset($zeroToken->gmpVal)) {
+                    $t->gmpVal = $zeroToken->gmpVal;
+                }
+                if (isset($zeroToken->ty)) {
+                    $t->ty = $zeroToken->ty;
+                }
+                $t->next = $next;
+            }
+        }
+
         $parser = new Parser(new Tokenizer('', $expr));
         [$val, $rest2] = $parser->constExpr($expr, $expr);
         if ($rest2->kind !== TokenKind::TK_EOF) {
