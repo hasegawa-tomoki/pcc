@@ -42,6 +42,11 @@ $ make ctest                         # Cで書いたテスト
 テストコードを単体で実行する場合はプロジェクトルートで make ctest file=filename.c としてください。
 phpコマンドを実行する場合は必ず docker compose run --rm php php pcc.php のように実行してください。
 
+実装が完了したら必ず以下を確認してください。
+
+* テストコードが chibicc と完全に一致していること
+* make ctest を実行してすべてのテストがパスすること
+
 ### External Dependencies
 
 Composer や npm で外部の依存を新しく増やしたくなったときは、composer コマンドや npm コマンドを実行する代わりに、そのライブラリの選択が適切である理由をユーザに説明し、導入の許可を得てください。許可なしに外部依存を増やしたり減らしたり更新したりすることは禁じられています。
