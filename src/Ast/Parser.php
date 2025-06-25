@@ -1062,24 +1062,61 @@ class Parser
         return [Node::newBinary(NodeKind::ND_COMMA, $lhs, $rhs, $tok), $rest];
     }
 
-    public function writeBuf(string $buf, int $offset, int $val, int $sz): string
+    public function readBuf(string $buf, int $offset, int $sz): int
     {
-        $bufSize = strlen($buf);
-        if ($bufSize < $offset){
-            $buf .= str_repeat("\0", $offset - $bufSize);
+        if ($offset >= strlen($buf)) {
+            return 0;
         }
-        switch ($sz){
+        
+        $data = substr($buf, $offset, $sz);
+        if (strlen($data) < $sz) {
+            $data = str_pad($data, $sz, "\0");
+        }
+        
+        switch ($sz) {
             case 1:
-                return $buf.pack('C', $val);
+                return unpack('C', $data)[1];
             case 2:
-                return $buf.pack('v', $val);
+                return unpack('v', $data)[1];
             case 4:
-                return $buf.pack('V', $val);
+                return unpack('V', $data)[1];
             case 8:
-                return $buf.pack('P', $val);
+                return unpack('P', $data)[1];
             default:
                 Console::unreachable(__FILE__, __LINE__);
         }
+    }
+
+    public function writeBuf(string $buf, int $offset, int $val, int $sz): string
+    {
+        $bufSize = strlen($buf);
+        if ($bufSize < $offset + $sz){
+            $buf = str_pad($buf, $offset + $sz, "\0");
+        }
+        
+        switch ($sz) {
+            case 1:
+                $packed = pack('C', $val);
+                break;
+            case 2:
+                $packed = pack('v', $val);
+                break;
+            case 4:
+                $packed = pack('V', $val);
+                break;
+            case 8:
+                $packed = pack('P', $val);
+                break;
+            default:
+                Console::unreachable(__FILE__, __LINE__);
+        }
+        
+        // Replace the bytes at the specified offset
+        for ($i = 0; $i < $sz; $i++) {
+            $buf[$offset + $i] = $packed[$i];
+        }
+        
+        return $buf;
     }
 
 
@@ -1103,7 +1140,21 @@ class Parser
 
         if ($ty->kind === TypeKind::TY_STRUCT){
             foreach ($ty->members as $idx => $mem){
-                [$buf, $rels] = $this->writeGVarData($rels, $init->children[$idx], $mem->ty, $buf, $offset + $mem->offset);
+                if ($mem->isBitfield) {
+                    $expr = $init->children[$idx]->expr;
+                    if (!$expr) {
+                        break;
+                    }
+
+                    $loc = $offset + $mem->offset;
+                    $oldval = $this->readBuf($buf, $loc, $mem->ty->size);
+                    $newval = PccGMP::toPHPInt($this->evaluate($expr));
+                    $mask = (1 << $mem->bitWidth) - 1;
+                    $combined = $oldval | (($newval & $mask) << $mem->bitOffset);
+                    $buf = $this->writeBuf($buf, $loc, $combined, $mem->ty->size);
+                } else {
+                    [$buf, $rels] = $this->writeGVarData($rels, $init->children[$idx], $mem->ty, $buf, $offset + $mem->offset);
+                }
             }
             return [$buf, $rels];
         }
