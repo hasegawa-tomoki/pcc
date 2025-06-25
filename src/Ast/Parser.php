@@ -2299,8 +2299,12 @@ class Parser
             return [Node::newUnary(NodeKind::ND_NEG, $cast, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '&')){
-            [$cast, $rest] = $this->cast($rest, $tok->next);
-            return [Node::newUnary(NodeKind::ND_ADDR, $cast, $tok), $rest];
+            [$lhs, $rest] = $this->cast($rest, $tok->next);
+            $lhs->addType();
+            if ($lhs->kind === NodeKind::ND_MEMBER && isset($lhs->member) && $lhs->member->isBitfield) {
+                Console::errorTok($tok, 'cannot take address of bitfield');
+            }
+            return [Node::newUnary(NodeKind::ND_ADDR, $lhs, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '*')){
             // [https://www.sigbus.info/n1570#6.5.3.2p4] This is an oddity
