@@ -1015,6 +1015,10 @@ class Preprocessor
                 continue;
             }
 
+            if ($tok->str === 'error') {
+                Console::errorTok($tok, "error");
+            }
+
             // `#`のみの行は合法です。これはnull directiveと呼ばれます。
             if ($tok->atBol) {
                 continue;
