@@ -42,6 +42,7 @@ class Node
     /** @var Node[] */
     public array $args = [];
     public bool $passByStack = false;
+    public ?Obj $retBuffer = null;
 
     // Goto or labeled statement
     public ?string $label = null;

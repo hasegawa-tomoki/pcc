@@ -152,13 +152,20 @@ class CodeGenerator
         }
     }
 
-    public function pushArgs(array $args): int
+    public function pushArgs(Node $node): int
     {
         $stack = 0;
         $gp = 0;
         $fp = 0;
 
-        foreach ($args as $arg) {
+        // If the return type is a large struct/union, the caller passes
+        // a pointer to a buffer as if it were the first argument.
+        if ($node->retBuffer && $node->ty->size > 16) {
+            $gp++;
+        }
+
+        // Load as many arguments to the registers as possible.
+        foreach ($node->args as $arg) {
             $ty = $arg->ty;
 
             switch ($ty->kind) {
@@ -202,9 +209,58 @@ class CodeGenerator
             $stack++;
         }
 
-        $this->pushArgs2($args, true);
-        $this->pushArgs2($args, false);
+        $this->pushArgs2($node->args, true);
+        $this->pushArgs2($node->args, false);
+
+        // If the return type is a large struct/union, the caller passes
+        // a pointer to a buffer as if it were the first argument.
+        if ($node->retBuffer && $node->ty->size > 16) {
+            Console::out("  lea %d(%%rbp), %%rax", $node->retBuffer->offset);
+            $this->push();
+        }
+
         return $stack;
+    }
+
+    private function copyRetBuffer(Obj $var): void
+    {
+        $ty = $var->ty;
+        $gp = 0;
+        $fp = 0;
+
+        if ($this->hasFlonum1($ty)) {
+            assert($ty->size == 4 || $ty->size >= 8);
+            if ($ty->size == 4) {
+                Console::out("  movss %%xmm0, %d(%%rbp)", $var->offset);
+            } else {
+                Console::out("  movsd %%xmm0, %d(%%rbp)", $var->offset);
+            }
+            $fp++;
+        } else {
+            for ($i = 0; $i < min(8, $ty->size); $i++) {
+                Console::out("  mov %%al, %d(%%rbp)", $var->offset + $i);
+                Console::out("  shr $8, %%rax");
+            }
+            $gp++;
+        }
+
+        if ($ty->size > 8) {
+            if ($this->hasFlonum2($ty)) {
+                assert($ty->size == 12 || $ty->size == 16);
+                if ($ty->size == 12) {
+                    Console::out("  movss %%xmm%d, %d(%%rbp)", $fp, $var->offset + 8);
+                } else {
+                    Console::out("  movsd %%xmm%d, %d(%%rbp)", $fp, $var->offset + 8);
+                }
+            } else {
+                $reg1 = ($gp == 0) ? "%al" : "%dl";
+                $reg2 = ($gp == 0) ? "%rax" : "%rdx";
+                for ($i = 8; $i < min(16, $ty->size); $i++) {
+                    Console::out("  mov %s, %d(%%rbp)", $reg1, $var->offset + $i);
+                    Console::out("  shr $8, %s", $reg2);
+                }
+            }
+        }
     }
 
     public function genAddr(Node $node): void
@@ -242,6 +298,12 @@ class CodeGenerator
                 $this->genAddr($node->lhs);
                 Console::out("  add $%d, %%rax", $node->members[0]->offset);
                 return;
+            case NodeKind::ND_FUNCALL:
+                if ($node->retBuffer) {
+                    $this->genExpr($node);
+                    return;
+                }
+                break;
         }
 
         Console::errorTok($node->tok, 'not an lvalue');
@@ -543,11 +605,18 @@ class CodeGenerator
                 Console::out(".L.end.%d:", $c);
                 return;
             case NodeKind::ND_FUNCALL:
-                $stackArgs = $this->pushArgs($node->args);
+                $stackArgs = $this->pushArgs($node);
                 $this->genExpr($node->lhs);
 
                 $gp = 0;
                 $fp = 0;
+
+                // If the return type is a large struct/union, the caller passes
+                // a pointer to a buffer as if it were the first argument.
+                if ($node->retBuffer && $node->ty->size > 16) {
+                    $this->pop($this->argreg64[$gp++]);
+                }
+
                 foreach ($node->args as $arg) {
                     $ty = $arg->ty;
 
@@ -619,6 +688,13 @@ class CodeGenerator
                             Console::out("  movswl %%ax, %%eax");
                         }
                         return;
+                }
+
+                // If the return type is a small struct, a value is returned
+                // using up to two registers.
+                if ($node->retBuffer && $node->ty->size <= 16) {
+                    $this->copyRetBuffer($node->retBuffer);
+                    Console::out("  lea %d(%%rbp), %%rax", $node->retBuffer->offset);
                 }
 
                 return;

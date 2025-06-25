@@ -2539,6 +2539,12 @@ class Parser
         $node->funcTy = $ty;
         $node->ty = $ty->returnTy;
         $node->args = $nodes;
+
+        // If a function returns a struct, it is caller's responsibility
+        // to allocate a space for the return value.
+        if ($node->ty->kind === TypeKind::TY_STRUCT || $node->ty->kind === TypeKind::TY_UNION) {
+            $node->retBuffer = $this->newLVar('', $node->ty);
+        }
         return [$node, $rest];
     }
 
