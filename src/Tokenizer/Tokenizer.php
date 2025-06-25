@@ -56,6 +56,9 @@ class Tokenizer
             Console::error("cannot open: %s", $currentFilename);
         }
         
+        // Remove backslash-newline sequences
+        $this->currentInput = self::removeBackslashNewline($this->currentInput);
+        
         self::$fileNo++;
         $this->currentFile = new File($currentFilename, self::$fileNo, $this->currentInput);
         
@@ -530,15 +533,52 @@ class Tokenizer
     {
         return new File($name, $fileNo, $contents);
     }
+
+    // Removes backslashes followed by a newline.
+    private static function removeBackslashNewline(string $p): string
+    {
+        $i = 0;
+        $j = 0;
+        $result = '';
+        $len = strlen($p);
+
+        // We want to keep the number of newline characters so that
+        // the logical line number matches the physical one.
+        // This counter maintain the number of newlines we have removed.
+        $n = 0;
+
+        while ($i < $len) {
+            if ($i < $len - 1 && $p[$i] === '\\' && $p[$i + 1] === "\n") {
+                $i += 2;
+                $n++;
+            } elseif ($p[$i] === "\n") {
+                $result .= $p[$i];
+                $i++;
+                for (; $n > 0; $n--) {
+                    $result .= "\n";
+                }
+            } else {
+                $result .= $p[$i];
+                $i++;
+            }
+        }
+
+        for (; $n > 0; $n--) {
+            $result .= "\n";
+        }
+
+        return $result;
+    }
     
     public static function tokenizeFile(File $file): Token
     {
         $tokenizer = new self($file->name, null, true);
         // Override file content initialization
         $tokenizer->currentFile = $file;
-        $tokenizer->currentInput = $file->contents;
+        // Remove backslash-newline sequences before tokenizing
+        $tokenizer->currentInput = self::removeBackslashNewline($file->contents);
         Console::$currentFilename = $file->name;
-        Console::$currentInput = $file->contents;
+        Console::$currentInput = $tokenizer->currentInput;
         $tokenizer->tokenize();
         return $tokenizer->tok;
     }
