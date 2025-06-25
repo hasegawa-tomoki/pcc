@@ -329,11 +329,19 @@ class Preprocessor
     {
         $head = new Token(TokenKind::TK_EOF, '', 0);
         $cur = $head;
+        $level = 0;
 
-        while ($tok->str !== ',' && $tok->str !== ')') {
+        while ($level > 0 || ($tok->str !== ',' && $tok->str !== ')')) {
             if ($tok->kind === TokenKind::TK_EOF) {
                 Console::errorTok($tok, "premature end of input");
             }
+
+            if ($tok->str === '(') {
+                $level++;
+            } elseif ($tok->str === ')') {
+                $level--;
+            }
+
             $cur->next = self::copyToken($tok);
             $cur = $cur->next;
             $tok = $tok->next;
