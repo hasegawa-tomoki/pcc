@@ -14,10 +14,11 @@ class Macro
     public string $name;
     public bool $isObjlike;
     public ?MacroParam $params = null;
-    public Token $body;
+    public ?Token $body;
     public bool $deleted;
+    public $handler = null; // callable|null for dynamic macros
 
-    public function __construct(?Macro $next, string $name, bool $isObjlike, Token $body)
+    public function __construct(?Macro $next, string $name, bool $isObjlike, ?Token $body)
     {
         $this->next = $next;
         $this->name = $name;
@@ -119,6 +120,9 @@ class Preprocessor
         }
         if (isset($tok->hideset)) {
             $t->hideset = $tok->hideset;
+        }
+        if (isset($tok->origin)) {
+            $t->origin = $tok->origin;
         }
         // nextプロパティは呼び出し側で設定する
         return $t;
@@ -577,7 +581,7 @@ class Preprocessor
         return null;
     }
 
-    private static function addMacro(string $name, bool $isObjlike, Token $body): Macro
+    private static function addMacro(string $name, bool $isObjlike, ?Token $body): Macro
     {
         $m = new Macro(self::$macros, $name, $isObjlike, $body);
         self::$macros = $m;
@@ -849,10 +853,25 @@ class Preprocessor
             return false;
         }
 
+        // Built-in dynamic macro application such as __LINE__
+        if ($m->handler !== null) {
+            $rest = call_user_func($m->handler, $tok);
+            $rest->next = $tok->next;
+            $rest->atBol = $tok->atBol;
+            $rest->hasSpace = $tok->hasSpace;
+            return true;
+        }
+
         // Object-like macro application
         if ($m->isObjlike) {
             $hs = self::newHideset($m->name);
             $body = self::addHideset($m->body, self::hidesetUnion($tok->hideset ?? null, $hs));
+            
+            // Set origin for all tokens in the body
+            for ($t = $body; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+                $t->origin = $tok;
+            }
+            
             $rest = self::append($body, $tok->next);
             $rest->atBol = $tok->atBol;
             $rest->hasSpace = $tok->hasSpace;
@@ -880,6 +899,12 @@ class Preprocessor
 
         $body = self::subst($m->body, $args);
         $body = self::addHideset($body, $hs);
+        
+        // Set origin for all tokens in the body
+        for ($t = $body; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+            $t->origin = $macroToken;
+        }
+        
         $rest = self::append($body, $tok);
         $rest->atBol = $macroToken->atBol;
         $rest->hasSpace = $macroToken->hasSpace;
@@ -1099,6 +1124,33 @@ class Preprocessor
         self::defineMacro('__x86_64__', '1');
         self::defineMacro('linux', '1');
         self::defineMacro('unix', '1');
+        
+        self::addBuiltin('__FILE__', [self::class, 'fileMacro']);
+        self::addBuiltin('__LINE__', [self::class, 'lineMacro']);
+    }
+
+    private static function addBuiltin(string $name, callable $fn): Macro
+    {
+        $m = self::addMacro($name, true, null);
+        $m->handler = $fn;
+        return $m;
+    }
+
+    private static function fileMacro(Token $tmpl): Token
+    {
+        while ($tmpl->origin) {
+            $tmpl = $tmpl->origin;
+        }
+        return self::newStrToken($tmpl->file->name ?? '<unknown>', $tmpl);
+    }
+
+    private static function lineMacro(Token $tmpl): Token
+    {
+        // Traverse back to the original token through the origin chain
+        while ($tmpl->origin) {
+            $tmpl = $tmpl->origin;
+        }
+        return self::newNumToken($tmpl->lineNo ?? 1, $tmpl);
     }
 
     /**

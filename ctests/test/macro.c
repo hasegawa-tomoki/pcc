@@ -331,7 +331,7 @@ int main() {
 
   ASSERT(0, strcmp(main_filename1, "test/macro.c"));
   ASSERT(5, main_line1);
-  ASSERT(6, main_line2);
+  ASSERT(7, main_line2);
   ASSERT(0, strcmp(include1_filename, "test/include1.h"));
   ASSERT(4, include1_line);
 

@@ -24,6 +24,7 @@ class Token
     public bool $hasSpace = false;
     public ?\Pcc\File $file = null;
     public ?\Pcc\Preprocessor\Hideset $hideset = null;
+    public ?Token $origin = null;
 
     public function __construct(TokenKind $kind, string $str, int $pos)
     {
