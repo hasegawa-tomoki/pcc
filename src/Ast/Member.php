@@ -11,4 +11,9 @@ class Member
     public Token $name;
     public int $align = 0;
     public int $offset;
+
+    // Bitfield
+    public bool $isBitfield = false;
+    public int $bitOffset = 0;
+    public int $bitWidth = 0;
 }

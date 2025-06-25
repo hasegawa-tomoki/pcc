@@ -55,6 +55,8 @@ class Node
 
     // Variable
     public Obj $var;
+    // Member access
+    public Member $member;
     // Numeric literal
     public int $val;
     public GMP $gmpVal;
@@ -211,7 +213,7 @@ class Node
                 $this->ty = $this->rhs->ty;
                 return;
             case NodeKind::ND_MEMBER:
-                $this->ty = $this->members[0]->ty;
+                $this->ty = $this->member->ty;
                 return;
             case NodeKind::ND_ADDR: {
                 $ty = $this->lhs->ty;

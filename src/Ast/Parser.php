@@ -999,7 +999,7 @@ class Parser
 
         if (count($desg->members)){
             $node = Node::newUnary(NodeKind::ND_MEMBER, $this->initDesgExpr($desg->next, $tok), $tok);
-            $node->members = $desg->members;
+            $node->member = $desg->members[0];
             return $node;
         }
 
@@ -2284,6 +2284,13 @@ class Parser
                 $mem->ty = $declarator;
                 $mem->name = $mem->ty->name;
                 $mem->align = $attr->align?: $mem->ty->align;
+
+                if ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ':') and $consumed) {
+                    $mem->isBitfield = true;
+                    [$val, $tok] = $this->constExpr($tok, $tok);
+                    $mem->bitWidth = gmp_intval($val);
+                }
+
                 $members[] = $mem;
             }
         }
@@ -2367,17 +2374,31 @@ class Parser
             return [$ty, $rest];
         }
 
-        $offset = 0;
-        foreach ($ty->members as $mem){
-            $offset = Align::alignTo($offset, $mem->align);
-            $mem->offset = $offset;
-            $offset += $mem->ty->size;
+        // Assign offsets within the struct to members.
+        $bits = 0;
+        
+        foreach ($ty->members as $mem) {
+            if ($mem->isBitfield) {
+                $sz = $mem->ty->size;
+                if (intval($bits / ($sz * 8)) != intval(($bits + $mem->bitWidth - 1) / ($sz * 8))) {
+                    $bits = Align::alignTo($bits, $sz * 8);
+                }
+                
+                $mem->offset = Align::alignDown(intval($bits / 8), $sz);
+                $mem->bitOffset = $bits % ($sz * 8);
+                $bits += $mem->bitWidth;
+            } else {
+                $bits = Align::alignTo($bits, $mem->align * 8);
+                $mem->offset = intval($bits / 8);
+                $bits += $mem->ty->size * 8;
+            }
 
-            if ($ty->align < $mem->align){
+            if ($ty->align < $mem->align) {
                 $ty->align = $mem->align;
             }
         }
-        $ty->size = Align::alignTo($offset, $ty->align);
+        
+        $ty->size = intval(Align::alignTo($bits, $ty->align * 8) / 8);
 
         return [$ty, $rest];
     }
@@ -2435,7 +2456,9 @@ class Parser
         }
 
         $node = Node::newUnary(NodeKind::ND_MEMBER, $lhs, $tok);
-        $node->members = [$this->getStructMember($lhs->ty, $tok)];
+        $member = $this->getStructMember($lhs->ty, $tok);
+        $node->members = [$member];
+        $node->member = $member;
         return $node;
     }
 

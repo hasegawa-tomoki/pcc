@@ -296,7 +296,7 @@ class CodeGenerator
                 return;
             case NodeKind::ND_MEMBER:
                 $this->genAddr($node->lhs);
-                Console::out("  add $%d, %%rax", $node->members[0]->offset);
+                Console::out("  add $%d, %%rax", $node->member->offset);
                 return;
             case NodeKind::ND_FUNCALL:
                 if ($node->retBuffer) {
@@ -499,9 +499,22 @@ class CodeGenerator
                 Console::out("  mov \$%ld, %%rax", PccGMP::toPHPInt($node->gmpVal));
                 return;
             case NodeKind::ND_VAR:
+                $this->genAddr($node);
+                $this->load($node->ty);
+                return;
             case NodeKind::ND_MEMBER:
                 $this->genAddr($node);
                 $this->load($node->ty);
+
+                if (isset($node->member) && $node->member->isBitfield) {
+                    $mem = $node->member;
+                    Console::out("  shl $%d, %%rax", 64 - $mem->bitWidth - $mem->bitOffset);
+                    if ($mem->ty->isUnsigned) {
+                        Console::out("  shr $%d, %%rax", 64 - $mem->bitWidth);
+                    } else {
+                        Console::out("  sar $%d, %%rax", 64 - $mem->bitWidth);
+                    }
+                }
                 return;
             case NodeKind::ND_DEREF:
                 $this->genExpr($node->lhs);
@@ -514,6 +527,24 @@ class CodeGenerator
                 $this->genAddr($node->lhs);
                 $this->push();
                 $this->genExpr($node->rhs);
+
+                if ($node->lhs->kind === NodeKind::ND_MEMBER && isset($node->lhs->member) && $node->lhs->member->isBitfield) {
+                    // If the lhs is a bitfield, we need to read the current value
+                    // from memory and merge it with a new value.
+                    $mem = $node->lhs->member;
+                    Console::out("  mov %%rax, %%rdi");
+                    Console::out("  and $%d, %%rdi", (1 << $mem->bitWidth) - 1);
+                    Console::out("  shl $%d, %%rdi", $mem->bitOffset);
+
+                    Console::out("  mov (%%rsp), %%rax");
+                    $this->load($mem->ty);
+
+                    $mask = ((1 << $mem->bitWidth) - 1) << $mem->bitOffset;
+                    Console::out("  mov $%d, %%r9", ~$mask);
+                    Console::out("  and %%r9, %%rax");
+                    Console::out("  or %%rdi, %%rax");
+                }
+
                 $this->store($node->ty);
                 return;
             case NodeKind::ND_STMT_EXPR:
