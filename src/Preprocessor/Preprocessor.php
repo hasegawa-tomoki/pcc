@@ -994,8 +994,7 @@ class Preprocessor
                 $name = $tok->str;
                 $tok = self::skipLine($tok->next);
 
-                $m = self::addMacro($name, true, new Token(TokenKind::TK_EOF, '', 0));
-                $m->deleted = true;
+                self::undefMacro($name);
                 continue;
             }
 
@@ -1240,6 +1239,12 @@ class Preprocessor
         $tokenizer = new Tokenizer('<built-in>', null, true);
         $tok = $tokenizer->tokenizeString($buf);
         self::addMacro($name, true, $tok);
+    }
+
+    public static function undefMacro(string $name): void
+    {
+        $m = self::addMacro($name, true, null);
+        $m->deleted = true;
     }
 
     public static function initMacros(): void

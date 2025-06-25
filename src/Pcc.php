@@ -27,7 +27,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D'];
+        $x = ['-o', '-I', '-D', '-U'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -120,6 +120,17 @@ class Pcc
 
             if (str_starts_with($argv[$i], '-D')){
                 self::define(substr($argv[$i], 2));
+                continue;
+            }
+
+            if ($argv[$i] === '-U' and isset($argv[$i + 1])) {
+                Preprocessor::undefMacro($argv[$i + 1]);
+                $i++;
+                continue;
+            }
+
+            if (str_starts_with($argv[$i], '-U')){
+                Preprocessor::undefMacro(substr($argv[$i], 2));
                 continue;
             }
 
