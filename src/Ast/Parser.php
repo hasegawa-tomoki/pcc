@@ -2739,6 +2739,10 @@ class Parser
         $funcVar = $this->pushScope('__func__');
         $funcVar->var = $this->newStringLiteral($fn->name . "\0", Type::arrayOf(Type::tyChar(), strlen($fn->name) + 1));
 
+        // [GNU] __FUNCTION__ is yet another name of __func__.
+        $functionVar = $this->pushScope('__FUNCTION__');
+        $functionVar->var = $this->newStringLiteral($fn->name . "\0", Type::arrayOf(Type::tyChar(), strlen($fn->name) + 1));
+
         [$compoundStmt, $tok] = $this->compoundStmt($tok, $tok);
         $fn->body = [$compoundStmt];
 
