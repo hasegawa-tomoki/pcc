@@ -36,7 +36,7 @@ $ make ctest                         # Cで書いたテスト
 
 テストコードは chibicc の対象コミットに含まれるものと同じものを使用します。
 テストコードを変更することは禁じられています。
-デバッグのためにテストコードを追加する時は ctests/TestCase 配下に追加してください。
+デバッグのためにテストコードを追加する時は ctests/test 配下に追加してください。
 
 テストコードをすべて実行する場合はプロジェクトルートで make ctest としてください。
 テストコードを単体で実行する場合はプロジェクトルートで make ctest file=filename.c としてください。
@@ -76,6 +76,6 @@ $ docker compose run --rm php php pcc.php     # pcc.phpを単体で実行
 ```
 ├ /                           # プロジェクトルート。make ctest はこのディレクトリをカレントディレクトリとして実行する。
 ├ chibicc/                    # chibiccのソースコードと .git ディレクトリ。chibiccのソースコードに対する git status や git diff はこのディレクトリをカレントディレクトリとして実行する。
-├ ctest/TestCase              # テストコード。テストはここに追加する。
+├ ctest/test              # テストコード。テストはここに追加する。
 ├ src/                        # pccのソースコード。開発ではここを編集する。
 ```

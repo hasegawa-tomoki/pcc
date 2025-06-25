@@ -12,7 +12,7 @@ case "$CMD" in
     cd ctests && make clean
     ;;
   test)
-    if [ -n "ctests/TestCase/$FILE" ]; then
+    if [ -n "ctests/test/$FILE" ]; then
       cd ctests && make clean && make test FILE="$FILE"
     else
       cd ctests && make clean && make test

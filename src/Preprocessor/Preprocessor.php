@@ -445,7 +445,7 @@ class Preprocessor
         }
         
         // Also search in TestCase directory for tests
-        $testCasePath = 'TestCase/' . $filename;
+        $testCasePath = 'test/' . $filename;
         if (self::fileExists($testCasePath)) {
             return $testCasePath;
         }

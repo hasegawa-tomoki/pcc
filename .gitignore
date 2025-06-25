@@ -8,8 +8,8 @@ a.out
 /vendor/
 /.phpunit.cache/
 
-/ctests/TestCase/*.s
-/ctests/TestCase/*.out
+/ctests/test/*.s
+/ctests/test/*.out
 
 /chibicc/
 /.claude/settings.local.json
