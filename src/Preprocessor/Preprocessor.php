@@ -6,6 +6,7 @@ use Pcc\Tokenizer\TokenKind;
 use Pcc\Tokenizer\Tokenizer;
 use Pcc\Console;
 use Pcc\Ast\Parser;
+use Pcc\Ast\Type;
 
 class Macro
 {
@@ -240,6 +241,91 @@ class Preprocessor
         return $tok;
     }
 
+    // Double-quote a given string and returns it.
+    private static function quoteString(string $str): string
+    {
+        $buf = '';
+        $buf .= '"';
+        for ($i = 0; $i < strlen($str); $i++) {
+            if ($str[$i] === '\\' || $str[$i] === '"') {
+                $buf .= '\\';
+            }
+            $buf .= $str[$i];
+        }
+        $buf .= '"';
+        return $buf;
+    }
+
+    private static function newStrToken(string $str, Token $tmpl): Token
+    {
+        // Use the tokenizer to properly parse the quoted string
+        $quotedStr = self::quoteString($str);
+        $file = Tokenizer::newFile($tmpl->file->name, $tmpl->file->fileNo, $quotedStr);
+        $token = Tokenizer::tokenizeFile($file);
+        
+        // Find the string token
+        while ($token && $token->kind !== TokenKind::TK_STR && $token->kind !== TokenKind::TK_EOF) {
+            $token = $token->next;
+        }
+        
+        if ($token && $token->kind === TokenKind::TK_STR) {
+            $token->atBol = $tmpl->atBol;
+            $token->hasSpace = $tmpl->hasSpace;
+            $token->next = null;
+            return $token;
+        }
+        
+        // Fallback
+        $strContent = $str . "\0";
+        $strToken = new Token(TokenKind::TK_STR, $strContent, $tmpl->pos);
+        $strToken->file = $tmpl->file;
+        $strToken->lineNo = $tmpl->lineNo ?? 1;
+        $strToken->atBol = $tmpl->atBol;
+        $strToken->hasSpace = $tmpl->hasSpace;
+        $strToken->ty = Type::arrayOf(Type::tyChar(), strlen($strContent));
+        $strToken->next = null;
+        return $strToken;
+    }
+
+    // Concatenates all tokens in `tok` and returns a new string.
+    private static function joinTokens(Token $tok): string
+    {
+        $buf = '';
+
+        // Copy token texts.
+        for ($t = $tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+            if ($t !== $tok && $t->hasSpace) {
+                $buf .= ' ';
+            }
+            
+            if ($t->kind === TokenKind::TK_STR) {
+                // For string literals, we need to reconstruct the original quoted form
+                $content = $t->str;
+                // Remove null terminator
+                if (strlen($content) > 0 && $content[-1] === "\0") {
+                    $content = substr($content, 0, -1);
+                }
+                // Escape quotes and backslashes, then add quotes
+                $content = str_replace(['\\', '"'], ['\\\\', '\\"'], $content);
+                $buf .= '"' . $content . '"';
+            } else {
+                $buf .= $t->str;
+            }
+        }
+        return $buf;
+    }
+
+    // Concatenates all tokens in `arg` and returns a new string token.
+    // This function is used for the stringizing operator (#).
+    private static function stringize(Token $hash, Token $arg): Token
+    {
+        // Create a new string token. We need to set some value to its
+        // source location for error reporting function, so we use a macro
+        // name token as a template.
+        $s = self::joinTokens($arg);
+        return self::newStrToken($s, $hash);
+    }
+
     // Copy all tokens until the next newline, terminate them with
     // an EOF token and then returns them. This function is used to
     // create a new list of tokens for `#if` arguments.
@@ -433,10 +519,22 @@ class Preprocessor
         $cur = $head;
 
         while ($tok->kind !== TokenKind::TK_EOF) {
-            $arg = self::findArg($args, $tok);
+            // "#" followed by a parameter is replaced with stringized actuals.
+            if ($tok->str === '#') {
+                $arg = self::findArg($args, $tok->next);
+                if (!$arg) {
+                    Console::errorTok($tok->next, "'#' is not followed by a macro parameter");
+                }
+                $stringToken = self::stringize($tok, $arg->tok);
+                $cur->next = $stringToken;
+                $cur = $stringToken;
+                $tok = $tok->next->next;
+                continue;
+            }
 
             // Handle a macro token. Macro arguments are completely macro-expanded
             // before they are substituted into a macro body.
+            $arg = self::findArg($args, $tok);
             if ($arg) {
                 $t = self::preprocess2($arg->tok);
                 while ($t->kind !== TokenKind::TK_EOF) {
@@ -656,6 +754,23 @@ class Preprocessor
         return $head->next;
     }
 
+    private static function convertKeywords(Token $tok): void
+    {
+        $keywords = [
+            'return', 'if', 'else', 'for', 'while', 'int', 'sizeof', 'char',
+            'struct', 'union', 'short', 'long', 'void', 'typedef', '_Bool',
+            'enum', 'static', 'goto', 'break', 'continue', 'switch', 'case',
+            'default', 'extern', '_Alignof', '_Alignas', 'do', 'signed',
+            'unsigned', 'float', 'double',
+        ];
+        
+        for ($t = $tok; $t; $t = $t->next) {
+            if ($t->kind === TokenKind::TK_IDENT && in_array($t->str, $keywords)) {
+                $t->kind = TokenKind::TK_KEYWORD;
+            }
+        }
+    }
+
     /**
      * プリプロセッサのエントリーポイント関数
      */
@@ -666,7 +781,7 @@ class Preprocessor
             Console::errorTok(self::$condIncl->tok, "unterminated conditional directive");
         }
         // キーワードを変換
-        $tok->convertKeywords();
+        self::convertKeywords($tok);
         return $tok;
     }
 }

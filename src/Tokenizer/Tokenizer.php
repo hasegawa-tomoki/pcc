@@ -32,7 +32,8 @@ class Tokenizer
 
     public function __construct(
         public readonly string $currentFilename,
-        ?Token $tok = null
+        ?Token $tok = null,
+        bool $skipFileRead = false
     )
     {
         if ($tok !== null) {
@@ -40,6 +41,13 @@ class Tokenizer
             $this->tokens = [$tok];
             $this->currentInput = '';
             $this->currentFile = $tok->file ?? new File('', 0, '');
+            return;
+        }
+        
+        if ($skipFileRead) {
+            // Initialize without reading file - will be set manually
+            $this->currentInput = '';
+            $this->currentFile = new File($currentFilename, 0, '');
             return;
         }
         
@@ -191,8 +199,8 @@ class Tokenizer
             Console::errorAt($start, 'unclosed char literal');
         }
 
-        $str = substr($this->currentInput, $start + 1, ($pos + $end) - ($start + 1));
-        $tok = new Token(TokenKind::TK_NUM, $str, $start, );
+        $originalStr = substr($this->currentInput, $start, ($pos + $end + 1) - $start);
+        $tok = new Token(TokenKind::TK_NUM, $originalStr, $start, );
 
         $val = ord($c);
         if ($val & 0x80){
@@ -516,6 +524,23 @@ class Tokenizer
     public static function getInputFiles(): array
     {
         return self::$inputFiles;
+    }
+    
+    public static function newFile(string $name, int $fileNo, string $contents): File
+    {
+        return new File($name, $fileNo, $contents);
+    }
+    
+    public static function tokenizeFile(File $file): Token
+    {
+        $tokenizer = new self($file->name, null, true);
+        // Override file content initialization
+        $tokenizer->currentFile = $file;
+        $tokenizer->currentInput = $file->contents;
+        Console::$currentFilename = $file->name;
+        Console::$currentInput = $file->contents;
+        $tokenizer->tokenize();
+        return $tokenizer->tok;
     }
     
     public function updateTokensArray(Token $newTok): void

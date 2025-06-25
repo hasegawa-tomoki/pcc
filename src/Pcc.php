@@ -167,7 +167,19 @@ class Pcc
             if ($line > 1 && $tok->atBol) {
                 fprintf($fpOut, "\n");
             }
-            fprintf($fpOut, " %s", $tok->str);
+            if ($tok->kind === \Pcc\Tokenizer\TokenKind::TK_STR) {
+                // String literal
+                $str = $tok->str;
+                // Remove null terminator for display
+                if (strlen($str) > 0 && $str[-1] === "\0") {
+                    $str = substr($str, 0, -1);
+                }
+                // Escape quotes and backslashes
+                $str = str_replace(['\\', '"'], ['\\\\', '\\"'], $str);
+                fprintf($fpOut, " \"%s\"", $str);
+            } else {
+                fprintf($fpOut, " %s", $tok->str);
+            }
             $tok = $tok->next;
             $line++;
         }
