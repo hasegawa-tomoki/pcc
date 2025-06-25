@@ -2601,6 +2601,20 @@ class Parser
             return [Node::newUlong($node->ty->align, $tok), $rest];
         }
 
+        if ($this->tokenizer->equal($tok, '__builtin_reg_class')){
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$ty, $tok] = $this->typename($tok, $tok);
+            $rest = $this->tokenizer->skip($tok, ')');
+
+            if ($ty->isInteger() or $ty->kind === TypeKind::TY_PTR){
+                return [Node::newNum(0, $start), $rest];
+            }
+            if ($ty->isFlonum()){
+                return [Node::newNum(1, $start), $rest];
+            }
+            return [Node::newNum(2, $start), $rest];
+        }
+
         if ($tok->isKind(TokenKind::TK_IDENT)){
             // Variable or enum constant
             $sc = $this->findVar($tok);
