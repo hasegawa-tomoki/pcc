@@ -1787,6 +1787,31 @@ class Parser
         $binary->rhs->addType();
         $tok = $binary->tok;
 
+        // Convert `A.x op= C` to `tmp = &A, (*tmp).x = (*tmp).x op C`.
+        if ($binary->lhs->kind === NodeKind::ND_MEMBER) {
+            $var = $this->newLvar('', Type::pointerTo($binary->lhs->lhs->ty));
+
+            $expr1 = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($var, $tok),
+                Node::newUnary(NodeKind::ND_ADDR, $binary->lhs->lhs, $tok), $tok);
+
+            $expr2 = Node::newUnary(NodeKind::ND_MEMBER,
+                Node::newUnary(NodeKind::ND_DEREF, Node::newVarNode($var, $tok), $tok),
+                $tok);
+            $expr2->member = $binary->lhs->member;
+
+            $expr3 = Node::newUnary(NodeKind::ND_MEMBER,
+                Node::newUnary(NodeKind::ND_DEREF, Node::newVarNode($var, $tok), $tok),
+                $tok);
+            $expr3->member = $binary->lhs->member;
+
+            $expr4 = Node::newBinary(NodeKind::ND_ASSIGN, $expr2,
+                Node::newBinary($binary->kind, $expr3, $binary->rhs, $tok),
+                $tok);
+
+            return Node::newBinary(NodeKind::ND_COMMA, $expr1, $expr4, $tok);
+        }
+
+        // Convert `A op= C` to ``tmp = &A, *tmp = *tmp op B`.
         $var = $this->newLvar('', Type::pointerTo($binary->lhs->ty));
         $expr1 = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($var, $tok),
             Node::newUnary(NodeKind::ND_ADDR, $binary->lhs, $tok), $tok);

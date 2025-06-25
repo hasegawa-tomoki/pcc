@@ -529,6 +529,8 @@ class CodeGenerator
                 $this->genExpr($node->rhs);
 
                 if ($node->lhs->kind === NodeKind::ND_MEMBER && isset($node->lhs->member) && $node->lhs->member->isBitfield) {
+                    Console::out("  mov %%rax, %%r8");
+
                     // If the lhs is a bitfield, we need to read the current value
                     // from memory and merge it with a new value.
                     $mem = $node->lhs->member;
@@ -543,6 +545,9 @@ class CodeGenerator
                     Console::out("  mov $%d, %%r9", ~$mask);
                     Console::out("  and %%r9, %%rax");
                     Console::out("  or %%rdi, %%rax");
+                    $this->store($node->ty);
+                    Console::out("  mov %%r8, %%rax");
+                    return;
                 }
 
                 $this->store($node->ty);
