@@ -1145,9 +1145,11 @@ class CodeGenerator
                 $off = $fn->vaArea->offset;
 
                 // va_elem
-                Console::out("  movl $%d, %d(%%rbp)", $gp * 8, $off);
-                Console::out("  movl $%d, %d(%%rbp)", $fp * 8 + 48, $off + 4);
-                Console::out("  movq %%rbp, %d(%%rbp)", $off + 16);
+                Console::out("  movl $%d, %d(%%rbp)", $gp * 8, $off);          // gp_offset
+                Console::out("  movl $%d, %d(%%rbp)", $fp * 8 + 48, $off + 4); // fp_offset
+                Console::out("  movq %%rbp, %d(%%rbp)", $off + 8);            // overflow_arg_area
+                Console::out("  addq $16, %d(%%rbp)", $off + 8);
+                Console::out("  movq %%rbp, %d(%%rbp)", $off + 16);           // reg_save_area
                 Console::out("  addq $%d, %d(%%rbp)", $off + 24, $off + 16);
 
                 // __reg_save_area__
