@@ -2227,8 +2227,16 @@ class Parser
             return [Node::newUnary(NodeKind::ND_ADDR, $cast, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '*')){
-            [$cast, $rest] = $this->cast($rest, $tok->next);
-            return [Node::newUnary(NodeKind::ND_DEREF, $cast, $tok), $rest];
+            // [https://www.sigbus.info/n1570#6.5.3.2p4] This is an oddity
+            // in the C spec, but dereferencing a function shouldn't do
+            // anything. If foo is a function, `*foo`, `**foo` or `*****foo`
+            // are all equivalent to just `foo`.
+            [$node, $rest] = $this->cast($rest, $tok->next);
+            $node->addType();
+            if ($node->ty->kind === TypeKind::TY_FUNC) {
+                return [$node, $rest];
+            }
+            return [Node::newUnary(NodeKind::ND_DEREF, $node, $tok), $rest];
         }
         if ($this->tokenizer->equal($tok, '!')){
             [$cast, $rest] = $this->cast($rest, $tok->next);
