@@ -595,4 +595,12 @@ class Tokenizer
             $this->tokens[] = $current; // Add EOF token
         }
     }
+    
+    public function tokenizeString(string $input): Token
+    {
+        $this->currentInput = $input;
+        $this->currentFile = new File('<built-in>', 1, $input);
+        $this->tokenize();
+        return $this->tok;
+    }
 }

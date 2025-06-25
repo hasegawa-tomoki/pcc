@@ -1048,11 +1048,65 @@ class Preprocessor
         }
     }
 
+    private static function defineMacro(string $name, string $buf): void
+    {
+        $tokenizer = new Tokenizer('<built-in>', null, true);
+        $tok = $tokenizer->tokenizeString($buf);
+        self::addMacro($name, true, $tok);
+    }
+
+    private static function initMacros(): void
+    {
+        // Define predefined macros
+        self::defineMacro('_LP64', '1');
+        self::defineMacro('__C99_MACRO_WITH_VA_ARGS', '1');
+        self::defineMacro('__ELF__', '1');
+        self::defineMacro('__LP64__', '1');
+        self::defineMacro('__SIZEOF_DOUBLE__', '8');
+        self::defineMacro('__SIZEOF_FLOAT__', '4');
+        self::defineMacro('__SIZEOF_INT__', '4');
+        self::defineMacro('__SIZEOF_LONG_DOUBLE__', '8');
+        self::defineMacro('__SIZEOF_LONG_LONG__', '8');
+        self::defineMacro('__SIZEOF_LONG__', '8');
+        self::defineMacro('__SIZEOF_POINTER__', '8');
+        self::defineMacro('__SIZEOF_PTRDIFF_T__', '8');
+        self::defineMacro('__SIZEOF_SHORT__', '2');
+        self::defineMacro('__SIZEOF_SIZE_T__', '8');
+        self::defineMacro('__SIZE_TYPE__', 'unsigned long');
+        self::defineMacro('__STDC_HOSTED__', '1');
+        self::defineMacro('__STDC_NO_ATOMICS__', '1');
+        self::defineMacro('__STDC_NO_COMPLEX__', '1');
+        self::defineMacro('__STDC_NO_THREADS__', '1');
+        self::defineMacro('__STDC_NO_VLA__', '1');
+        self::defineMacro('__STDC_VERSION__', '201112L');
+        self::defineMacro('__STDC__', '1');
+        self::defineMacro('__USER_LABEL_PREFIX__', '');
+        self::defineMacro('__alignof__', '_Alignof');
+        self::defineMacro('__amd64', '1');
+        self::defineMacro('__amd64__', '1');
+        self::defineMacro('__chibicc__', '1');
+        self::defineMacro('__const__', 'const');
+        self::defineMacro('__gnu_linux__', '1');
+        self::defineMacro('__inline__', 'inline');
+        self::defineMacro('__linux', '1');
+        self::defineMacro('__linux__', '1');
+        self::defineMacro('__signed__', 'signed');
+        self::defineMacro('__typeof__', 'typeof');
+        self::defineMacro('__unix', '1');
+        self::defineMacro('__unix__', '1');
+        self::defineMacro('__volatile__', 'volatile');
+        self::defineMacro('__x86_64', '1');
+        self::defineMacro('__x86_64__', '1');
+        self::defineMacro('linux', '1');
+        self::defineMacro('unix', '1');
+    }
+
     /**
      * プリプロセッサのエントリーポイント関数
      */
     public static function preprocess(Token $tok): Token
     {
+        self::initMacros();
         $tok = self::preprocess2($tok);
         if (self::$condIncl !== null) {
             Console::errorTok(self::$condIncl->tok, "unterminated conditional directive");
