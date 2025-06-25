@@ -272,6 +272,7 @@ class Tokenizer
             } elseif ($u){
                 $ty = (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 32)))? Type::tyULong(): Type::tyUInt();
             } else {
+                // For decimal literals, always use signed types - never promote to unsigned
                 $ty = (PccGMP::isTrue(PccGMP::shiftRArithmetic($gmpVal, 31)))? Type::tyLong(): Type::tyInt();
             }
         } else {
@@ -338,13 +339,149 @@ class Tokenizer
         return [$tok, $end];
     }
 
-    public function convertKeywords(): void
+    public function convertPpTokens(): void
     {
         foreach ($this->tokens as $idx => $token){
             if (in_array($token->str, $this->keywords)){
                 $this->tokens[$idx]->kind = TokenKind::TK_KEYWORD;
+            } elseif ($token->kind === TokenKind::TK_PP_NUM) {
+                $this->convertPpNumber($this->tokens[$idx]);
             }
         }
+    }
+
+    public function convertPpNumber(Token $tok): void
+    {
+        // Try to parse as an integer constant first
+        if ($this->convertPpInt($tok)) {
+            return;
+        }
+
+        // If it's not an integer, it must be a floating point constant
+        $val = floatval($tok->str);
+        
+        $str = $tok->str;
+        $ty = Type::tyDouble();
+        
+        if (str_ends_with(strtolower($str), 'f')) {
+            $ty = Type::tyFloat();
+        } elseif (str_ends_with(strtolower($str), 'l')) {
+            $ty = Type::tyDouble();
+        }
+
+        $tok->kind = TokenKind::TK_NUM;
+        $tok->fval = $val;
+        $tok->ty = $ty;
+    }
+
+    private function convertPpInt(Token $tok): bool
+    {
+        $p = $tok->str;
+        $base = 10;
+        
+        if (str_starts_with($p, '0x') || str_starts_with($p, '0X')) {
+            $p = substr($p, 2);
+            $base = 16;
+        } elseif (str_starts_with($p, '0b') || str_starts_with($p, '0B')) {
+            $p = substr($p, 2);
+            $base = 2;
+        } elseif (str_starts_with($p, '0') && strlen($p) > 1 && ctype_digit($p[1])) {
+            $base = 8;
+        }
+
+        $val = 0;
+        $original_p = $p;
+        
+        for ($i = 0; $i < strlen($p); $i++) {
+            $c = $p[$i];
+            
+            if ($c === 'u' || $c === 'U' || $c === 'l' || $c === 'L') {
+                $p = substr($p, 0, $i);
+                break;
+            }
+            
+            $digit = -1;
+            if (ctype_digit($c)) {
+                $digit = ord($c) - ord('0');
+            } elseif ($c >= 'a' && $c <= 'f') {
+                $digit = ord($c) - ord('a') + 10;
+            } elseif ($c >= 'A' && $c <= 'F') {
+                $digit = ord($c) - ord('A') + 10;
+            }
+            
+            if ($digit < 0 || $digit >= $base) {
+                return false;
+            }
+            
+            $val = $val * $base + $digit;
+        }
+
+        // Check suffix and determine type
+        $suffix = strtolower(substr($tok->str, strlen($p) + ($base == 16 ? 2 : ($base == 2 ? 2 : 0))));
+        $isLong = false;
+        $isUnsigned = false;
+        
+        // Parse suffix
+        for ($i = 0; $i < strlen($suffix); $i++) {
+            if ($suffix[$i] === 'l') {
+                $isLong = true;
+            } elseif ($suffix[$i] === 'u') {
+                $isUnsigned = true;
+            }
+        }
+        
+        // Create GMP value for accurate comparisons
+        $gmpVal = gmp_init($p, $base);
+        
+        // Determine type based on suffix, value, and base
+        if ($isLong && $isUnsigned) {
+            $ty = Type::tyULong();
+        } elseif ($isLong) {
+            // For hexadecimal, if value doesn't fit in signed long, make it unsigned
+            if ($base == 16 && gmp_cmp($gmpVal, gmp_init("9223372036854775807")) > 0) {
+                $ty = Type::tyULong();
+            } else {
+                $ty = Type::tyLong();
+            }
+        } elseif ($isUnsigned) {
+            // Check if value fits in unsigned int
+            if (gmp_cmp($gmpVal, gmp_init("4294967295")) > 0) {
+                $ty = Type::tyULong();
+            } else {
+                $ty = Type::tyUInt();
+            }
+        } else {
+            // For decimal, follow standard promotion rules
+            if ($base == 10) {
+                if (gmp_cmp($gmpVal, gmp_init("2147483647")) > 0) {
+                    // For decimal literals, always use signed long even if value doesn't fit
+                    // This matches C standard behavior where decimal literals never become unsigned
+                    $ty = Type::tyLong();
+                } else {
+                    $ty = Type::tyInt();
+                }
+            } else {
+                // For hex/octal/binary, check unsigned ranges first
+                if (gmp_cmp($gmpVal, gmp_init("2147483647")) > 0) {
+                    if (gmp_cmp($gmpVal, gmp_init("4294967295")) <= 0) {
+                        $ty = Type::tyUInt();
+                    } elseif (gmp_cmp($gmpVal, gmp_init("9223372036854775807")) > 0) {
+                        $ty = Type::tyULong();
+                    } else {
+                        $ty = Type::tyLong();
+                    }
+                } else {
+                    $ty = Type::tyInt();
+                }
+            }
+        }
+
+        $tok->kind = TokenKind::TK_NUM;
+        $tok->val = (int)$val;
+        $tok->gmpVal = $gmpVal;
+        $tok->ty = $ty;
+        
+        return true;
     }
 
     public function addLineNumbers(): void
@@ -409,11 +546,33 @@ class Tokenizer
                 continue;
             }
 
-            // Numeric literal  
-            if (ctype_digit($this->currentInput[$pos]) or ($this->currentInput[$pos] === '.' and ctype_digit($this->currentInput[$pos + 1])) or 
-                (substr($this->currentInput, $pos, 2) === '0x' or substr($this->currentInput, $pos, 2) === '0X') or
-                preg_match('/^0[xX][0-9a-fA-F]*\\.?[0-9a-fA-F]*[pP][+-]?[0-9]+/', substr($this->currentInput, $pos))){
-                [$token, $pos] = $this->readNumber($pos);
+            // Numeric literal (pp-number)
+            if (ctype_digit($this->currentInput[$pos]) or ($this->currentInput[$pos] === '.' and isset($this->currentInput[$pos + 1]) and ctype_digit($this->currentInput[$pos + 1]))){
+                $start = $pos;
+                $pos++;
+                
+                // Read pp-number: more permissive than final number format
+                while ($pos < strlen($this->currentInput)) {
+                    $c = $this->currentInput[$pos];
+                    
+                    // Handle exponential notation with sign
+                    if (($pos + 1) < strlen($this->currentInput) && 
+                        ($c === 'e' || $c === 'E' || $c === 'p' || $c === 'P') &&
+                        ($this->currentInput[$pos + 1] === '+' || $this->currentInput[$pos + 1] === '-')) {
+                        $pos += 2;
+                        continue;
+                    }
+                    
+                    // Continue if alphanumeric or period
+                    if (ctype_alnum($c) || $c === '.') {
+                        $pos++;
+                        continue;
+                    }
+                    
+                    break;
+                }
+                
+                $token = new Token(TokenKind::TK_PP_NUM, substr($this->currentInput, $start, $pos - $start), $start);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;

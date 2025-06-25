@@ -357,7 +357,9 @@ class Preprocessor
     {
         $buf = sprintf("%d\n", $val);
         $file = Tokenizer::newFile($tmpl->file->name, $tmpl->file->fileNo, $buf);
-        return Tokenizer::tokenizeFile($file);
+        $tok = Tokenizer::tokenizeFile($file);
+        self::convertPpTokens($tok);
+        return $tok;
     }
 
     // Copy all tokens until the next newline, terminate them with
@@ -531,6 +533,9 @@ class Preprocessor
         if ($expr->kind === TokenKind::TK_EOF) {
             Console::errorTok($start, "no expression");
         }
+
+        // Convert pp-numbers to regular numbers
+        self::convertPpTokens($expr);
 
         // [https://www.sigbus.info/n1570#6.10.1p4] The standard requires
         // we replace remaining non-macro identifiers with "0" before
@@ -1077,7 +1082,7 @@ class Preprocessor
         return $head->next;
     }
 
-    private static function convertKeywords(Token $tok): void
+    private static function convertPpTokens(Token $tok): void
     {
         $keywords = [
             'return', 'if', 'else', 'for', 'while', 'int', 'sizeof', 'char',
@@ -1090,8 +1095,144 @@ class Preprocessor
         for ($t = $tok; $t; $t = $t->next) {
             if ($t->kind === TokenKind::TK_IDENT && in_array($t->str, $keywords)) {
                 $t->kind = TokenKind::TK_KEYWORD;
+            } elseif ($t->kind === TokenKind::TK_PP_NUM) {
+                self::convertPpNumber($t);
             }
         }
+    }
+
+    private static function convertPpNumber(Token $tok): void
+    {
+        // Try to parse as an integer constant first
+        if (self::convertPpInt($tok)) {
+            return;
+        }
+
+        // If it's not an integer, it must be a floating point constant
+        $val = floatval($tok->str);
+        
+        $str = $tok->str;
+        $ty = Type::tyDouble();
+        
+        if (str_ends_with(strtolower($str), 'f')) {
+            $ty = Type::tyFloat();
+        } elseif (str_ends_with(strtolower($str), 'l')) {
+            $ty = Type::tyDouble();
+        }
+
+        $tok->kind = TokenKind::TK_NUM;
+        $tok->fval = $val;
+        $tok->ty = $ty;
+    }
+
+    private static function convertPpInt(Token $tok): bool
+    {
+        $p = $tok->str;
+        $base = 10;
+        
+        if (str_starts_with($p, '0x') || str_starts_with($p, '0X')) {
+            $p = substr($p, 2);
+            $base = 16;
+        } elseif (str_starts_with($p, '0b') || str_starts_with($p, '0B')) {
+            $p = substr($p, 2);
+            $base = 2;
+        } elseif (str_starts_with($p, '0') && strlen($p) > 1 && ctype_digit($p[1])) {
+            $base = 8;
+        }
+
+        $val = 0;
+        $original_p = $p;
+        
+        for ($i = 0; $i < strlen($p); $i++) {
+            $c = $p[$i];
+            
+            if ($c === 'u' || $c === 'U' || $c === 'l' || $c === 'L') {
+                $p = substr($p, 0, $i);
+                break;
+            }
+            
+            $digit = -1;
+            if (ctype_digit($c)) {
+                $digit = ord($c) - ord('0');
+            } elseif ($c >= 'a' && $c <= 'f') {
+                $digit = ord($c) - ord('a') + 10;
+            } elseif ($c >= 'A' && $c <= 'F') {
+                $digit = ord($c) - ord('A') + 10;
+            }
+            
+            if ($digit < 0 || $digit >= $base) {
+                return false;
+            }
+            
+            $val = $val * $base + $digit;
+        }
+
+        // Check suffix and determine type
+        $suffix = strtolower(substr($tok->str, strlen($p) + ($base == 16 ? 2 : ($base == 2 ? 2 : 0))));
+        $isLong = false;
+        $isUnsigned = false;
+        
+        // Parse suffix
+        for ($i = 0; $i < strlen($suffix); $i++) {
+            if ($suffix[$i] === 'l') {
+                $isLong = true;
+            } elseif ($suffix[$i] === 'u') {
+                $isUnsigned = true;
+            }
+        }
+        
+        // Create GMP value for accurate comparisons
+        $gmpVal = gmp_init($p, $base);
+        
+        // Determine type based on suffix, value, and base
+        if ($isLong && $isUnsigned) {
+            $ty = Type::tyULong();
+        } elseif ($isLong) {
+            // For hexadecimal, if value doesn't fit in signed long, make it unsigned
+            if ($base == 16 && gmp_cmp($gmpVal, gmp_init("9223372036854775807")) > 0) {
+                $ty = Type::tyULong();
+            } else {
+                $ty = Type::tyLong();
+            }
+        } elseif ($isUnsigned) {
+            // Check if value fits in unsigned int
+            if (gmp_cmp($gmpVal, gmp_init("4294967295")) > 0) {
+                $ty = Type::tyULong();
+            } else {
+                $ty = Type::tyUInt();
+            }
+        } else {
+            // For decimal, follow standard promotion rules
+            if ($base == 10) {
+                if (gmp_cmp($gmpVal, gmp_init("2147483647")) > 0) {
+                    // For decimal literals, always use signed long even if value doesn't fit
+                    // This matches C standard behavior where decimal literals never become unsigned
+                    $ty = Type::tyLong();
+                } else {
+                    $ty = Type::tyInt();
+                }
+            } else {
+                // For hex/octal/binary, check unsigned ranges first
+                if (gmp_cmp($gmpVal, gmp_init("2147483647")) > 0) {
+                    if (gmp_cmp($gmpVal, gmp_init("4294967295")) <= 0) {
+                        $ty = Type::tyUInt();
+                    } elseif (gmp_cmp($gmpVal, gmp_init("9223372036854775807")) > 0) {
+                        $ty = Type::tyULong();
+                    } else {
+                        $ty = Type::tyLong();
+                    }
+                } else {
+                    $ty = Type::tyInt();
+                }
+            }
+        }
+
+        $tok->kind = TokenKind::TK_NUM;
+        $tok->val = (int)$val;
+        $tok->gmpVal = $gmpVal;
+        $tok->ty = $ty;
+        
+        return true;
     }
 
     private static function defineMacro(string $name, string $buf): void
@@ -1226,7 +1367,7 @@ class Preprocessor
             Console::errorTok(self::$condIncl->tok, "unterminated conditional directive");
         }
         // キーワードを変換
-        self::convertKeywords($tok);
+        self::convertPpTokens($tok);
         self::joinAdjacentStringLiterals($tok);
         return $tok;
     }
