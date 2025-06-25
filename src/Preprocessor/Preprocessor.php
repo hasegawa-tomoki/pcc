@@ -714,6 +714,8 @@ class Preprocessor
             // before they are substituted into a macro body.
             if ($arg) {
                 $t = self::preprocess2($arg->tok);
+                $t->atBol = $tok->atBol;
+                $t->hasSpace = $tok->hasSpace;
                 while ($t->kind !== TokenKind::TK_EOF) {
                     $cur->next = self::copyToken($t);
                     $cur = $cur->next;
@@ -752,6 +754,8 @@ class Preprocessor
             $hs = self::newHideset($m->name);
             $body = self::addHideset($m->body, self::hidesetUnion($tok->hideset ?? null, $hs));
             $rest = self::append($body, $tok->next);
+            $rest->atBol = $tok->atBol;
+            $rest->hasSpace = $tok->hasSpace;
             return true;
         }
 
@@ -777,6 +781,8 @@ class Preprocessor
         $body = self::subst($m->body, $args);
         $body = self::addHideset($body, $hs);
         $rest = self::append($body, $tok);
+        $rest->atBol = $macroToken->atBol;
+        $rest->hasSpace = $macroToken->hasSpace;
         return true;
     }
 
