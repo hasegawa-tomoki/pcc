@@ -889,14 +889,31 @@ class CodeGenerator
             // Assign offsets to pass-by-stack parameters.
             if (isset($fn->params)) {
                 foreach ($fn->params as $var) {
-                    if ($var->ty->isFlonum()) {
-                        if ($fp++ < self::FP_MAX) {
-                            continue;
-                        }
-                    } else {
-                        if ($gp++ < self::GP_MAX) {
-                            continue;
-                        }
+                    $ty = $var->ty;
+
+                    switch ($ty->kind) {
+                        case TypeKind::TY_STRUCT:
+                        case TypeKind::TY_UNION:
+                            if ($ty->size <= 16) {
+                                $fp1 = $this->hasFlonum($ty, 0, 8, 0);
+                                $fp2 = $this->hasFlonum($ty, 8, 16, 8);
+                                if ($fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0) < self::FP_MAX && $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1) < self::GP_MAX) {
+                                    $fp = $fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0);
+                                    $gp = $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1);
+                                    continue 2;
+                                }
+                            }
+                            break;
+                        case TypeKind::TY_FLOAT:
+                        case TypeKind::TY_DOUBLE:
+                            if ($fp++ < self::FP_MAX) {
+                                continue 2;
+                            }
+                            break;
+                        default:
+                            if ($gp++ < self::GP_MAX) {
+                                continue 2;
+                            }
                     }
 
                     $top = Align::alignTo($top, 8);
@@ -993,8 +1010,13 @@ class CodeGenerator
             case 8:
                 Console::out("  mov %s, %d(%%rbp)", $this->argreg64[$r], $offset);
                 return;
+            default:
+                for ($i = 0; $i < $sz; $i++) {
+                    Console::out("  mov %s, %d(%%rbp)", $this->argreg8[$r], $offset + $i);
+                    Console::out("  shr $8, %s", $this->argreg64[$r]);
+                }
+                return;
         }
-        Console::unreachable(__FILE__, __LINE__);
     }
 
     /**
@@ -1069,10 +1091,32 @@ class CodeGenerator
                         continue;
                     }
 
-                    if ($param->ty->isFlonum()) {
-                        $this->storeFp($fp++, $param->offset, $param->ty->size);
-                    } else {
-                        $this->storeGp($gp++, $param->offset, $param->ty->size);
+                    $ty = $param->ty;
+
+                    switch ($ty->kind) {
+                        case TypeKind::TY_STRUCT:
+                        case TypeKind::TY_UNION:
+                            assert($ty->size <= 16);
+                            if ($this->hasFlonum($ty, 0, 8, 0)) {
+                                $this->storeFp($fp++, $param->offset, min(8, $ty->size));
+                            } else {
+                                $this->storeGp($gp++, $param->offset, min(8, $ty->size));
+                            }
+
+                            if ($ty->size > 8) {
+                                if ($this->hasFlonum($ty, 8, 16, 0)) {
+                                    $this->storeFp($fp++, $param->offset + 8, $ty->size - 8);
+                                } else {
+                                    $this->storeGp($gp++, $param->offset + 8, $ty->size - 8);
+                                }
+                            }
+                            break;
+                        case TypeKind::TY_FLOAT:
+                        case TypeKind::TY_DOUBLE:
+                            $this->storeFp($fp++, $param->offset, $param->ty->size);
+                            break;
+                        default:
+                            $this->storeGp($gp++, $param->offset, $param->ty->size);
                     }
                 }
             }
