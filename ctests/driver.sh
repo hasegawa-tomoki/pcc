@@ -91,4 +91,12 @@ echo foo > $tmp/dir/i-option-test
 echo "#include \"i-option-test\"" | $pcc -I$tmp/dir -E - | grep -q foo
 check -I
 
+# -D
+echo foo | $pcc -Dfoo -E - | grep -q 1
+check -D
+
+# -D
+echo foo | $pcc -Dfoo=bar -E - | grep -q bar
+check -D
+
 echo OK

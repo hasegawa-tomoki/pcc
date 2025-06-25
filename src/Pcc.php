@@ -27,7 +27,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I'];
+        $x = ['-o', '-I', '-D'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -35,6 +35,16 @@ class Pcc
             }
         }
         return false;
+    }
+
+    private static function define(string $str): void
+    {
+        $eq = strpos($str, '=');
+        if ($eq !== false) {
+            Preprocessor::defineMacro(substr($str, 0, $eq), substr($str, $eq + 1));
+        } else {
+            Preprocessor::defineMacro($str, '1');
+        }
     }
 
     private static function addDefaultIncludePaths(string $argv0): void
@@ -99,6 +109,17 @@ class Pcc
 
             if (str_starts_with($argv[$i], '-I')){
                 self::$includePaths->push(substr($argv[$i], 2));
+                continue;
+            }
+
+            if ($argv[$i] === '-D' and isset($argv[$i + 1])) {
+                self::define($argv[$i + 1]);
+                $i++;
+                continue;
+            }
+
+            if (str_starts_with($argv[$i], '-D')){
+                self::define(substr($argv[$i], 2));
                 continue;
             }
 
@@ -380,7 +401,8 @@ class Pcc
         self::$inputPaths = new StringArray();
         self::$includePaths = new StringArray();
         register_shutdown_function([self::class, 'cleanup']);
-
+        
+        Preprocessor::initMacros();
         self::parseArgs($argc, $argv);
 
         if (self::$options['help'] ?? false) {

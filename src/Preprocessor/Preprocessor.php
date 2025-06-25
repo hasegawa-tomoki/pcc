@@ -1235,14 +1235,14 @@ class Preprocessor
         return true;
     }
 
-    private static function defineMacro(string $name, string $buf): void
+    public static function defineMacro(string $name, string $buf): void
     {
         $tokenizer = new Tokenizer('<built-in>', null, true);
         $tok = $tokenizer->tokenizeString($buf);
         self::addMacro($name, true, $tok);
     }
 
-    private static function initMacros(): void
+    public static function initMacros(): void
     {
         // Define predefined macros
         self::defineMacro('_LP64', '1');
@@ -1361,7 +1361,6 @@ class Preprocessor
      */
     public static function preprocess(Token $tok): Token
     {
-        self::initMacros();
         $tok = self::preprocess2($tok);
         if (self::$condIncl !== null) {
             Console::errorTok(self::$condIncl->tok, "unterminated conditional directive");
