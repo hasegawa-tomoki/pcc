@@ -1176,6 +1176,46 @@ class Preprocessor
 
 
     /**
+     * Concatenate adjacent string literals into a single string literal
+     * as per the C spec.
+     */
+    private static function joinAdjacentStringLiterals(Token $tok1): void
+    {
+        while ($tok1->kind !== TokenKind::TK_EOF) {
+            if ($tok1->kind !== TokenKind::TK_STR || $tok1->next->kind !== TokenKind::TK_STR) {
+                $tok1 = $tok1->next;
+                continue;
+            }
+
+            $tok2 = $tok1->next;
+            while ($tok2->kind === TokenKind::TK_STR) {
+                $tok2 = $tok2->next;
+            }
+
+            $len = $tok1->ty->arrayLen;
+            for ($t = $tok1->next; $t !== $tok2; $t = $t->next) {
+                $len = $len + $t->ty->arrayLen - 1;
+            }
+
+            $buf = str_repeat("\0", $tok1->ty->base->size * $len);
+
+            $i = 0;
+            for ($t = $tok1; $t !== $tok2; $t = $t->next) {
+                $copyLen = $t->ty->size;
+                for ($j = 0; $j < $copyLen; $j++) {
+                    $buf[$i + $j] = $t->str[$j] ?? "\0";
+                }
+                $i = $i + $copyLen - $t->ty->base->size;
+            }
+
+            $tok1->ty = Type::arrayOf($tok1->ty->base, $len);
+            $tok1->str = $buf;
+            $tok1->next = $tok2;
+            $tok1 = $tok2;
+        }
+    }
+
+    /**
      * プリプロセッサのエントリーポイント関数
      */
     public static function preprocess(Token $tok): Token
@@ -1187,6 +1227,7 @@ class Preprocessor
         }
         // キーワードを変換
         self::convertKeywords($tok);
+        self::joinAdjacentStringLiterals($tok);
         return $tok;
     }
 }
