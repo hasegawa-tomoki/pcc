@@ -2454,7 +2454,11 @@ class Parser
         $bits = 0;
         
         foreach ($ty->members as $mem) {
-            if ($mem->isBitfield) {
+            if ($mem->isBitfield && $mem->bitWidth == 0) {
+                // Zero-width anonymous bitfield has a special meaning.
+                // It affects only alignment.
+                $bits = Align::alignTo($bits, $mem->ty->size * 8);
+            } else if ($mem->isBitfield) {
                 $sz = $mem->ty->size;
                 if (intval($bits / ($sz * 8)) != intval(($bits + $mem->bitWidth - 1) / ($sz * 8))) {
                     $bits = Align::alignTo($bits, $sz * 8);
@@ -2517,7 +2521,7 @@ class Parser
         }
 
         foreach ($ty->members as $mem){
-            if ($mem->name->str === $tok->str){
+            if ($mem->name && $mem->name->str === $tok->str){
                 return $mem;
             }
         }
