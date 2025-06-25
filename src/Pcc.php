@@ -13,6 +13,12 @@ class Pcc
     private static array $options = [];
     private static StringArray $tmpFiles;
     private static StringArray $inputPaths;
+    private static StringArray $includePaths;
+
+    public static function getIncludePaths(): StringArray
+    {
+        return self::$includePaths;
+    }
 
     public static function displayHelp(): void
     {
@@ -21,7 +27,14 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        return $arg === '-o';
+        $x = ['-o', '-I'];
+        
+        foreach ($x as $option) {
+            if ($arg === $option) {
+                return true;
+            }
+        }
+        return false;
     }
     
     private static function endswith(string $p, string $q): bool
@@ -69,6 +82,11 @@ class Pcc
 
             if (str_starts_with($argv[$i], '-o')){
                 self::$options['o'] = substr($argv[$i], 2);
+                continue;
+            }
+
+            if (str_starts_with($argv[$i], '-I')){
+                self::$includePaths->push(substr($argv[$i], 2));
                 continue;
             }
 
@@ -348,6 +366,7 @@ class Pcc
     {
         self::$tmpFiles = new StringArray();
         self::$inputPaths = new StringArray();
+        self::$includePaths = new StringArray();
         register_shutdown_function([self::class, 'cleanup']);
 
         self::parseArgs($argc, $argv);

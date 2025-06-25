@@ -363,7 +363,8 @@ class Preprocessor
         $head = new Token(TokenKind::TK_EOF, '', 0);
         $cur = $head;
 
-        while (!$tok->atBol && $tok->kind !== TokenKind::TK_EOF) {
+        // Copy tokens until at_bol becomes true (start of next line)
+        while ($tok->kind !== TokenKind::TK_EOF && !$tok->atBol) {
             $cur->next = self::copyToken($tok);
             $cur = $cur->next;
             $tok = $tok->next;
@@ -414,34 +415,42 @@ class Preprocessor
         // In this case FOO must be macro-expanded to either
         // a single string token or a sequence of "<" ... ">".
         if ($tok->kind === TokenKind::TK_IDENT) {
-            // Find the macro for this identifier
-            $macro = self::findMacro($tok);
-            if (!$macro) {
-                Console::errorTok($tok, "undefined macro: %s", $tok->str);
-            }
-            
-            // For now, only support simple object-like macros
-            if (!$macro->isObjlike) {
-                Console::errorTok($tok, "function-like macros not supported in #include");
-            }
-            
-            // Get the body of the macro and append the rest of the line
-            $body = $macro->body;
-            
-            // Skip the identifier and get the rest of the line
-            $restLine = $tok->next;
-            
-            // Concatenate macro body with rest of line
-            // For #define M13 < include4.h and #include M13 >
-            // This should create < include4.h >
-            $combined = self::append($body, $restLine);
-            
-            // Process the combined result
-            return self::readIncludeFilename($rest, $combined, $isDquote);
+            $tok2 = self::preprocess2(self::copyLine($rest, $tok));
+            $dummyRest = $tok2;
+            return self::readIncludeFilename($dummyRest, $tok2, $isDquote);
         }
 
         Console::errorTok($tok, "expected a filename");
         return ""; // This line should never be reached
+    }
+
+    private static function searchIncludePaths(string $filename): ?string
+    {
+        if ($filename[0] === '/') {
+            return $filename;
+        }
+
+        // Search a file from the include paths.
+        $includePaths = \Pcc\Pcc::getIncludePaths();
+        foreach ($includePaths->getData() as $path) {
+            $fullPath = $path . '/' . $filename;
+            if (self::fileExists($fullPath)) {
+                return $fullPath;
+            }
+        }
+        
+        // For testing purposes, also search in the current directory and TestCase directory
+        if (self::fileExists($filename)) {
+            return $filename;
+        }
+        
+        // Also search in TestCase directory for tests
+        $testCasePath = 'TestCase/' . $filename;
+        if (self::fileExists($testCasePath)) {
+            return $testCasePath;
+        }
+        
+        return null;
     }
 
     private static function includeFile(Token $tok, string $path, Token $filenameTok): Token
@@ -890,7 +899,7 @@ class Preprocessor
             if (self::expandMacro($tok, $tok)) {
                 continue;
             }
-
+            
             // "#"でない場合はそのまま通す
             if (!self::isHash($tok)) {
                 $cur->next = $tok;
@@ -901,13 +910,14 @@ class Preprocessor
 
             $start = $tok;
             $tok = $tok->next;
+            
 
             if ($tok->str === 'include') {
                 $isDquote = false;
                 $restTok = $tok; // Initialize with current token
                 $filename = self::readIncludeFilename($restTok, $tok->next, $isDquote);
 
-                if ($filename[0] !== '/') {
+                if ($filename[0] !== '/' && $isDquote) {
                     $path = dirname($start->file->name) . '/' . $filename;
                     if (self::fileExists($path)) {
                         $tok = self::includeFile($restTok, $path, $start->next->next);
@@ -915,8 +925,8 @@ class Preprocessor
                     }
                 }
 
-                // TODO: Search a file from the include paths.
-                $tok = self::includeFile($restTok, $filename, $start->next->next);
+                $path = self::searchIncludePaths($filename);
+                $tok = self::includeFile($restTok, $path ? $path : $filename, $start->next->next);
                 continue;
             }
 
@@ -948,6 +958,7 @@ class Preprocessor
             }
 
             if ($tok->str === 'ifdef') {
+                $macroName = $tok->next->str ?? 'unknown';
                 $defined = self::findMacro($tok->next) !== null;
                 self::pushCondIncl($tok, $defined);
                 $tok = self::skipLine($tok->next->next);
@@ -983,7 +994,8 @@ class Preprocessor
 
             if ($tok->str === 'else') {
                 if (!self::$condIncl or self::$condIncl->ctx === CondIncl::IN_ELSE) {
-                    Console::errorTok($start, "stray #else");
+                    $stackEmpty = self::$condIncl === null ? "stack empty" : "already in else";
+                    Console::errorTok($start, "stray #else ($stackEmpty)");
                 }
                 self::$condIncl->ctx = CondIncl::IN_ELSE;
                 $tok = self::skipLine($tok->next);
