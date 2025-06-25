@@ -12,6 +12,7 @@ class Macro
     public ?Macro $next;
     public string $name;
     public bool $isObjlike;
+    public ?MacroParam $params = null;
     public Token $body;
     public bool $deleted;
 
@@ -280,6 +281,31 @@ class Preprocessor
         return $m;
     }
 
+    private static function readMacroParams(Token &$rest, Token $tok): ?MacroParam
+    {
+        $head = new MacroParam('');
+        $cur = $head;
+
+        while ($tok->str !== ')') {
+            if ($cur !== $head) {
+                if ($tok->str !== ',') {
+                    Console::errorTok($tok, "expected ','");
+                }
+                $tok = $tok->next;
+            }
+
+            if ($tok->kind !== TokenKind::TK_IDENT) {
+                Console::errorTok($tok, "expected an identifier");
+            }
+            $m = new MacroParam($tok->str);
+            $cur->next = $m;
+            $cur = $m;
+            $tok = $tok->next;
+        }
+        $rest = $tok->next;
+        return $head->next;
+    }
+
     private static function readMacroDefinition(Token &$rest, Token $tok): void
     {
         if ($tok->kind !== TokenKind::TK_IDENT) {
@@ -290,16 +316,105 @@ class Preprocessor
 
         if (!$tok->hasSpace && $tok->str === '(') {
             // Function-like macro
-            $tok = $tok->next;
-            if ($tok->str !== ')') {
-                Console::errorTok($tok, "expected ')'");
-            }
-            $tok = $tok->next;
-            self::addMacro($name, false, self::copyLine($rest, $tok));
+            $params = self::readMacroParams($tok, $tok->next);
+            $m = self::addMacro($name, false, self::copyLine($rest, $tok));
+            $m->params = $params;
         } else {
             // Object-like macro
             self::addMacro($name, true, self::copyLine($rest, $tok));
         }
+    }
+
+    private static function readMacroArgOne(Token &$rest, Token $tok): MacroArg
+    {
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+
+        while ($tok->str !== ',' && $tok->str !== ')') {
+            if ($tok->kind === TokenKind::TK_EOF) {
+                Console::errorTok($tok, "premature end of input");
+            }
+            $cur->next = self::copyToken($tok);
+            $cur = $cur->next;
+            $tok = $tok->next;
+        }
+
+        $cur->next = self::newEof($tok);
+
+        $arg = new MacroArg('', $head->next);
+        $rest = $tok;
+        return $arg;
+    }
+
+    private static function readMacroArgs(Token &$rest, Token $tok, ?MacroParam $params): ?MacroArg
+    {
+        $start = $tok;
+        $tok = $tok->next->next; // skip identifier and '('
+
+        $head = new MacroArg('', new Token(TokenKind::TK_EOF, '', 0));
+        $cur = $head;
+
+        $pp = $params;
+        while ($pp) {
+            if ($cur !== $head) {
+                if ($tok->str !== ',') {
+                    Console::errorTok($tok, "expected ','");
+                }
+                $tok = $tok->next;
+            }
+            $cur->next = self::readMacroArgOne($tok, $tok);
+            $cur = $cur->next;
+            $cur->name = $pp->name;
+            $pp = $pp->next;
+        }
+
+        if ($tok->str !== ')') {
+            Console::errorTok($start, "too many arguments");
+        }
+        $rest = $tok->next;
+        return $head->next;
+    }
+
+    private static function findArg(?MacroArg $args, Token $tok): ?MacroArg
+    {
+        for ($ap = $args; $ap; $ap = $ap->next) {
+            if (strlen($tok->str) === strlen($ap->name) && $tok->str === $ap->name) {
+                return $ap;
+            }
+        }
+        return null;
+    }
+
+    // Replace func-like macro parameters with given arguments.
+    private static function subst(Token $tok, ?MacroArg $args): Token
+    {
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+
+        while ($tok->kind !== TokenKind::TK_EOF) {
+            $arg = self::findArg($args, $tok);
+
+            // Handle a macro token. Macro arguments are completely macro-expanded
+            // before they are substituted into a macro body.
+            if ($arg) {
+                $t = self::preprocess2($arg->tok);
+                while ($t->kind !== TokenKind::TK_EOF) {
+                    $cur->next = self::copyToken($t);
+                    $cur = $cur->next;
+                    $t = $t->next;
+                }
+                $tok = $tok->next;
+                continue;
+            }
+
+            // Handle a non-macro token.
+            $cur->next = self::copyToken($tok);
+            $cur = $cur->next;
+            $tok = $tok->next;
+        }
+
+        $cur->next = $tok;
+        return $head->next;
     }
 
     // If tok is a macro, expand it and return true.
@@ -330,11 +445,8 @@ class Preprocessor
         }
 
         // Function-like macro application
-        $tok = $tok->next->next; // skip '('
-        if ($tok->str !== ')') {
-            Console::errorTok($tok, "expected ')'");
-        }
-        $rest = self::append($m->body, $tok->next);
+        $args = self::readMacroArgs($tok, $tok, $m->params);
+        $rest = self::append(self::subst($m->body, $args), $tok);
         return true;
     }
 
