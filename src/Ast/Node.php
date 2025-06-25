@@ -41,6 +41,7 @@ class Node
     public Type $funcTy;
     /** @var Node[] */
     public array $args = [];
+    public bool $passByStack = false;
 
     // Goto or labeled statement
     public ?string $label = null;

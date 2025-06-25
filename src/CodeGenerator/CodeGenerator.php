@@ -13,6 +13,9 @@ use Pcc\Ast\TypeKind;
 
 class CodeGenerator
 {
+    private const GP_MAX = 6;
+    private const FP_MAX = 8;
+    
     public int $depth = 0;
     /** @var string[] */
     public array $argreg8 = ['%dil', '%sil', '%dl', '%cl', '%r8b', '%r9b'];
@@ -119,17 +122,58 @@ class CodeGenerator
         $this->depth--;
     }
 
-    public function pushArgs(array $args): void
+    private function pushArgs2(array $args, bool $firstPass): void
     {
-        // 引数を逆順でプッシュ（スタックの性質を考慮）
-        for ($i = count($args) - 1; $i >= 0; $i--) {
-            $this->genExpr($args[$i]);
-            if ($args[$i]->ty->isFlonum()) {
-                $this->pushf();
+        if (empty($args)) {
+            return;
+        }
+
+        // Process in reverse order
+        $this->pushArgs2(array_slice($args, 1), $firstPass);
+
+        $arg = $args[0];
+        if (($firstPass && !$arg->passByStack) || (!$firstPass && $arg->passByStack)) {
+            return;
+        }
+
+        $this->genExpr($arg);
+
+        if ($arg->ty->isFlonum()) {
+            $this->pushf();
+        } else {
+            $this->push();
+        }
+    }
+
+    public function pushArgs(array $args): int
+    {
+        $stack = 0;
+        $gp = 0;
+        $fp = 0;
+
+        foreach ($args as $arg) {
+            if ($arg->ty->isFlonum()) {
+                if ($fp++ >= self::FP_MAX) {
+                    $arg->passByStack = true;
+                    $stack++;
+                }
             } else {
-                $this->push();
+                if ($gp++ >= self::GP_MAX) {
+                    $arg->passByStack = true;
+                    $stack++;
+                }
             }
         }
+
+        if (($this->depth + $stack) % 2 === 1) {
+            Console::out("  sub $8, %%rsp");
+            $this->depth++;
+            $stack++;
+        }
+
+        $this->pushArgs2($args, true);
+        $this->pushArgs2($args, false);
+        return $stack;
     }
 
     public function genAddr(Node $node): void
@@ -411,26 +455,29 @@ class CodeGenerator
                 Console::out(".L.end.%d:", $c);
                 return;
             case NodeKind::ND_FUNCALL:
-                $this->pushArgs($node->args);
+                $stackArgs = $this->pushArgs($node->args);
                 $this->genExpr($node->lhs);
 
                 $gp = 0;
                 $fp = 0;
                 foreach ($node->args as $arg) {
                     if ($arg->ty->isFlonum()) {
-                        $this->popf($fp++);
+                        if ($fp < self::FP_MAX) {
+                            $this->popf($fp++);
+                        }
                     } else {
-                        $this->pop($this->argreg64[$gp++]);
+                        if ($gp < self::GP_MAX) {
+                            $this->pop($this->argreg64[$gp++]);
+                        }
                     }
                 }
 
-                if ($this->depth %2 === 0){
-                    Console::out("  call *%%rax");
-                } else {
-                    Console::out("  sub \$8, %%rsp");
-                    Console::out("  call *%%rax");
-                    Console::out("  add \$8, %%rsp");
-                }
+                Console::out("  mov %%rax, %%r10");
+                Console::out("  mov $%d, %%rax", $fp);
+                Console::out("  call *%%r10");
+                Console::out("  add $%d, %%rsp", $stackArgs * 8);
+
+                $this->depth -= $stackArgs;
 
                 // It looks like the most significant 48 or 56 bits in RAX may
                 // contain garbage if a function return type is short or bool/char,
