@@ -74,6 +74,17 @@ class Preprocessor
     }
 
     /**
+     * Skip a token if it matches the expected string
+     */
+    private static function skip(Token &$tok, string $expected): void
+    {
+        if ($tok->str !== $expected) {
+            Console::errorTok($tok, "expected '" . $expected . "'");
+        }
+        $tok = $tok->next;
+    }
+
+    /**
      * Copy a token
      */
     private static function copyToken(Token $tok): Token
@@ -140,6 +151,20 @@ class Preprocessor
             }
         }
         return false;
+    }
+
+    private static function hidesetIntersection(?Hideset $hs1, ?Hideset $hs2): ?Hideset
+    {
+        $head = new Hideset('');
+        $cur = $head;
+
+        for (; $hs1; $hs1 = $hs1->next) {
+            if (self::hidesetContains($hs2, $hs1->name, strlen($hs1->name))) {
+                $cur->next = self::newHideset($hs1->name);
+                $cur = $cur->next;
+            }
+        }
+        return $head->next;
     }
 
     private static function addHideset(Token $tok, ?Hideset $hs): Token
@@ -289,7 +314,7 @@ class Preprocessor
         while ($tok->str !== ')') {
             if ($cur !== $head) {
                 if ($tok->str !== ',') {
-                    Console::errorTok($tok, "expected ','");
+                    Console::errorTok($tok, "expected ',' in macro parameters");
                 }
                 $tok = $tok->next;
             }
@@ -362,24 +387,32 @@ class Preprocessor
         $head = new MacroArg('', new Token(TokenKind::TK_EOF, '', 0));
         $cur = $head;
 
+        // If no parameters, just ensure we have a closing parenthesis
+        if (!$params) {
+            self::skip($tok, ')');
+            $rest = $tok;
+            return null;
+        }
+
         $pp = $params;
-        while ($pp) {
+        for (; $pp; $pp = $pp->next) {
             if ($cur !== $head) {
                 if ($tok->str !== ',') {
-                    Console::errorTok($tok, "expected ','");
+                    Console::errorTok($tok, "expected ',' in macro arguments");
                 }
                 $tok = $tok->next;
             }
-            $cur->next = self::readMacroArgOne($tok, $tok);
+            $arg = self::readMacroArgOne($tok, $tok);
+            $cur->next = $arg;
             $cur = $cur->next;
             $cur->name = $pp->name;
-            $pp = $pp->next;
         }
 
-        if ($tok->str !== ')') {
+        if ($pp) {
             Console::errorTok($start, "too many arguments");
         }
-        $rest = $tok->next;
+        self::skip($tok, ')');
+        $rest = $tok;
         return $head->next;
     }
 
@@ -429,19 +462,20 @@ class Preprocessor
     // Otherwise, do nothing and return false.
     private static function expandMacro(Token &$rest, Token $tok): bool
     {
-        if (self::hidesetContains($tok->hideset, $tok->str, strlen($tok->str))) {
+        // Check hideset to prevent infinite recursion
+        if (isset($tok->hideset) && self::hidesetContains($tok->hideset, $tok->str, strlen($tok->str))) {
             return false;
         }
 
         $m = self::findMacro($tok);
-        if (!$m) {
+        if (!$m || $m->deleted) {
             return false;
         }
 
         // Object-like macro application
         if ($m->isObjlike) {
-            $hs = self::hidesetUnion($tok->hideset, self::newHideset($m->name));
-            $body = self::addHideset($m->body, $hs);
+            $hs = self::newHideset($m->name);
+            $body = self::addHideset($m->body, self::hidesetUnion($tok->hideset ?? null, $hs));
             $rest = self::append($body, $tok->next);
             return true;
         }
@@ -453,8 +487,21 @@ class Preprocessor
         }
 
         // Function-like macro application
+        $macroToken = $tok;
         $args = self::readMacroArgs($tok, $tok, $m->params);
-        $rest = self::append(self::subst($m->body, $args), $tok);
+        $rparen = $tok;
+
+        // Tokens that consist a func-like macro invocation may have different
+        // hidesets, and if that's the case, it's not clear what the hideset
+        // for the new tokens should be. We take the intersection of the
+        // macro token and the closing parenthesis and use it as a new hideset
+        // as explained in the Dave Prossor's algorithm.
+        $hs = self::hidesetIntersection($macroToken->hideset ?? null, $rparen->hideset ?? null);
+        $hs = self::hidesetUnion($hs, self::newHideset($m->name));
+
+        $body = self::subst($m->body, $args);
+        $body = self::addHideset($body, $hs);
+        $rest = self::append($body, $tok);
         return true;
     }
 

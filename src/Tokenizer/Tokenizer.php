@@ -517,4 +517,17 @@ class Tokenizer
     {
         return self::$inputFiles;
     }
+    
+    public function updateTokensArray(Token $newTok): void
+    {
+        $this->tokens = [];
+        $current = $newTok;
+        while ($current && $current->kind !== TokenKind::TK_EOF) {
+            $this->tokens[] = $current;
+            $current = $current->next;
+        }
+        if ($current) {
+            $this->tokens[] = $current; // Add EOF token
+        }
+    }
 }

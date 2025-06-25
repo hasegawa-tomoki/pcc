@@ -200,6 +200,9 @@ class Pcc
             return 0;
         }
 
+        // Update tokenizer with preprocessed tokens
+        $tokenizer->updateTokensArray($tok);
+        
         $parser = new Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
