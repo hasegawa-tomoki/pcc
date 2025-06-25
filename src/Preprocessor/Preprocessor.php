@@ -326,6 +326,22 @@ class Preprocessor
         return self::newStrToken($s, $hash);
     }
 
+    // Concatenate two tokens to create a new token.
+    private static function paste(Token $lhs, Token $rhs): Token
+    {
+        // Paste the two tokens.
+        $buf = $lhs->str . $rhs->str;
+        
+        // Tokenize the resulting string.
+        $file = Tokenizer::newFile($lhs->file->name, $lhs->file->fileNo, $buf);
+        $tok = Tokenizer::tokenizeFile($file);
+        
+        if ($tok->next && $tok->next->kind !== TokenKind::TK_EOF) {
+            Console::errorTok($lhs, "pasting forms '%s', an invalid token", $buf);
+        }
+        return $tok;
+    }
+
     // Copy all tokens until the next newline, terminate them with
     // an EOF token and then returns them. This function is used to
     // create a new list of tokens for `#if` arguments.
@@ -532,9 +548,94 @@ class Preprocessor
                 continue;
             }
 
+            if ($tok->str === '##') {
+                if ($cur === $head) {
+                    Console::errorTok($tok, "'##' cannot appear at start of macro expansion");
+                }
+
+                if ($tok->next->kind === TokenKind::TK_EOF) {
+                    Console::errorTok($tok, "'##' cannot appear at end of macro expansion");
+                }
+
+                $arg = self::findArg($args, $tok->next);
+                if ($arg) {
+                    if ($arg->tok->kind !== TokenKind::TK_EOF) {
+                        $pastedToken = self::paste($cur, $arg->tok);
+                        // Replace current token with pasted result
+                        $cur->kind = $pastedToken->kind;
+                        $cur->str = $pastedToken->str;
+                        if (isset($pastedToken->val)) {
+                            $cur->val = $pastedToken->val;
+                        }
+                        if (isset($pastedToken->gmpVal)) {
+                            $cur->gmpVal = $pastedToken->gmpVal;
+                        }
+                        if (isset($pastedToken->fval)) {
+                            $cur->fval = $pastedToken->fval;
+                        }
+                        if (isset($pastedToken->ty)) {
+                            $cur->ty = $pastedToken->ty;
+                        }
+                        // Add remaining tokens from the argument
+                        for ($t = $arg->tok->next; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+                            $cur->next = self::copyToken($t);
+                            $cur = $cur->next;
+                        }
+                    }
+                    $tok = $tok->next->next;
+                    continue;
+                }
+
+                $pastedToken = self::paste($cur, $tok->next);
+                // Replace current token with pasted result
+                $cur->kind = $pastedToken->kind;
+                $cur->str = $pastedToken->str;
+                if (isset($pastedToken->val)) {
+                    $cur->val = $pastedToken->val;
+                }
+                if (isset($pastedToken->gmpVal)) {
+                    $cur->gmpVal = $pastedToken->gmpVal;
+                }
+                if (isset($pastedToken->fval)) {
+                    $cur->fval = $pastedToken->fval;
+                }
+                if (isset($pastedToken->ty)) {
+                    $cur->ty = $pastedToken->ty;
+                }
+                $tok = $tok->next->next;
+                continue;
+            }
+
+            $arg = self::findArg($args, $tok);
+
+            if ($arg && $tok->next && $tok->next->str === '##') {
+                $rhs = $tok->next->next;
+
+                if ($arg->tok->kind === TokenKind::TK_EOF) {
+                    $arg2 = self::findArg($args, $rhs);
+                    if ($arg2) {
+                        for ($t = $arg2->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+                            $cur->next = self::copyToken($t);
+                            $cur = $cur->next;
+                        }
+                    } else {
+                        $cur->next = self::copyToken($rhs);
+                        $cur = $cur->next;
+                    }
+                    $tok = $rhs->next;
+                    continue;
+                }
+
+                for ($t = $arg->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+                    $cur->next = self::copyToken($t);
+                    $cur = $cur->next;
+                }
+                $tok = $tok->next;
+                continue;
+            }
+
             // Handle a macro token. Macro arguments are completely macro-expanded
             // before they are substituted into a macro body.
-            $arg = self::findArg($args, $tok);
             if ($arg) {
                 $t = self::preprocess2($arg->tok);
                 while ($t->kind !== TokenKind::TK_EOF) {

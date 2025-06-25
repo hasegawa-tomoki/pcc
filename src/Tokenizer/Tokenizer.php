@@ -252,10 +252,10 @@ class Tokenizer
         } elseif (strtolower(substr($this->currentInput, $p, 2)) === 'll'){
             $p += 2;
             $l = true;
-        } elseif (strtolower($this->currentInput[$p]) === 'l'){
+        } elseif ($p < strlen($this->currentInput) && strtolower($this->currentInput[$p]) === 'l'){
             $p++;
             $l = true;
-        } elseif (strtolower($this->currentInput[$p]) === 'u'){
+        } elseif ($p < strlen($this->currentInput) && strtolower($this->currentInput[$p]) === 'u'){
             $p++;
             $u = true;
         }
@@ -469,7 +469,7 @@ class Tokenizer
             }
 
             // Two-letter punctuators
-            if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', '<<', '>>', ])) {
+            if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', '<<', '>>', '##', ])) {
                 $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
                 $tok->atBol = $atBol;
                 $tok->hasSpace = $hasSpace;
