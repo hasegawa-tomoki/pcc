@@ -2520,10 +2520,9 @@ class Parser
             $arg->addType();
 
             if (isset($paramTy[0])){
-                if ($paramTy[0]->kind === TypeKind::TY_STRUCT or $paramTy[0]->kind === TypeKind::TY_UNION){
-                    Console::errorTok($tok, 'passing struct or union is not supported yet');
+                if ($paramTy[0]->kind !== TypeKind::TY_STRUCT && $paramTy[0]->kind !== TypeKind::TY_UNION) {
+                    $arg = Node::newCast($arg, $paramTy[0]);
                 }
-                $arg = Node::newCast($arg, $paramTy[0]);
                 array_shift($paramTy);
             } elseif ($arg->ty->kind === TypeKind::TY_FLOAT) {
                 // If parameter type is omitted (e.g. in "..."), float

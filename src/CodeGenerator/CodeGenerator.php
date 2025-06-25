@@ -138,10 +138,17 @@ class CodeGenerator
 
         $this->genExpr($arg);
 
-        if ($arg->ty->isFlonum()) {
-            $this->pushf();
-        } else {
-            $this->push();
+        switch ($arg->ty->kind) {
+            case TypeKind::TY_STRUCT:
+            case TypeKind::TY_UNION:
+                $this->pushStruct($arg->ty);
+                break;
+            case TypeKind::TY_FLOAT:
+            case TypeKind::TY_DOUBLE:
+                $this->pushf();
+                break;
+            default:
+                $this->push();
         }
     }
 
@@ -152,16 +159,40 @@ class CodeGenerator
         $fp = 0;
 
         foreach ($args as $arg) {
-            if ($arg->ty->isFlonum()) {
-                if ($fp++ >= self::FP_MAX) {
-                    $arg->passByStack = true;
-                    $stack++;
-                }
-            } else {
-                if ($gp++ >= self::GP_MAX) {
-                    $arg->passByStack = true;
-                    $stack++;
-                }
+            $ty = $arg->ty;
+
+            switch ($ty->kind) {
+                case TypeKind::TY_STRUCT:
+                case TypeKind::TY_UNION:
+                    if ($ty->size > 16) {
+                        $arg->passByStack = true;
+                        $stack += intval(Align::alignTo($ty->size, 8) / 8);
+                    } else {
+                        $fp1 = $this->hasFlonum1($ty);
+                        $fp2 = $this->hasFlonum2($ty);
+
+                        if ($fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0) < self::FP_MAX && 
+                            $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1) < self::GP_MAX) {
+                            $fp = $fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0);
+                            $gp = $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1);
+                        } else {
+                            $arg->passByStack = true;
+                            $stack += intval(Align::alignTo($ty->size, 8) / 8);
+                        }
+                    }
+                    break;
+                case TypeKind::TY_FLOAT:
+                case TypeKind::TY_DOUBLE:
+                    if ($fp++ >= self::FP_MAX) {
+                        $arg->passByStack = true;
+                        $stack++;
+                    }
+                    break;
+                default:
+                    if ($gp++ >= self::GP_MAX) {
+                        $arg->passByStack = true;
+                        $stack++;
+                    }
             }
         }
 
@@ -325,6 +356,63 @@ class CodeGenerator
         }
     }
 
+    // Structs or unions equal or smaller than 16 bytes are passed
+    // using up to two registers.
+    //
+    // If the first 8 bytes contains only floating-point type members,
+    // they are passed in an XMM register. Otherwise, they are passed
+    // in a general-purpose register.
+    //
+    // If a struct/union is larger than 8 bytes, the same rule is
+    // applied to the the next 8 byte chunk.
+    //
+    // This function returns true if `ty` has only floating-point
+    // members in its byte range [lo, hi).
+    private function hasFlonum(Type $ty, int $lo, int $hi, int $offset): bool
+    {
+        if ($ty->kind === TypeKind::TY_STRUCT || $ty->kind === TypeKind::TY_UNION) {
+            foreach ($ty->members as $mem) {
+                if (!$this->hasFlonum($mem->ty, $lo, $hi, $offset + $mem->offset)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        if ($ty->kind === TypeKind::TY_ARRAY) {
+            for ($i = 0; $i < $ty->arrayLen; $i++) {
+                if (!$this->hasFlonum($ty->base, $lo, $hi, $offset + $ty->base->size * $i)) {
+                    return false;
+                }
+            }
+            return true;
+        }
+
+        return $offset < $lo || $hi <= $offset || $ty->isFlonum();
+    }
+
+    private function hasFlonum1(Type $ty): bool
+    {
+        return $this->hasFlonum($ty, 0, 8, 0);
+    }
+
+    private function hasFlonum2(Type $ty): bool
+    {
+        return $this->hasFlonum($ty, 8, 16, 0);
+    }
+
+    private function pushStruct(Type $ty): void
+    {
+        $sz = Align::alignTo($ty->size, 8);
+        Console::out("  sub $%d, %%rsp", $sz);
+        $this->depth += intval($sz / 8);
+
+        for ($i = 0; $i < $ty->size; $i++) {
+            Console::out("  mov %d(%%rax), %%r10b", $i);
+            Console::out("  mov %%r10b, %d(%%rsp)", $i);
+        }
+    }
+
     public function genExpr(Node $node): void
     {
         if ($node->tok->file !== null) {
@@ -461,14 +549,45 @@ class CodeGenerator
                 $gp = 0;
                 $fp = 0;
                 foreach ($node->args as $arg) {
-                    if ($arg->ty->isFlonum()) {
-                        if ($fp < self::FP_MAX) {
-                            $this->popf($fp++);
-                        }
-                    } else {
-                        if ($gp < self::GP_MAX) {
-                            $this->pop($this->argreg64[$gp++]);
-                        }
+                    $ty = $arg->ty;
+
+                    switch ($ty->kind) {
+                        case TypeKind::TY_STRUCT:
+                        case TypeKind::TY_UNION:
+                            if ($ty->size > 16) {
+                                break;
+                            }
+
+                            $fp1 = $this->hasFlonum1($ty);
+                            $fp2 = $this->hasFlonum2($ty);
+
+                            if ($fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0) < self::FP_MAX && 
+                                $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1) < self::GP_MAX) {
+                                if ($fp1) {
+                                    $this->popf($fp++);
+                                } else {
+                                    $this->pop($this->argreg64[$gp++]);
+                                }
+
+                                if ($ty->size > 8) {
+                                    if ($fp2) {
+                                        $this->popf($fp++);
+                                    } else {
+                                        $this->pop($this->argreg64[$gp++]);
+                                    }
+                                }
+                            }
+                            break;
+                        case TypeKind::TY_FLOAT:
+                        case TypeKind::TY_DOUBLE:
+                            if ($fp < self::FP_MAX) {
+                                $this->popf($fp++);
+                            }
+                            break;
+                        default:
+                            if ($gp < self::GP_MAX) {
+                                $this->pop($this->argreg64[$gp++]);
+                            }
                     }
                 }
 
