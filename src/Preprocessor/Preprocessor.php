@@ -342,6 +342,13 @@ class Preprocessor
         return $tok;
     }
 
+    private static function newNumToken(int $val, Token $tmpl): Token
+    {
+        $buf = sprintf("%d\n", $val);
+        $file = Tokenizer::newFile($tmpl->file->name, $tmpl->file->fileNo, $buf);
+        return Tokenizer::tokenizeFile($file);
+    }
+
     // Copy all tokens until the next newline, terminate them with
     // an EOF token and then returns them. This function is used to
     // create a new list of tokens for `#if` arguments.
@@ -361,11 +368,59 @@ class Preprocessor
         return $head->next;
     }
 
+    private static function readConstExpr(Token &$rest, Token $tok): Token
+    {
+        $tok = self::copyLine($rest, $tok);
+
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+
+        while ($tok->kind !== TokenKind::TK_EOF) {
+            // "defined(foo)" or "defined foo" becomes "1" if macro "foo"
+            // is defined. Otherwise "0".
+            if ($tok->str === 'defined') {
+                $start = $tok;
+                $tok = $tok->next;
+                $hasParen = false;
+                
+                if ($tok->str === '(') {
+                    $hasParen = true;
+                    $tok = $tok->next;
+                }
+
+                if ($tok->kind !== TokenKind::TK_IDENT) {
+                    Console::errorTok($start, "macro name must be an identifier");
+                }
+                
+                $m = self::findMacro($tok);
+                $tok = $tok->next;
+
+                if ($hasParen) {
+                    if ($tok->str !== ')') {
+                        Console::errorTok($tok, "expected ')'");
+                    }
+                    $tok = $tok->next;
+                }
+
+                $cur->next = self::newNumToken($m ? 1 : 0, $start);
+                $cur = $cur->next;
+                continue;
+            }
+
+            $cur->next = $tok;
+            $cur = $cur->next;
+            $tok = $tok->next;
+        }
+
+        $cur->next = $tok;
+        return $head->next;
+    }
+
     // Read and evaluate a constant expression.
     private static function evalConstExpr(Token &$rest, Token $tok): int
     {
         $start = $tok;
-        $expr = self::copyLine($rest, $tok->next);
+        $expr = self::readConstExpr($rest, $tok->next);
         $expr = self::preprocess2($expr);
 
         if ($expr->kind === TokenKind::TK_EOF) {
