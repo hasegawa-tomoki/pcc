@@ -778,6 +778,32 @@ class Parser
                     $init->children[$i]->expr = Node::newNum($val, $tok);
                 }
                 break;
+            case 4:
+                // UTF-32 (char32_t/wchar_t) array initialization
+                $str = $tok->str;
+                $strLen = strlen($str);
+                for ($i = 0; $i < $len; $i++){
+                    $offset = $i * 4;
+                    if ($offset + 3 < $strLen) {
+                        // Little-endian: low byte first, high byte last
+                        $val = ord($str[$offset]) | 
+                               (ord($str[$offset + 1]) << 8) |
+                               (ord($str[$offset + 2]) << 16) |
+                               (ord($str[$offset + 3]) << 24);
+                    } elseif ($offset + 2 < $strLen) {
+                        $val = ord($str[$offset]) | 
+                               (ord($str[$offset + 1]) << 8) |
+                               (ord($str[$offset + 2]) << 16);
+                    } elseif ($offset + 1 < $strLen) {
+                        $val = ord($str[$offset]) | (ord($str[$offset + 1]) << 8);
+                    } elseif ($offset < $strLen) {
+                        $val = ord($str[$offset]);
+                    } else {
+                        $val = 0;
+                    }
+                    $init->children[$i]->expr = Node::newNum($val, $tok);
+                }
+                break;
             default:
                 Console::error("Unsupported string initializer size: %d", $init->ty->base->size);
         }
