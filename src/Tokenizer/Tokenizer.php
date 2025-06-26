@@ -184,9 +184,10 @@ class Tokenizer
 
     /**
      * @param int $start
+     * @param \Pcc\Ast\Type $ty
      * @return array{0: \Pcc\Tokenizer\Token, 1: int}
      */
-    public function readCharLiteral(int $start): array
+    public function readCharLiteral(int $start, ?\Pcc\Ast\Type $ty = null): array
     {
         $pos = $start + 1;
         if ($this->currentInput[$pos] === "\0"){
@@ -210,7 +211,7 @@ class Tokenizer
         // For multibyte characters, c is already an integer value (Unicode code point)
         $tok->val = $c;
         $tok->gmpVal = gmp_init($c);
-        $tok->ty = Type::tyInt();
+        $tok->ty = $ty ?? Type::tyInt();
         return [$tok, $pos + $end + 1];
     }
 
@@ -594,6 +595,19 @@ class Tokenizer
                 if ($token->val > 127) {
                     $token->val = $token->val - 256;
                 }
+                $token->gmpVal = gmp_init($token->val);
+                $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
+                $token->file = $this->currentFile;
+                $atBol = $hasSpace = false;
+                $tokens[] = $token;
+                continue;
+            }
+
+            // UTF-16 character literal
+            if (substr($this->currentInput, $pos, 2) === "u'") {
+                [$token, $pos] = $this->readCharLiteral($pos + 1, Type::tyUshort());
+                $token->val &= 0xffff;
                 $token->gmpVal = gmp_init($token->val);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
