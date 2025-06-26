@@ -25,6 +25,7 @@ class Obj
     public array $rels = [];
 
     // Function
+    public bool $isInline = false;
     /** @var \Pcc\Ast\Obj[] */
     public array $params;
     /** @var \Pcc\Ast\Node[]  */

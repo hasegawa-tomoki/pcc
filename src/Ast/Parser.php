@@ -213,7 +213,7 @@ class Parser
 
         while ($this->isTypeName($tok)){
             // Handle storage class specifiers
-            if ($this->tokenizer->equal($tok, 'typedef') or $this->tokenizer->equal($tok, 'static') or $this->tokenizer->equal($tok, 'extern')){
+            if ($this->tokenizer->equal($tok, 'typedef') or $this->tokenizer->equal($tok, 'static') or $this->tokenizer->equal($tok, 'extern') or $this->tokenizer->equal($tok, 'inline')){
                 if (! $attr){
                     Console::errorTok($tok, 'storage class specifier is not allowed in this context');
                 }
@@ -222,12 +222,14 @@ class Parser
                     $attr->isTypedef = true;
                 } elseif ($this->tokenizer->equal($tok, 'static')) {
                     $attr->isStatic = true;
-                } else {
+                } elseif ($this->tokenizer->equal($tok, 'extern')) {
                     $attr->isExtern = true;
+                } else {
+                    $attr->isInline = true;
                 }
 
-                if ($attr->isTypedef and $attr->isStatic + $attr->isExtern > 1){
-                    Console::errorTok($tok, 'typedef may not be used together with static or extern');
+                if ($attr->isTypedef and $attr->isStatic + $attr->isExtern + $attr->isInline > 1){
+                    Console::errorTok($tok, 'typedef may not be used together with static, extern or inline');
                 }
 
                 $tok = $tok->next;
@@ -1482,7 +1484,7 @@ class Parser
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
             'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
-            '__restrict__', '_Noreturn', 'float', 'double', 'typeof',
+            '__restrict__', '_Noreturn', 'float', 'double', 'typeof', 'inline',
         ])){
             return true;
         }
@@ -3267,7 +3269,8 @@ class Parser
         $fn->isFunction = true;
         [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';');
         $fn->isDefinition = (! $consumed);
-        $fn->isStatic = $attr->isStatic;
+        $fn->isStatic = $attr->isStatic || ($attr->isInline && !$attr->isExtern);
+        $fn->isInline = $attr->isInline;
 
         if (! $fn->isDefinition){
             return $tok;
