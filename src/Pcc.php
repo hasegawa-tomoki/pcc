@@ -275,6 +275,7 @@ class Pcc
 
         $tokenizer = new Tokenizer($baseFile);
         $tokenizer->tokenize();
+        Preprocessor::setBaseFile($baseFile);
         $tok = Preprocessor::preprocess($tokenizer->tok);
 
         // If -E is given, print out preprocessed C code as a result.

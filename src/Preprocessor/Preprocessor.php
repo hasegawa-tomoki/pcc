@@ -54,6 +54,7 @@ class Preprocessor
 {
     private static ?Macro $macros = null;
     private static ?CondIncl $condIncl = null;
+    private static string $baseFile = '';
 
     private static function isHash(Token $tok): bool
     {
@@ -1345,6 +1346,7 @@ class Preprocessor
         self::addBuiltin('__LINE__', [self::class, 'lineMacro']);
         self::addBuiltin('__COUNTER__', [self::class, 'counterMacro']);
         self::addBuiltin('__TIMESTAMP__', [self::class, 'timestampMacro']);
+        self::addBuiltin('__BASE_FILE__', [self::class, 'baseFileMacro']);
         
         // Add __DATE__ and __TIME__ macros
         $now = time();
@@ -1427,6 +1429,12 @@ class Preprocessor
         // Format like "Fri Jul 24 01:32:50 2020"
         $timestamp = date('D M j H:i:s Y', $mtime);
         return self::newStrToken($timestamp, $tmpl);
+    }
+
+    // __BASE_FILE__ is expanded to the base file name
+    private static function baseFileMacro(Token $tmpl): Token
+    {
+        return self::newStrToken(self::$baseFile, $tmpl);
     }
 
     /**
@@ -1532,6 +1540,14 @@ class Preprocessor
             $tok1->next = $tok2;
             $tok1 = $tok2;
         }
+    }
+
+    /**
+     * Set the base file name for __BASE_FILE__ macro
+     */
+    public static function setBaseFile(string $filename): void
+    {
+        self::$baseFile = $filename;
     }
 
     /**
