@@ -1671,7 +1671,7 @@ class Parser
                     Console::errorTok($node->tok, 'invalid initializer');
                 }
                 [$val, $label] = $this->evalRval($node->lhs, $label);
-                $val = gmp_add($val, $node->members[0]->offset);
+                $val = gmp_add($val, $node->member->offset);
                 break;
             case NodeKind::ND_VAR:
                 if (is_null($label)){
@@ -1722,7 +1722,7 @@ class Parser
                 return $this->evaluate2($node->lhs, $label);
             case NodeKind::ND_MEMBER:
                 [$rval, $label] = $this->evalRval($node->lhs, $label);
-                return [gmp_add(gmp_init($rval), gmp_init($node->members[0]->offset)), $label];
+                return [gmp_add(gmp_init($rval), gmp_init($node->member->offset)), $label];
         }
         Console::errorTok($node->tok, 'invalid initializer');
     }
@@ -2352,6 +2352,18 @@ class Parser
             [$basety, $tok] = $this->typespec($tok, $tok, $attr);
             $first = true;
 
+            // Anonymous struct member
+            if (($basety->kind === TypeKind::TY_STRUCT || $basety->kind === TypeKind::TY_UNION) &&
+                ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';')) && $consumed) {
+                $mem = new Member();
+                $mem->ty = $basety;
+                $mem->name = null;
+                $mem->align = $attr->align ?: $mem->ty->align;
+                $members[] = $mem;
+                continue;
+            }
+
+            // Regular struct members
             while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
                 if (! $first){
                     $tok = $this->tokenizer->skip($tok, ',');
@@ -2517,7 +2529,7 @@ class Parser
         return [$ty, $rest];
     }
 
-    public function getStructMember(Type $ty, Token $tok): Member
+    public function getStructMember(Type $ty, Token $tok): ?Member
     {
         if ($ty->size === -1){
             $sc = $this->findTag($ty->name);
@@ -2525,24 +2537,44 @@ class Parser
         }
 
         foreach ($ty->members as $mem){
+            // Anonymous struct member
+            if (($mem->ty->kind === TypeKind::TY_STRUCT || $mem->ty->kind === TypeKind::TY_UNION) &&
+                !$mem->name) {
+                if ($this->getStructMember($mem->ty, $tok)) {
+                    return $mem;
+                }
+                continue;
+            }
+
+            // Regular struct member
             if ($mem->name && $mem->name->str === $tok->str){
                 return $mem;
             }
         }
-        Console::errorTok($tok, 'no such member');
+        return null;
     }
 
-    public function structRef(Node $lhs, Token $tok): Node
+    public function structRef(Node $node, Token $tok): Node
     {
-        $lhs->addType();
-        if ($lhs->ty->kind !== TypeKind::TY_STRUCT and $lhs->ty->kind !== TypeKind::TY_UNION){
-            Console::errorTok($tok, 'not a struct nor a union');
+        $node->addType();
+        if ($node->ty->kind !== TypeKind::TY_STRUCT and $node->ty->kind !== TypeKind::TY_UNION){
+            Console::errorTok($node->tok, 'not a struct nor a union');
         }
 
-        $node = Node::newUnary(NodeKind::ND_MEMBER, $lhs, $tok);
-        $member = $this->getStructMember($lhs->ty, $tok);
-        $node->members = [$member];
-        $node->member = $member;
+        $ty = $node->ty;
+
+        for (;;) {
+            $mem = $this->getStructMember($ty, $tok);
+            if (!$mem) {
+                Console::errorTok($tok, 'no such member');
+            }
+            $node = Node::newUnary(NodeKind::ND_MEMBER, $node, $tok);
+            $node->member = $mem;
+            if ($mem->name) {
+                break;
+            }
+            $ty = $mem->ty;
+        }
         return $node;
     }
 
