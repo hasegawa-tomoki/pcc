@@ -179,7 +179,64 @@ class Tokenizer
         }
 
         $tok = new Token(TokenKind::TK_STR, $str."\0", $start);
+        $tok->originalStr = substr($this->currentInput, $start, ($endPos + 1) - $start);
         $tok->ty = Type::arrayOf(Type::tyChar(), $len + 1);
+        return [$tok, $endPos + 1];
+    }
+
+    /**
+     * Read a UTF-8-encoded string literal and transcode it in UTF-16.
+     * 
+     * UTF-16 is yet another variable-width encoding for Unicode. Code
+     * points smaller than U+10000 are encoded in 2 bytes. Code points
+     * equal to or larger than that are encoded in 4 bytes. Each 2 bytes
+     * in the 4 byte sequence is called "surrogate", and a 4 byte sequence
+     * is called a "surrogate pair".
+     * @param int $start
+     * @param int $quote
+     * @return array{0: \Pcc\Tokenizer\Token, 1: int}
+     */
+    public function readUtf16StringLiteral(int $start, int $quote): array
+    {
+        $endPos = $this->stringLiteralEndPos($quote + 1);
+        $buf = [];
+        $len = 0;
+
+        for ($i = $quote + 1; $i < $endPos; ){
+            if ($this->currentInput[$i] === '\\'){
+                [$c, $i] = $this->readEscapedChar($i + 1);
+                $buf[] = $c;
+                $len++;
+                continue;
+            }
+
+            [$c, $i] = self::decodeUtf8($this->currentInput, $i);
+            if ($c < 0x10000) {
+                // Encode a code point in 2 bytes.
+                $buf[] = $c;
+                $len++;
+            } else {
+                // Encode a code point in 4 bytes.
+                $c -= 0x10000;
+                $buf[] = 0xd800 + (($c >> 10) & 0x3ff);
+                $buf[] = 0xdc00 + ($c & 0x3ff);
+                $len += 2;
+            }
+        }
+
+        // Add null terminator
+        $buf[] = 0;
+        $len++;
+
+        // Convert to binary string representation for C memory layout
+        $str = '';
+        foreach ($buf as $val) {
+            $str .= pack('v', $val); // little-endian 16-bit
+        }
+
+        $tok = new Token(TokenKind::TK_STR, $str, $start);
+        $tok->originalStr = substr($this->currentInput, $start, ($endPos + 1) - $start);
+        $tok->ty = Type::arrayOf(Type::tyUshort(), $len);
         return [$tok, $endPos + 1];
     }
 
@@ -190,7 +247,17 @@ class Tokenizer
      */
     public function readCharLiteral(int $start, ?\Pcc\Ast\Type $ty = null): array
     {
-        $pos = $start + 1;
+        // Find the quote position (handle prefixes like u', U', L')
+        $quotePos = $start;
+        while ($quotePos < strlen($this->currentInput) && $this->currentInput[$quotePos] !== "'") {
+            $quotePos++;
+        }
+        
+        if ($quotePos >= strlen($this->currentInput)) {
+            Console::errorAt($start, 'unclosed char literal');
+        }
+
+        $pos = $quotePos + 1;
         if ($this->currentInput[$pos] === "\0"){
             Console::errorAt($start, 'unclosed char literal');
         }
@@ -580,23 +647,37 @@ class Tokenizer
 
             // String literal
             if ($this->currentInput[$pos] === '"') {
-                [$token, $pos] = $this->readStringLiteral($pos, $pos);
+                [$token, $newPos] = $this->readStringLiteral($pos, $pos);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
+                $pos = $newPos;
                 continue;
             }
 
             // UTF-8 string literal
             if (substr($this->currentInput, $pos, 3) === 'u8"') {
-                [$token, $pos] = $this->readStringLiteral($pos, $pos + 2);
+                [$token, $newPos] = $this->readStringLiteral($pos, $pos + 2);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
+                $pos = $newPos;
+                continue;
+            }
+
+            // UTF-16 string literal
+            if (substr($this->currentInput, $pos, 2) === 'u"') {
+                [$token, $newPos] = $this->readUtf16StringLiteral($pos, $pos + 1);
+                $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
+                $token->file = $this->currentFile;
+                $atBol = $hasSpace = false;
+                $tokens[] = $token;
+                $pos = $newPos;
                 continue;
             }
 
@@ -618,7 +699,7 @@ class Tokenizer
 
             // UTF-16 character literal
             if (substr($this->currentInput, $pos, 2) === "u'") {
-                [$token, $pos] = $this->readCharLiteral($pos + 1, Type::tyUshort());
+                [$token, $newPos] = $this->readCharLiteral($pos, Type::tyUshort());
                 $token->val &= 0xffff;
                 $token->gmpVal = gmp_init($token->val);
                 $token->atBol = $atBol;
@@ -626,28 +707,31 @@ class Tokenizer
                 $token->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
+                $pos = $newPos;
                 continue;
             }
 
             // Wide character literal
             if (substr($this->currentInput, $pos, 2) === "L'") {
-                [$token, $pos] = $this->readCharLiteral($pos + 1);
+                [$token, $newPos] = $this->readCharLiteral($pos);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
+                $pos = $newPos;
                 continue;
             }
 
             // UTF-32 character literal
             if (substr($this->currentInput, $pos, 2) === "U'") {
-                [$token, $pos] = $this->readCharLiteral($pos + 1, Type::tyUInt());
+                [$token, $newPos] = $this->readCharLiteral($pos, Type::tyUInt());
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
+                $pos = $newPos;
                 continue;
             }
 

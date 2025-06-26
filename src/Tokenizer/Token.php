@@ -12,6 +12,7 @@ class Token
     public GMP $gmpVal;
     public float $fval;
     public string $str;
+    public ?string $originalStr = null; // Original string representation for stringization
     public int $pos;
     public int $lineNo;
     public int $len {

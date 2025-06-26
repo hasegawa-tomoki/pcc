@@ -125,6 +125,9 @@ class Preprocessor
         if (isset($tok->origin)) {
             $t->origin = $tok->origin;
         }
+        if (isset($tok->originalStr)) {
+            $t->originalStr = $tok->originalStr;
+        }
         // nextプロパティは呼び出し側で設定する
         return $t;
     }
@@ -310,15 +313,18 @@ class Preprocessor
             }
             
             if ($t->kind === TokenKind::TK_STR) {
-                // For string literals, we need to reconstruct the original quoted form
-                $content = $t->str;
-                // Remove null terminator
-                if (strlen($content) > 0 && $content[-1] === "\0") {
-                    $content = substr($content, 0, -1);
+                // Use original string representation if available
+                if ($t->originalStr !== null) {
+                    $buf .= $t->originalStr;
+                } else {
+                    // Fallback to reconstructed form
+                    $content = $t->str;
+                    if (strlen($content) > 0 && $content[-1] === "\0") {
+                        $content = substr($content, 0, -1);
+                    }
+                    $content = str_replace(['\\', '"'], ['\\\\', '\\"'], $content);
+                    $buf .= '"' . $content . '"';
                 }
-                // Escape quotes and backslashes, then add quotes
-                $content = str_replace(['\\', '"'], ['\\\\', '\\"'], $content);
-                $buf .= '"' . $content . '"';
             } else {
                 $buf .= $t->str;
             }
