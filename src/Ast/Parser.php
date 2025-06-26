@@ -2966,12 +2966,71 @@ class Parser
     }
 
     /**
+     * generic-selection = "(" assign "," generic-assoc ("," generic-assoc)* ")"
+     *
+     * generic-assoc = type-name ":" assign
+     *               | "default" ":" assign
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function genericSelection(Token $rest, Token $tok): array
+    {
+        $start = $tok;
+        $tok = $this->tokenizer->skip($tok, '(');
+
+        [$ctrl, $tok] = $this->assign($tok, $tok);
+        $ctrl->addType();
+
+        $t1 = $ctrl->ty;
+        if ($t1->kind === TypeKind::TY_FUNC) {
+            $t1 = Type::pointerTo($t1);
+        } elseif ($t1->kind === TypeKind::TY_ARRAY) {
+            $t1 = Type::pointerTo($t1->base);
+        }
+
+        $ret = null;
+
+        while (true) {
+            [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ')');
+            if ($consumed) {
+                $rest = $tok;
+                break;
+            }
+            $tok = $this->tokenizer->skip($tok, ',');
+
+            if ($this->tokenizer->equal($tok, 'default')) {
+                $tok = $this->tokenizer->skip($tok->next, ':');
+                [$node, $tok] = $this->assign($tok, $tok);
+                if ($ret === null) {
+                    $ret = $node;
+                }
+                continue;
+            }
+
+            [$t2, $tok] = $this->typename($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ':');
+            [$node, $tok] = $this->assign($tok, $tok);
+            if (Type::isCompatible($t1, $t2)) {
+                $ret = $node;
+            }
+        }
+
+        if ($ret === null) {
+            Console::errorTok($start, 'controlling expression type not compatible with any generic association type');
+        }
+        return [$ret, $rest];
+    }
+
+    /**
      * primary = "(" "{" stmt+ "}" ")"
      *         | "(" expr ")"
      *         | "sizeof" "(" type-name ")"
      *         | "sizeof" unary
      *         | "_Alignof" "(" type-name ")"
      *         | "_Alignof" unary
+     *         | "_Generic" generic-selection
      *         | "__builtin_types_compatible_p" "(" type-name, type-name, ")"
      *         | "__builtin_reg_class" "(" type-name ")"
      *         | ident func-args?
@@ -3023,6 +3082,10 @@ class Parser
             [$node, $rest] = $this->unary($rest, $tok->next);
             $node->addType();
             return [Node::newUlong($node->ty->align, $tok), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '_Generic')){
+            return $this->genericSelection($rest, $tok->next);
         }
 
         if ($this->tokenizer->equal($tok, '__builtin_types_compatible_p')){
