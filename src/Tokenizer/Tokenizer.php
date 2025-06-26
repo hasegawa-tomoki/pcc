@@ -158,15 +158,16 @@ class Tokenizer
 
     /**
      * @param int $start
+     * @param int $quote
      * @return array{0: \Pcc\Tokenizer\Token, 1: int}
      */
-    public function readStringLiteral(int $start): array
+    public function readStringLiteral(int $start, int $quote): array
     {
-        $endPos = $this->stringLiteralEndPos($start + 1);
+        $endPos = $this->stringLiteralEndPos($quote + 1);
 
         $str = '';
         $len = 0;
-        for ($i = $start + 1; $i < $endPos; ){
+        for ($i = $quote + 1; $i < $endPos; ){
             if ($this->currentInput[$i] === '\\'){
                 [$c, $i] = $this->readEscapedChar($i + 1);
                 $str .= chr($c);
@@ -579,7 +580,18 @@ class Tokenizer
 
             // String literal
             if ($this->currentInput[$pos] === '"') {
-                [$token, $pos] = $this->readStringLiteral($pos);
+                [$token, $pos] = $this->readStringLiteral($pos, $pos);
+                $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
+                $token->file = $this->currentFile;
+                $atBol = $hasSpace = false;
+                $tokens[] = $token;
+                continue;
+            }
+
+            // UTF-8 string literal
+            if (substr($this->currentInput, $pos, 3) === 'u8"') {
+                [$token, $pos] = $this->readStringLiteral($pos, $pos + 2);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
