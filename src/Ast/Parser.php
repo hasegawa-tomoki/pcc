@@ -812,14 +812,33 @@ class Parser
 
     public function countArrayInitElements(Token $tok, Type $ty): int
     {
-        $dummy = $this->newInitializer($ty->base, false);
-        for ($i = 0; [$consumed, $tok] = $this->consumeEnd($tok, $tok) and (! $consumed); $i++){
-            if ($i > 0){
+        $first = true;
+        $dummy = $this->newInitializer($ty->base, true);
+        
+        $i = 0;
+        $max = 0;
+        
+        while ([$consumed, $tok] = $this->consumeEnd($tok, $tok) and (! $consumed)) {
+            if (!$first) {
                 $tok = $this->tokenizer->skip($tok, ',');
             }
-            [$init, $tok] = $this->initializer2($tok, $tok, $dummy);
+            $first = false;
+            
+            if ($this->tokenizer->equal($tok, '[')) {
+                [$i, $tok] = $this->arrayDesignator($tok, $tok, $ty);
+                if ($this->tokenizer->equal($tok, '...')) {
+                    [$i, $tok] = $this->constExpr($tok, $tok->next);
+                    $i = gmp_intval($i);
+                }
+                [$dummy, $tok] = $this->designation($tok, $tok, $dummy);
+            } else {
+                [$dummy, $tok] = $this->initializer2($tok, $tok, $dummy);
+            }
+            
+            $i++;
+            $max = max($max, $i);
         }
-        return $i;
+        return $max;
     }
 
     /**
@@ -854,8 +873,8 @@ class Parser
         [$i, $tok] = $this->constExpr($tok, $tok->next);
         $i = gmp_intval($i);
         
-        if ($i >= $ty->arrayLen) {
-            $this->errorTok($start, "array designator index exceeds array bounds");
+        if ($ty->arrayLen > 0 && $i >= $ty->arrayLen) {
+            Console::errorTok($start, "array designator index exceeds array bounds");
         }
         
         $tok = $this->tokenizer->skip($tok, ']');
@@ -874,7 +893,7 @@ class Parser
     {
         if ($this->tokenizer->equal($tok, '[')) {
             if ($init->ty->kind !== TypeKind::TY_ARRAY) {
-                $this->errorTok($tok, "array index in non-array initializer");
+                Console::errorTok($tok, "array index in non-array initializer");
             }
             
             [$i, $tok] = $this->arrayDesignator($tok, $tok, $init->ty);
@@ -899,12 +918,13 @@ class Parser
     public function arrayInitializer1(Token $rest, Token $tok, Initializer $init): array
     {
         $tok = $this->tokenizer->skip($tok, '{');
-        $first = true;
-
-        if ($init->isFlexible){
+        
+        if ($init->isFlexible) {
             $len = $this->countArrayInitElements($tok, $init->ty);
             $init = $this->newInitializer(Type::arrayOf($init->ty->base, $len), false);
         }
+        
+        $first = true;
 
         for ($i = 0; [$consumed, $rest] = $this->consumeEnd($rest, $tok) and (! $consumed); $i++){
             if (!$first) {
