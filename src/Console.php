@@ -4,6 +4,13 @@ namespace Pcc;
 use JetBrains\PhpStorm\NoReturn;
 use Pcc\Tokenizer\Token;
 
+/**
+ * Console utility class with printf-style error reporting functions.
+ * 
+ * In C, these functions would use __attribute__((format(printf, ...))) 
+ * for compile-time format string checking. PHP doesn't support this 
+ * attribute, but the functions maintain printf-style formatting.
+ */
 class Console
 {
     public static string $currentInput = '';
@@ -116,6 +123,13 @@ class Console
         return $width;
     }
 
+    /**
+     * Report an error and exit.
+     * Uses printf-style formatting (equivalent to C's __attribute__((format(printf, 1, 2)))).
+     *
+     * @param string $format Printf-style format string
+     * @param mixed ...$args Arguments for format string
+     */
     #[NoReturn] public static function error(string $format, ...$args): never
     {
         printf($format.PHP_EOL, ...$args);
@@ -166,6 +180,14 @@ class Console
         printf($format.PHP_EOL, ...$args);
     }
 
+    /**
+     * Report an error at a specific position and exit.
+     * Uses printf-style formatting (equivalent to C's __attribute__((format(printf, 2, 3)))).
+     *
+     * @param int $pos Position in input
+     * @param string $format Printf-style format string
+     * @param mixed ...$args Arguments for format string
+     */
     #[NoReturn] public static function errorAt(int $pos, string $format, ...$args): never
     {
         $lines = explode("\n", Console::$currentInput);
@@ -182,6 +204,14 @@ class Console
         exit(1);
     }
 
+    /**
+     * Report an error at a token's position and exit.
+     * Uses printf-style formatting (equivalent to C's __attribute__((format(printf, 2, 3)))).
+     *
+     * @param Token $tok Token where error occurred
+     * @param string $format Printf-style format string
+     * @param mixed ...$args Arguments for format string
+     */
     #[NoReturn] public static function errorTok(Token $tok, string $format, ...$args): never
     {
         // Use file-specific information from the token
@@ -210,6 +240,14 @@ class Console
         exit(1);
     }
 
+    /**
+     * Report a warning at a token's position.
+     * Uses printf-style formatting (equivalent to C's __attribute__((format(printf, 2, 3)))).
+     *
+     * @param Token $tok Token where warning occurred
+     * @param string $format Printf-style format string
+     * @param mixed ...$args Arguments for format string
+     */
     public static function warnTok(Token $tok, string $format, ...$args): void
     {
         if ($tok->file === null) {
@@ -241,6 +279,13 @@ class Console
         printf($format.PHP_EOL, ...$args);
     }
 
+    /**
+     * Output formatted text to the output file.
+     * Uses printf-style formatting (equivalent to C's __attribute__((format(printf, 1, 2)))).
+     *
+     * @param string $format Printf-style format string
+     * @param mixed ...$args Arguments for format string
+     */
     public static function out(string $format, ...$args): void
     {
         fprintf(self::$outputFile, $format.PHP_EOL, ...$args);
