@@ -943,6 +943,35 @@ class Preprocessor
         return true;
     }
 
+    // Read #line arguments
+    private static function readLineMarker(Token &$rest, Token $tok): void
+    {
+        $start = $tok;
+        $tok = self::copyLine($rest, $tok);
+
+        if ($tok->kind !== TokenKind::TK_PP_NUM) {
+            Console::errorTok($tok, "invalid line marker");
+        }
+        
+        // Convert PP_NUM to NUM
+        self::convertPpNumber($tok);
+        
+        if ($tok->kind !== TokenKind::TK_NUM || $tok->ty->kind !== \Pcc\Ast\TypeKind::TY_INT) {
+            Console::errorTok($tok, "invalid line marker");
+        }
+        $start->file->lineDelta = $tok->val - $start->lineNo;
+
+        $tok = $tok->next;
+        if ($tok->kind === TokenKind::TK_EOF) {
+            return;
+        }
+
+        if ($tok->kind !== TokenKind::TK_STR) {
+            Console::errorTok($tok, "filename expected");
+        }
+        $start->file->displayName = rtrim($tok->str, "\0"); // remove null terminator
+    }
+
     /**
      * すべてのトークンを訪問し、プリプロセッサのマクロとディレクティブを評価する
      */
@@ -959,6 +988,8 @@ class Preprocessor
             
             // "#"でない場合はそのまま通す
             if (!self::isHash($tok)) {
+                $tok->lineDelta = $tok->file->lineDelta;
+                $tok->filename = $tok->file->displayName;
                 $cur->next = $tok;
                 $cur = $tok;
                 $tok = $tok->next;
@@ -1068,6 +1099,11 @@ class Preprocessor
                 }
                 self::$condIncl = self::$condIncl->next;
                 $tok = self::skipLine($tok->next);
+                continue;
+            }
+
+            if ($tok->str === 'line') {
+                self::readLineMarker($tok, $tok->next);
                 continue;
             }
 
@@ -1343,7 +1379,7 @@ class Preprocessor
         while ($tmpl->origin) {
             $tmpl = $tmpl->origin;
         }
-        return self::newStrToken($tmpl->file->name ?? '<unknown>', $tmpl);
+        return self::newStrToken($tmpl->file->displayName ?? '<unknown>', $tmpl);
     }
 
     private static function lineMacro(Token $tmpl): Token
@@ -1352,7 +1388,8 @@ class Preprocessor
         while ($tmpl->origin) {
             $tmpl = $tmpl->origin;
         }
-        return self::newNumToken($tmpl->lineNo ?? 1, $tmpl);
+        $i = $tmpl->lineNo + $tmpl->file->lineDelta;
+        return self::newNumToken($i, $tmpl);
     }
 
     // __COUNTER__ is expanded to serial values starting from 0.
@@ -1479,6 +1516,12 @@ class Preprocessor
         // キーワードを変換
         self::convertPpTokens($tok);
         self::joinAdjacentStringLiterals($tok);
+
+        // Update line numbers with line delta
+        for ($t = $tok; $t !== null; $t = $t->next) {
+            $t->lineNo += $t->lineDelta;
+        }
+
         return $tok;
     }
 }

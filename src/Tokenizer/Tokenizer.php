@@ -208,6 +208,7 @@ class Tokenizer
         }
 
         $tok = new Token(TokenKind::TK_STR, $str."\0", $start);
+        $this->setTokenFileInfo($tok);
         $tok->originalStr = substr($this->currentInput, $start, ($endPos + 1) - $start);
         $tok->ty = Type::arrayOf(Type::tyChar(), $len + 1);
         return [$tok, $endPos + 1];
@@ -264,6 +265,7 @@ class Tokenizer
         }
 
         $tok = new Token(TokenKind::TK_STR, $str, $start);
+        $this->setTokenFileInfo($tok);
         $tok->originalStr = substr($this->currentInput, $start, ($endPos + 1) - $start);
         $tok->ty = Type::arrayOf(Type::tyUshort(), $len);
         return [$tok, $endPos + 1];
@@ -309,6 +311,7 @@ class Tokenizer
         }
 
         $tok = new Token(TokenKind::TK_STR, $str, $start);
+        $this->setTokenFileInfo($tok);
         $tok->originalStr = substr($this->currentInput, $start, ($endPos + 1) - $start);
         $tok->ty = Type::arrayOf($ty, $len);
         return [$tok, $endPos + 1];
@@ -349,6 +352,7 @@ class Tokenizer
 
         $originalStr = substr($this->currentInput, $start, ($pos + $end + 1) - $start);
         $tok = new Token(TokenKind::TK_NUM, $originalStr, $start, );
+        $this->setTokenFileInfo($tok);
 
         // For multibyte characters, c is already an integer value (Unicode code point)
         $tok->val = $c;
@@ -433,6 +437,7 @@ class Tokenizer
         }
 
         $tok = new Token(TokenKind::TK_NUM, substr($this->currentInput, $start, $p - $start), $start);
+        $this->setTokenFileInfo($tok);
         $tok->val = PccGMP::toPHPInt($gmpVal);
         $tok->gmpVal = $gmpVal;
         $tok->ty = $ty;
@@ -471,6 +476,7 @@ class Tokenizer
         }
 
         $tok = new Token(TokenKind::TK_NUM, substr($this->currentInput, $start, $end), $start);
+        $this->setTokenFileInfo($tok);
         $tok->fval = $val;
         $tok->ty = $ty;
 
@@ -711,9 +717,9 @@ class Tokenizer
                 }
                 
                 $token = new Token(TokenKind::TK_PP_NUM, substr($this->currentInput, $start, $pos - $start), $start);
+                $this->setTokenFileInfo($token);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 continue;
@@ -724,7 +730,7 @@ class Tokenizer
                 [$token, $newPos] = $this->readStringLiteral($pos, $pos);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -736,7 +742,7 @@ class Tokenizer
                 [$token, $newPos] = $this->readStringLiteral($pos, $pos + 2);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -748,7 +754,7 @@ class Tokenizer
                 [$token, $newPos] = $this->readUtf16StringLiteral($pos, $pos + 1);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -760,7 +766,7 @@ class Tokenizer
                 [$token, $newPos] = $this->readUtf32StringLiteral($pos, $pos + 1, Type::tyInt());
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -772,7 +778,7 @@ class Tokenizer
                 [$token, $newPos] = $this->readUtf32StringLiteral($pos, $pos + 1, Type::tyUInt());
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -789,7 +795,7 @@ class Tokenizer
                 $token->gmpVal = gmp_init($token->val);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 continue;
@@ -802,7 +808,7 @@ class Tokenizer
                 $token->gmpVal = gmp_init($token->val);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -814,7 +820,7 @@ class Tokenizer
                 [$token, $newPos] = $this->readCharLiteral($pos);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -826,7 +832,7 @@ class Tokenizer
                 [$token, $newPos] = $this->readCharLiteral($pos, Type::tyUInt());
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
+                $this->setTokenFileInfo($token);
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos = $newPos;
@@ -837,9 +843,9 @@ class Tokenizer
             $identLen = $this->readIdent($pos);
             if ($identLen) {
                 $token = new Token(TokenKind::TK_IDENT, substr($this->currentInput, $pos, $identLen), $pos);
+                $this->setTokenFileInfo($token);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
-                $token->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $token;
                 $pos += $identLen;
@@ -849,9 +855,9 @@ class Tokenizer
             // Three-letter punctuators
             if (in_array($token = substr($this->currentInput, $pos, 3), ['<<=', '>>=', '...', ])){
                 $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $this->setTokenFileInfo($tok);
                 $tok->atBol = $atBol;
                 $tok->hasSpace = $hasSpace;
-                $tok->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $tok;
                 $pos += 3;
@@ -861,9 +867,9 @@ class Tokenizer
             // Two-letter punctuators
             if (in_array($token = substr($this->currentInput, $pos, 2), ['==', '!=', '<=', '>=', '->', '+=', '-=', '*=', '/=', '++', '--', '%=', '&=', '|=', '^=', '&&', '||', '<<', '>>', '##', ])) {
                 $tok = new Token(TokenKind::TK_RESERVED, $token, $pos);
+                $this->setTokenFileInfo($tok);
                 $tok->atBol = $atBol;
                 $tok->hasSpace = $hasSpace;
-                $tok->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $tok;
                 $pos += 2;
@@ -871,9 +877,9 @@ class Tokenizer
             }
             if (str_contains("!\"#$%&'()*+,-./:;<=>?@[\]^_`{|}~", $this->currentInput[$pos])) {
                 $tok = new Token(TokenKind::TK_RESERVED, $this->currentInput[$pos], $pos);
+                $this->setTokenFileInfo($tok);
                 $tok->atBol = $atBol;
                 $tok->hasSpace = $hasSpace;
-                $tok->file = $this->currentFile;
                 $atBol = $hasSpace = false;
                 $tokens[] = $tok;
                 $pos++;
@@ -884,7 +890,7 @@ class Tokenizer
         }
 
         $eofToken = new Token(TokenKind::TK_EOF, '', $pos);
-        $eofToken->file = $this->currentFile;
+        $this->setTokenFileInfo($eofToken);
         $tokens[] = $eofToken;
         $this->tokens = $tokens;
         for ($i = 0; $i < count($this->tokens) - 1; $i++){
@@ -892,6 +898,12 @@ class Tokenizer
         }
         $this->addLineNumbers();
    }
+   
+    private function setTokenFileInfo(Token $tok): void
+    {
+        $tok->file = $this->currentFile;
+        $tok->filename = $this->currentFile->displayName;
+    }
    
     private function readFile(string $path): ?string
     {

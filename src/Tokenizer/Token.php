@@ -24,6 +24,8 @@ class Token
     public bool $atBol = false;
     public bool $hasSpace = false;
     public ?\Pcc\File $file = null;
+    public string $filename = '';
+    public int $lineDelta = 0;
     public ?\Pcc\Preprocessor\Hideset $hideset = null;
     public ?Token $origin = null;
 
