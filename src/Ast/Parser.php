@@ -823,6 +823,72 @@ class Parser
     }
 
     /**
+     * array-designator = "[" const-expr "]"
+     *
+     * C99 added the designated initializer to the language, which allows
+     * programmers to move the "cursor" of an initializer to any element.
+     * The syntax looks like this:
+     *
+     *   int x[10] = { 1, 2, [5]=3, 4, 5, 6, 7 };
+     *
+     * `[5]` moves the cursor to the 5th element, so the 5th element of x
+     * is set to 3. Initialization then continues forward in order, so
+     * 6th, 7th, 8th and 9th elements are initialized with 4, 5, 6 and 7,
+     * respectively. Unspecified elements (in this case, 3rd and 4th
+     * elements) are initialized with zero.
+     *
+     * Nesting is allowed, so the following initializer is valid:
+     *
+     *   int x[5][10] = { [5][8]=1, 2, 3 };
+     *
+     * It sets x[5][8], x[5][9] and x[6][0] to 1, 2 and 3, respectively.
+     *
+     * @param Token $rest
+     * @param Token $tok
+     * @param Type $ty
+     * @return array{int, Token}
+     */
+    private function arrayDesignator(Token $rest, Token $tok, Type $ty): array
+    {
+        $start = $tok;
+        [$i, $tok] = $this->constExpr($tok, $tok->next);
+        $i = gmp_intval($i);
+        
+        if ($i >= $ty->arrayLen) {
+            $this->errorTok($start, "array designator index exceeds array bounds");
+        }
+        
+        $tok = $this->tokenizer->skip($tok, ']');
+        return [$i, $tok];
+    }
+
+    /**
+     * designation = ("[" const-expr "]")* "=" initializer
+     *
+     * @param Token $rest
+     * @param Token $tok
+     * @param Initializer $init
+     * @return array{Initializer, Token}
+     */
+    private function designation(Token $rest, Token $tok, Initializer $init): array
+    {
+        if ($this->tokenizer->equal($tok, '[')) {
+            if ($init->ty->kind !== TypeKind::TY_ARRAY) {
+                $this->errorTok($tok, "array index in non-array initializer");
+            }
+            
+            [$i, $tok] = $this->arrayDesignator($tok, $tok, $init->ty);
+            [$init->children[$i], $tok] = $this->designation($tok, $tok, $init->children[$i]);
+            [$init, $rest] = $this->arrayInitializer2($rest, $tok, $init, $i + 1);
+            return [$init, $rest];
+        }
+        
+        $tok = $this->tokenizer->skip($tok, '=');
+        [$init, $rest] = $this->initializer2($rest, $tok, $init);
+        return [$init, $rest];
+    }
+
+    /**
      * array-initializer1 = "{" initializer ("," initializer)* ","?"}"
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -833,6 +899,7 @@ class Parser
     public function arrayInitializer1(Token $rest, Token $tok, Initializer $init): array
     {
         $tok = $this->tokenizer->skip($tok, '{');
+        $first = true;
 
         if ($init->isFlexible){
             $len = $this->countArrayInitElements($tok, $init->ty);
@@ -840,8 +907,15 @@ class Parser
         }
 
         for ($i = 0; [$consumed, $rest] = $this->consumeEnd($rest, $tok) and (! $consumed); $i++){
-            if ($i > 0){
+            if (!$first) {
                 $tok = $this->tokenizer->skip($tok, ',');
+            }
+            $first = false;
+
+            if ($this->tokenizer->equal($tok, '[')) {
+                [$i, $tok] = $this->arrayDesignator($tok, $tok, $init->ty);
+                [$init->children[$i], $tok] = $this->designation($tok, $tok, $init->children[$i]);
+                continue;
             }
 
             if ($i < $init->ty->arrayLen){
@@ -862,16 +936,21 @@ class Parser
      * @param \Pcc\Ast\Initializer $init
      * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function arrayInitializer2(Token $rest, Token $tok, Initializer $init): array
+    public function arrayInitializer2(Token $rest, Token $tok, Initializer $init, int $i = 0): array
     {
         if ($init->isFlexible){
             $len = $this->countArrayInitElements($tok, $init->ty);
             $init = $this->newInitializer(Type::arrayOf($init->ty->base, $len), false);
         }
 
-        for ($i = 0; $i < $init->ty->arrayLen and (! $this->isEnd($tok)); $i++){
+        for (; $i < $init->ty->arrayLen and (! $this->isEnd($tok)); $i++){
+            $start = $tok;
             if ($i > 0){
                 $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            if ($this->tokenizer->equal($tok, '[')) {
+                return [$init, $start];
             }
 
             [$init->children[$i], $tok] = $this->initializer2($tok, $tok, $init->children[$i]);
@@ -969,7 +1048,7 @@ class Parser
             if ($this->tokenizer->equal($tok, '{')){
                 return $this->arrayInitializer1($rest, $tok, $init);
             } else {
-                return $this->arrayInitializer2($rest, $tok, $init);
+                return $this->arrayInitializer2($rest, $tok, $init, 0);
             }
         }
 
