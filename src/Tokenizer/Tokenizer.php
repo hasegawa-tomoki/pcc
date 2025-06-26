@@ -56,9 +56,10 @@ class Tokenizer
             Console::error("cannot open: %s", $currentFilename);
         }
         
-        // Canonicalize newlines and remove backslash-newline sequences
+        // Canonicalize newlines, remove backslash-newline sequences, and convert universal chars
         $canonicalized = self::canonicalizeNewline($this->currentInput);
-        $this->currentInput = self::removeBackslashNewline($canonicalized);
+        $backslashRemoved = self::removeBackslashNewline($canonicalized);
+        $this->currentInput = self::convertUniversalChars($backslashRemoved);
         
         self::$fileNo++;
         $this->currentFile = new File($currentFilename, self::$fileNo, $this->currentInput);
@@ -705,6 +706,77 @@ class Tokenizer
         return new File($name, $fileNo, $contents);
     }
 
+    // Encode a given character in UTF-8.
+    private static function encodeUtf8(int $c): string
+    {
+        if ($c <= 0x7F) {
+            return chr($c);
+        }
+
+        if ($c <= 0x7FF) {
+            return chr(0b11000000 | ($c >> 6)) . 
+                   chr(0b10000000 | ($c & 0b00111111));
+        }
+
+        if ($c <= 0xFFFF) {
+            return chr(0b11100000 | ($c >> 12)) . 
+                   chr(0b10000000 | (($c >> 6) & 0b00111111)) . 
+                   chr(0b10000000 | ($c & 0b00111111));
+        }
+
+        return chr(0b11110000 | ($c >> 18)) . 
+               chr(0b10000000 | (($c >> 12) & 0b00111111)) . 
+               chr(0b10000000 | (($c >> 6) & 0b00111111)) . 
+               chr(0b10000000 | ($c & 0b00111111));
+    }
+
+    private static function readUniversalChar(string $p, int $len): int
+    {
+        $c = 0;
+        for ($i = 0; $i < $len; $i++) {
+            if (!ctype_xdigit($p[$i])) {
+                return 0;
+            }
+            $c = ($c << 4) | hexdec($p[$i]);
+        }
+        return $c;
+    }
+
+    // Replace \u or \U escape sequences with corresponding UTF-8 bytes.
+    private static function convertUniversalChars(string $p): string
+    {
+        $result = '';
+        $i = 0;
+        $len = strlen($p);
+
+        while ($i < $len) {
+            if ($i < $len - 5 && substr($p, $i, 2) === '\\u') {
+                $c = self::readUniversalChar(substr($p, $i + 2, 4), 4);
+                if ($c > 0) {
+                    $i += 6;
+                    $result .= self::encodeUtf8($c);
+                } else {
+                    $result .= $p[$i++];
+                }
+            } elseif ($i < $len - 9 && substr($p, $i, 2) === '\\U') {
+                $c = self::readUniversalChar(substr($p, $i + 2, 8), 8);
+                if ($c > 0) {
+                    $i += 10;
+                    $result .= self::encodeUtf8($c);
+                } else {
+                    $result .= $p[$i++];
+                }
+            } elseif ($p[$i] === '\\' && $i + 1 < $len) {
+                $result .= $p[$i++];
+                $result .= $p[$i++];
+            } else {
+                $result .= $p[$i++];
+            }
+        }
+
+        return $result;
+    }
+
     // Replaces \r or \r\n with \n.
     private static function canonicalizeNewline(string $p): string
     {
@@ -771,9 +843,10 @@ class Tokenizer
         $tokenizer = new self($file->name, null, true);
         // Override file content initialization
         $tokenizer->currentFile = $file;
-        // Canonicalize newlines and remove backslash-newline sequences before tokenizing
+        // Canonicalize newlines, remove backslash-newline sequences, and convert universal chars before tokenizing
         $canonicalized = self::canonicalizeNewline($file->contents);
-        $tokenizer->currentInput = self::removeBackslashNewline($canonicalized);
+        $backslashRemoved = self::removeBackslashNewline($canonicalized);
+        $tokenizer->currentInput = self::convertUniversalChars($backslashRemoved);
         Console::$currentFilename = $file->name;
         Console::$currentInput = $tokenizer->currentInput;
         $tokenizer->tokenize();
