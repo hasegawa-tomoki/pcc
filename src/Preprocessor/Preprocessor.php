@@ -1363,11 +1363,76 @@ class Preprocessor
     }
 
     /**
+     * String kind enumeration
+     */
+    private const STR_NONE = 0;
+    private const STR_UTF8 = 1;
+    private const STR_UTF16 = 2;
+    private const STR_UTF32 = 3;
+    private const STR_WIDE = 4;
+
+    private static function getStringKind(Token $tok): int
+    {
+        $loc = $tok->originalStr ?? $tok->str;
+        if (str_starts_with($loc, 'u8"')) {
+            return self::STR_UTF8;
+        }
+        
+        switch ($loc[0] ?? '') {
+            case '"': return self::STR_NONE;
+            case 'u': return self::STR_UTF16;
+            case 'U': return self::STR_UTF32;
+            case 'L': return self::STR_WIDE;
+        }
+        return self::STR_NONE;
+    }
+
+    /**
      * Concatenate adjacent string literals into a single string literal
      * as per the C spec.
      */
-    private static function joinAdjacentStringLiterals(Token $tok1): void
+    private static function joinAdjacentStringLiterals(Token $tok): void
     {
+        // First pass: If regular string literals are adjacent to wide
+        // string literals, regular string literals are converted to a wide
+        // type before concatenation. In this pass, we do the conversion.
+        $tok1 = $tok;
+        while ($tok1->kind !== TokenKind::TK_EOF) {
+            if ($tok1->kind !== TokenKind::TK_STR || $tok1->next->kind !== TokenKind::TK_STR) {
+                $tok1 = $tok1->next;
+                continue;
+            }
+
+            $kind = self::getStringKind($tok1);
+            $basety = $tok1->ty->base;
+
+            for ($t = $tok1->next; $t->kind === TokenKind::TK_STR; $t = $t->next) {
+                $k = self::getStringKind($t);
+                if ($kind === self::STR_NONE) {
+                    $kind = $k;
+                    $basety = $t->ty->base;
+                } elseif ($k !== self::STR_NONE && $kind !== $k) {
+                    Console::errorTok($t, "unsupported non-standard concatenation of string literals");
+                }
+            }
+
+            if ($basety->size > 1) {
+                for ($t = $tok1; $t->kind === TokenKind::TK_STR; $t = $t->next) {
+                    if ($t->ty->base->size === 1) {
+                        $newTok = \Pcc\Tokenizer\Tokenizer::tokenizeStringLiteral($t, $basety);
+                        $t->ty = $newTok->ty;
+                        $t->str = $newTok->str;
+                    }
+                }
+            }
+
+            while ($tok1->kind === TokenKind::TK_STR) {
+                $tok1 = $tok1->next;
+            }
+        }
+
+        // Second pass: concatenate adjacent string literals.
+        $tok1 = $tok;
         while ($tok1->kind !== TokenKind::TK_EOF) {
             if ($tok1->kind !== TokenKind::TK_STR || $tok1->next->kind !== TokenKind::TK_STR) {
                 $tok1 = $tok1->next;

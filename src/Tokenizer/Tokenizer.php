@@ -1116,6 +1116,22 @@ class Tokenizer
         return $this->tok;
     }
 
+    public static function tokenizeStringLiteral(Token $tok, Type $basety): Token
+    {
+        $tokenizer = new self('', null, true);
+        $tokenizer->currentInput = $tok->originalStr ?? $tok->str;
+        $tokenizer->currentFile = $tok->file;
+        
+        if ($basety->size === 2) {
+            [$token, ] = $tokenizer->readUtf16StringLiteral(0, strpos($tokenizer->currentInput, '"'));
+        } else {
+            [$token, ] = $tokenizer->readUtf32StringLiteral(0, strpos($tokenizer->currentInput, '"'), $basety);
+        }
+        
+        $token->next = $tok->next;
+        return $token;
+    }
+
     // Read an identifier and returns the length of it.
     // If p does not point to a valid identifier, 0 is returned.
     private function readIdent(int $start): int
