@@ -1154,6 +1154,13 @@ class Preprocessor
                 continue;
             }
 
+            if ($tok->str === 'pragma') {
+                do {
+                    $tok = $tok->next;
+                } while (!$tok->atBol);
+                continue;
+            }
+
             if ($tok->str === 'error') {
                 Console::errorTok($tok, "error");
             }
