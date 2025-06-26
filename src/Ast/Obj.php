@@ -21,6 +21,7 @@ class Obj
     public bool $isStatic;
 
     // Global variable
+    public bool $isTentative = false;
     public ?string $initData = null;
     /** @var Relocation[] */
     public array $rels = [];

@@ -3349,6 +3349,8 @@ class Parser
 
             if ($this->tokenizer->equal($tok, '=')){
                 $tok = $this->gVarInitializer($tok, $tok->next, $var);
+            } elseif (!$attr->isExtern) {
+                $var->isTentative = true;
             }
         }
 
@@ -3363,6 +3365,35 @@ class Parser
         $dummy = Type::tyInt();
         [$ty, $tok] = $this->declarator($tok, $tok, $dummy);
         return $ty->kind === TypeKind::TY_FUNC;
+    }
+
+    // Remove redundant tentative definitions.
+    private function scanGlobals(): void
+    {
+        $newGlobals = [];
+        
+        foreach ($this->globals as $var) {
+            if (!$var->isTentative) {
+                $newGlobals[] = $var;
+                continue;
+            }
+            
+            // Find another definition of the same identifier.
+            $found = false;
+            foreach ($this->globals as $var2) {
+                if ($var !== $var2 and $var2->isDefinition and $var->name === $var2->name) {
+                    $found = true;
+                    break;
+                }
+            }
+            
+            // If there's another definition, the tentative definition is redundant
+            if (!$found) {
+                $newGlobals[] = $var;
+            }
+        }
+        
+        $this->globals = $newGlobals;
     }
 
     /**
@@ -3401,6 +3432,9 @@ class Parser
             }
         }
 
+        // Remove redundant tentative definitions.
+        $this->scanGlobals();
+        
         ray($this->globals);
         return $this->globals;
     }

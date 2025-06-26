@@ -1091,6 +1091,11 @@ class CodeGenerator
                 ? max(16, $var->align) : $var->align;
             Console::out("  .align %d", $align);
 
+            if ($var->isTentative) {
+                Console::out("  .comm %s, %d, %d", $var->name, $var->ty->size, $align);
+                continue;
+            }
+
             if (! is_null($var->initData)){
                 Console::out("  .data");
                 Console::out("%s:", $var->name);
