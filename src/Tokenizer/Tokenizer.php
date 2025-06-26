@@ -19,6 +19,7 @@ class Tokenizer
         'enum', 'static', 'goto', 'break', 'continue', 'switch', 'case',
         'default', 'extern', '_Alignof', '_Alignas', 'do', 'signed',
         'unsigned', 'float', 'double', 'typeof', 'asm', 'inline',
+        '_Thread_local', '__thread',
     ];
     public Token $tok {
         get {

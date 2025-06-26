@@ -22,6 +22,7 @@ class Obj
 
     // Global variable
     public bool $isTentative = false;
+    public bool $isTls = false;
     public ?string $initData = null;
     /** @var Relocation[] */
     public array $rels = [];

@@ -11,6 +11,7 @@ class Pcc
     //private static bool $optCc1 = false;
     //private static bool $optHashHashHash = false;
     private static array $options = [];
+    private static bool $optFcommon = true;
     private static StringArray $tmpFiles;
     private static StringArray $inputPaths;
     private static StringArray $includePaths;
@@ -18,6 +19,11 @@ class Pcc
     public static function getIncludePaths(): StringArray
     {
         return self::$includePaths;
+    }
+
+    public static function getOptFcommon(): bool
+    {
+        return self::$optFcommon;
     }
 
     public static function displayHelp(): void
@@ -154,6 +160,16 @@ class Pcc
             
             if ($argv[$i] === '-c') {
                 self::$options['c'] = true;
+                continue;
+            }
+
+            if ($argv[$i] === '-fcommon') {
+                self::$optFcommon = true;
+                continue;
+            }
+
+            if ($argv[$i] === '-fno-common') {
+                self::$optFcommon = false;
                 continue;
             }
             

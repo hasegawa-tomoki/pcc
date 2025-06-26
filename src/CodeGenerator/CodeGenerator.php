@@ -275,6 +275,13 @@ class CodeGenerator
                     return;
                 }
 
+                // Thread-local variable
+                if ($node->var->isTls) {
+                    Console::out("  mov %%fs:0, %%rax");
+                    Console::out("  add $%s@tpoff, %%rax", $node->var->name);
+                    return;
+                }
+
                 // Function
                 if ($node->ty->kind === TypeKind::TY_FUNC) {
                     if ($node->var->isDefinition) {
@@ -1097,8 +1104,14 @@ class CodeGenerator
                 continue;
             }
 
+            // .data or .tdata
             if (! is_null($var->initData)){
-                Console::out("  .data");
+                if ($var->isTls) {
+                    Console::out("  .section .tdata,\"awT\",@progbits");
+                } else {
+                    Console::out("  .data");
+                }
+
                 Console::out("%s:", $var->name);
 
                 $pos = 0;
@@ -1116,7 +1129,13 @@ class CodeGenerator
                 continue;
             }
 
-            Console::out("  .bss");
+            // .bss or .tbss
+            if ($var->isTls) {
+                Console::out("  .section .tbss,\"awT\",@nobits");
+            } else {
+                Console::out("  .bss");
+            }
+
             Console::out("%s:", $var->name);
             Console::out("  .zero %d", $var->ty->size);
         }

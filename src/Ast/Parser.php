@@ -213,7 +213,7 @@ class Parser
 
         while ($this->isTypeName($tok)){
             // Handle storage class specifiers
-            if ($this->tokenizer->equal($tok, 'typedef') or $this->tokenizer->equal($tok, 'static') or $this->tokenizer->equal($tok, 'extern') or $this->tokenizer->equal($tok, 'inline')){
+            if ($this->tokenizer->equal($tok, 'typedef') or $this->tokenizer->equal($tok, 'static') or $this->tokenizer->equal($tok, 'extern') or $this->tokenizer->equal($tok, 'inline') or $this->tokenizer->equal($tok, '_Thread_local') or $this->tokenizer->equal($tok, '__thread')){
                 if (! $attr){
                     Console::errorTok($tok, 'storage class specifier is not allowed in this context');
                 }
@@ -224,12 +224,14 @@ class Parser
                     $attr->isStatic = true;
                 } elseif ($this->tokenizer->equal($tok, 'extern')) {
                     $attr->isExtern = true;
-                } else {
+                } elseif ($this->tokenizer->equal($tok, 'inline')) {
                     $attr->isInline = true;
+                } else {
+                    $attr->isTls = true;
                 }
 
-                if ($attr->isTypedef and $attr->isStatic + $attr->isExtern + $attr->isInline > 1){
-                    Console::errorTok($tok, 'typedef may not be used together with static, extern or inline');
+                if ($attr->isTypedef and $attr->isStatic + $attr->isExtern + $attr->isInline + $attr->isTls > 1){
+                    Console::errorTok($tok, 'typedef may not be used together with static, extern, inline, __thread or _Thread_local');
                 }
 
                 $tok = $tok->next;
@@ -1485,6 +1487,7 @@ class Parser
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
             'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
             '__restrict__', '_Noreturn', 'float', 'double', 'typeof', 'inline',
+            '_Thread_local', '__thread',
         ])){
             return true;
         }
@@ -3343,13 +3346,14 @@ class Parser
             $var = $this->newGVar($this->getIdent($ty->name), $ty);
             $var->isDefinition = ! $attr->isExtern;
             $var->isStatic = $attr->isStatic;
+            $var->isTls = $attr->isTls;
             if ($attr->align){
                 $var->align = $attr->align;
             }
 
             if ($this->tokenizer->equal($tok, '=')){
                 $tok = $this->gVarInitializer($tok, $tok->next, $var);
-            } elseif (!$attr->isExtern) {
+            } elseif (!$attr->isExtern && !$attr->isTls) {
                 $var->isTentative = true;
             }
         }
