@@ -54,7 +54,8 @@ Composer や npm で外部の依存を新しく増やしたくなったときは
 ### 参考にするコード
 
 このプロジェクトは chibicc のgitコミットと1:1対応させて、ステップバイステップで開発します。
-chibicc は ./chibicc ディレクトリにcloneしてあります。chibiccのコードを参考に、設計がchibiccとあまり離れない様に設計してください。
+chibicc は ./chibicc ディレクトリにcloneしてあります。
+chibiccのコードをよく見て慎重に設計し、設計がchibiccと離れない様に設計してください。
 chibicc に対してコンパイル・ビルドしたりテスト実行したりする場合は `docker compose exec php bash` としてコンテナ内に入ってから実行してください。
 chibicc を実行する時もコンテナ内に入ってから実行してください。
 
