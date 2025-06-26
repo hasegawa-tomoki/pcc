@@ -360,6 +360,16 @@ class Preprocessor
         return $tok;
     }
 
+    private static function hasVarargs(?MacroArg $args): bool
+    {
+        for ($ap = $args; $ap !== null; $ap = $ap->next) {
+            if ($ap->name === '__VA_ARGS__') {
+                return $ap->tok->kind !== TokenKind::TK_EOF;
+            }
+        }
+        return false;
+    }
+
     private static function newNumToken(int $val, Token $tmpl): Token
     {
         $buf = sprintf("%d\n", $val);
@@ -844,6 +854,20 @@ class Preprocessor
                     $cur = $cur->next;
                 }
                 $tok = $tok->next;
+                continue;
+            }
+
+            // If __VA_ARGS__ is empty, __VA_OPT__(x) is expanded to the
+            // empty token list. Otherwise, __VA_OPT__(x) is expanded to x.
+            if ($tok->str === '__VA_OPT__' && $tok->next && $tok->next->str === '(') {
+                $arg = self::readMacroArgOne($tok, $tok->next->next, true);
+                if (self::hasVarargs($args)) {
+                    for ($t = $arg->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+                        $cur->next = $t;
+                        $cur = $cur->next;
+                    }
+                }
+                self::skip($tok, ')');
                 continue;
             }
 
