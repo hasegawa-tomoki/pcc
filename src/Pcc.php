@@ -27,7 +27,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D', '-U'];
+        $x = ['-o', '-I', '-D', '-U', '-idirafter'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -68,6 +68,8 @@ class Pcc
 
     private static function parseArgs(int $argc, array $argv): void
     {
+        $idirafter = new StringArray();
+        
         // Make sure that all command line options that take an argument
         // have an argument.
         for ($i = 1; $i < $argc; $i++) {
@@ -134,6 +136,12 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-idirafter' and isset($argv[$i + 1])) {
+                $idirafter->push($argv[$i + 1]);
+                $i++;
+                continue;
+            }
+
             if ($argv[$i] === '-S') {
                 self::$options['S'] = true;
                 continue;
@@ -182,6 +190,11 @@ class Pcc
             }
 
             self::$inputPaths->push($argv[$i]);
+        }
+        
+        // Add -idirafter paths after regular include paths
+        foreach ($idirafter->getData() as $path) {
+            self::$includePaths->push($path);
         }
         
         if (self::$inputPaths->getLength() === 0) {
