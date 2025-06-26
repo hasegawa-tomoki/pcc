@@ -104,7 +104,7 @@ class Tokenizer
             $ord = ord($c);
             return ($ord >= ord('a') && $ord <= ord('z')) || 
                    ($ord >= ord('A') && $ord <= ord('Z')) || 
-                   $ord === ord('_');
+                   $ord === ord('_') || $ord === ord('$');
         }
         
         // For multibyte characters, decode UTF-8 and check Unicode ranges
@@ -121,7 +121,7 @@ class Tokenizer
             }
             return ($ord >= ord('a') && $ord <= ord('z')) || 
                    ($ord >= ord('A') && $ord <= ord('Z')) || 
-                   $ord === ord('_');
+                   $ord === ord('_') || $ord === ord('$');
         }
         
         // For multibyte characters, decode UTF-8 and check Unicode ranges
@@ -1159,7 +1159,7 @@ class Tokenizer
     private static function isIdent1Unicode(int $c): bool
     {
         static $range = [
-            ord('_'), ord('_'), ord('a'), ord('z'), ord('A'), ord('Z'),
+            ord('_'), ord('_'), ord('a'), ord('z'), ord('A'), ord('Z'), ord('$'), ord('$'),
             0x00A8, 0x00A8, 0x00AA, 0x00AA, 0x00AD, 0x00AD, 0x00AF, 0x00AF,
             0x00B2, 0x00B5, 0x00B7, 0x00BA, 0x00BC, 0x00BE, 0x00C0, 0x00D6,
             0x00D8, 0x00F6, 0x00F8, 0x00FF, 0x0100, 0x02FF, 0x0370, 0x167F,
@@ -1183,7 +1183,7 @@ class Tokenizer
     private static function isIdent2Unicode(int $c): bool
     {
         static $range = [
-            ord('0'), ord('9'), 0x0300, 0x036F, 0x1DC0, 0x1DFF, 0x20D0, 0x20FF,
+            ord('0'), ord('9'), ord('$'), ord('$'), 0x0300, 0x036F, 0x1DC0, 0x1DFF, 0x20D0, 0x20FF,
             0xFE20, 0xFE2F, -1,
         ];
 
