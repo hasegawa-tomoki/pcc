@@ -11,7 +11,7 @@ class Console
     /** @var resource */
     public static $outputFile;
 
-    #[NoReturn] public static function error(string $format, ...$args): void
+    #[NoReturn] public static function error(string $format, ...$args): never
     {
         printf($format.PHP_EOL, ...$args);
         exit(1);
@@ -24,7 +24,7 @@ class Console
      * @param int $line
      * @return void
      */
-    #[NoReturn] public static function unreachable(string $file, int $line): void
+    #[NoReturn] public static function unreachable(string $file, int $line): never
     {
         self::error('internal error at %s:%d', $file, $line);
     }
@@ -60,7 +60,7 @@ class Console
         printf($format.PHP_EOL, ...$args);
     }
 
-    #[NoReturn] public static function errorAt(int $pos, string $format, ...$args): void
+    #[NoReturn] public static function errorAt(int $pos, string $format, ...$args): never
     {
         $lines = explode("\n", Console::$currentInput);
         $lineNo = 1;
@@ -76,7 +76,7 @@ class Console
         exit(1);
     }
 
-    #[NoReturn] public static function errorTok(Token $tok, string $format, ...$args): void
+    #[NoReturn] public static function errorTok(Token $tok, string $format, ...$args): never
     {
         // Use file-specific information from the token
         $filename = $tok->file->name;
