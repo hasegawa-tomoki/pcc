@@ -10,6 +10,7 @@ class Type
     public int $size = 0;
     public int $align = 0;
     public bool $isUnsigned = false;
+    public ?Type $origin = null; // for type compatibility check
     // Pointer
     public ?Type $base;
     // Declaration
@@ -184,6 +185,75 @@ class Type
             return $ty2;
         }
         return $ty1;
+    }
+
+    public static function copyType(Type $ty): Type
+    {
+        $ret = clone $ty;
+        $ret->origin = $ty;
+        return $ret;
+    }
+
+    public static function isCompatible(Type $t1, Type $t2): bool
+    {
+        if ($t1 === $t2) {
+            return true;
+        }
+
+        if ($t1->origin !== null) {
+            return self::isCompatible($t1->origin, $t2);
+        }
+
+        if ($t2->origin !== null) {
+            return self::isCompatible($t1, $t2->origin);
+        }
+
+        if ($t1->kind !== $t2->kind) {
+            return false;
+        }
+
+        switch ($t1->kind) {
+            case TypeKind::TY_VOID:
+                return true;
+            case TypeKind::TY_CHAR:
+            case TypeKind::TY_SHORT:
+            case TypeKind::TY_INT:
+            case TypeKind::TY_LONG:
+                return $t1->isUnsigned === $t2->isUnsigned;
+            case TypeKind::TY_FLOAT:
+            case TypeKind::TY_DOUBLE:
+                return true;
+            case TypeKind::TY_PTR:
+                return self::isCompatible($t1->base, $t2->base);
+            case TypeKind::TY_FUNC:
+                if (!isset($t1->returnTy) || !isset($t2->returnTy)) {
+                    return false;
+                }
+                if (!self::isCompatible($t1->returnTy, $t2->returnTy)) {
+                    return false;
+                }
+                if ($t1->isVariadic !== $t2->isVariadic) {
+                    return false;
+                }
+
+                if (count($t1->params) !== count($t2->params)) {
+                    return false;
+                }
+
+                for ($i = 0; $i < count($t1->params); $i++) {
+                    if (!self::isCompatible($t1->params[$i], $t2->params[$i])) {
+                        return false;
+                    }
+                }
+                return true;
+            case TypeKind::TY_ARRAY:
+                if (!self::isCompatible($t1->base, $t2->base)) {
+                    return false;
+                }
+                return $t1->arrayLen < 0 and $t2->arrayLen < 0 and 
+                       $t1->arrayLen === $t2->arrayLen;
+        }
+        return false;
     }
 
     /**

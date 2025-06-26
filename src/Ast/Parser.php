@@ -2972,6 +2972,8 @@ class Parser
      *         | "sizeof" unary
      *         | "_Alignof" "(" type-name ")"
      *         | "_Alignof" unary
+     *         | "__builtin_types_compatible_p" "(" type-name, type-name, ")"
+     *         | "__builtin_reg_class" "(" type-name ")"
      *         | ident func-args?
      *         | str
      *         | number
@@ -3021,6 +3023,15 @@ class Parser
             [$node, $rest] = $this->unary($rest, $tok->next);
             $node->addType();
             return [Node::newUlong($node->ty->align, $tok), $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '__builtin_types_compatible_p')){
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$t1, $tok] = $this->typename($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ',');
+            [$t2, $tok] = $this->typename($tok, $tok);
+            $rest = $this->tokenizer->skip($tok, ')');
+            return [Node::newNum(Type::isCompatible($t1, $t2) ? 1 : 0, $start), $rest];
         }
 
         if ($this->tokenizer->equal($tok, '__builtin_reg_class')){
