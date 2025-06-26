@@ -1107,6 +1107,11 @@ class Preprocessor
                 continue;
             }
 
+            if ($tok->kind === TokenKind::TK_PP_NUM) {
+                self::readLineMarker($tok, $tok);
+                continue;
+            }
+
             if ($tok->str === 'error') {
                 Console::errorTok($tok, "error");
             }
