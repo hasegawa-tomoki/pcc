@@ -7,6 +7,7 @@ class MacroArg
 {
     public ?MacroArg $next = null;
     public string $name;
+    public bool $isVaArgs = false;
     public Token $tok;
 
     public function __construct(string $name, Token $tok)

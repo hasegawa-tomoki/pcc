@@ -14,7 +14,7 @@ class Macro
     public string $name;
     public bool $isObjlike;
     public ?MacroParam $params = null;
-    public bool $isVariadic = false;
+    public ?string $vaArgsName = null;
     public ?Token $body;
     public bool $deleted;
     public $handler = null; // callable|null for dynamic macros
@@ -363,7 +363,7 @@ class Preprocessor
     private static function hasVarargs(?MacroArg $args): bool
     {
         for ($ap = $args; $ap !== null; $ap = $ap->next) {
-            if ($ap->name === '__VA_ARGS__') {
+            if ($ap->isVaArgs) {
                 return $ap->tok->kind !== TokenKind::TK_EOF;
             }
         }
@@ -611,7 +611,7 @@ class Preprocessor
         return $m;
     }
 
-    private static function readMacroParams(Token &$rest, Token $tok, bool &$isVariadic): ?MacroParam
+    private static function readMacroParams(Token &$rest, Token $tok, ?string &$vaArgsName): ?MacroParam
     {
         $head = new MacroParam('');
         $cur = $head;
@@ -625,7 +625,7 @@ class Preprocessor
             }
 
             if ($tok->str === '...') {
-                $isVariadic = true;
+                $vaArgsName = '__VA_ARGS__';
                 $rest = $tok->next->next; // skip "..." and ")"
                 return $head->next;
             }
@@ -633,6 +633,13 @@ class Preprocessor
             if ($tok->kind !== TokenKind::TK_IDENT) {
                 Console::errorTok($tok, "expected an identifier");
             }
+
+            if ($tok->next && $tok->next->str === '...') {
+                $vaArgsName = $tok->str;
+                $rest = $tok->next->next->next; // skip identifier, "..." and ")"
+                return $head->next;
+            }
+
             $m = new MacroParam($tok->str);
             $cur->next = $m;
             $cur = $m;
@@ -652,11 +659,11 @@ class Preprocessor
 
         if (!$tok->hasSpace && $tok->str === '(') {
             // Function-like macro
-            $isVariadic = false;
-            $params = self::readMacroParams($tok, $tok->next, $isVariadic);
+            $vaArgsName = null;
+            $params = self::readMacroParams($tok, $tok->next, $vaArgsName);
             $m = self::addMacro($name, false, self::copyLine($rest, $tok));
             $m->params = $params;
-            $m->isVariadic = $isVariadic;
+            $m->vaArgsName = $vaArgsName;
         } else {
             // Object-like macro
             self::addMacro($name, true, self::copyLine($rest, $tok));
@@ -699,7 +706,7 @@ class Preprocessor
         return $arg;
     }
 
-    private static function readMacroArgs(Token &$rest, Token $tok, ?MacroParam $params, bool $isVariadic): ?MacroArg
+    private static function readMacroArgs(Token &$rest, Token $tok, ?MacroParam $params, ?string $vaArgsName): ?MacroArg
     {
         $start = $tok;
         $tok = $tok->next->next; // skip identifier and '('
@@ -721,16 +728,17 @@ class Preprocessor
             $cur->name = $pp->name;
         }
 
-        if ($isVariadic) {
+        if ($vaArgsName !== null) {
             if ($tok->str === ')') {
-                $arg = new MacroArg('__VA_ARGS__', self::newEof($tok));
+                $arg = new MacroArg($vaArgsName, self::newEof($tok));
             } else {
                 if ($pp !== $params) {
                     self::skip($tok, ',');
                 }
                 $arg = self::readMacroArgOne($tok, $tok, true);
-                $arg->name = '__VA_ARGS__';
+                $arg->name = $vaArgsName;
             }
+            $arg->isVaArgs = true;
             $cur->next = $arg;
         } elseif ($pp) {
             Console::errorTok($start, "too many arguments");
@@ -776,7 +784,7 @@ class Preprocessor
             // __VA_ARGS__.
             if ($tok->str === ',' && $tok->next && $tok->next->str === '##') {
                 $arg = self::findArg($args, $tok->next->next);
-                if ($arg && $arg->name === '__VA_ARGS__') {
+                if ($arg && $arg->isVaArgs) {
                     if ($arg->tok->kind === TokenKind::TK_EOF) {
                         $tok = $tok->next->next->next;
                     } else {
@@ -960,7 +968,7 @@ class Preprocessor
 
         // Function-like macro application
         $macroToken = $tok;
-        $args = self::readMacroArgs($tok, $tok, $m->params, $m->isVariadic);
+        $args = self::readMacroArgs($tok, $tok, $m->params, $m->vaArgsName);
         $rparen = $tok;
 
         // Tokens that consist a func-like macro invocation may have different
