@@ -161,6 +161,22 @@ class Pcc
                 continue;
             }
             
+            // These options are ignored for now.
+            if (str_starts_with($argv[$i], '-O') ||
+                str_starts_with($argv[$i], '-W') ||
+                str_starts_with($argv[$i], '-g') ||
+                str_starts_with($argv[$i], '-std=') ||
+                $argv[$i] === '-ffreestanding' ||
+                $argv[$i] === '-fno-builtin' ||
+                $argv[$i] === '-fno-omit-frame-pointer' ||
+                $argv[$i] === '-fno-stack-protector' ||
+                $argv[$i] === '-fno-strict-aliasing' ||
+                $argv[$i] === '-m64' ||
+                $argv[$i] === '-mno-red-zone' ||
+                $argv[$i] === '-w') {
+                continue;
+            }
+            
             if (str_starts_with($argv[$i], '-') and $argv[$i] !== '-') {
                 Console::error("unknown argument: {$argv[$i]}");
             }
