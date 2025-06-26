@@ -982,6 +982,9 @@ class CodeGenerator
             case NodeKind::ND_EXPR_STMT:
                 $this->genExpr($node->lhs);
                 return;
+            case NodeKind::ND_ASM:
+                Console::out("  %s", $node->asmStr);
+                return;
         }
 
         Console::errorTok($node->tok, 'invalid statement');

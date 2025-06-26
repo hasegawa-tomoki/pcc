@@ -18,7 +18,7 @@ class Tokenizer
         'struct', 'union', 'short', 'long', 'void', 'typedef', '_Bool',
         'enum', 'static', 'goto', 'break', 'continue', 'switch', 'case',
         'default', 'extern', '_Alignof', '_Alignas', 'do', 'signed',
-        'unsigned', 'float', 'double', 'typeof',
+        'unsigned', 'float', 'double', 'typeof', 'asm',
     ];
     public Token $tok {
         get {

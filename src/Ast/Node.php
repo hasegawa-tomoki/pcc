@@ -53,6 +53,9 @@ class Node
     public array $cases = [];
     public ?Node $defaultCase = null;
 
+    // "asm" string literal
+    public ?string $asmStr = null;
+
     // Variable
     public Obj $var;
     // Member access

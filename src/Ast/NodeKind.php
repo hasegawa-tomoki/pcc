@@ -46,4 +46,5 @@ enum NodeKind
     case ND_NUM;
     case ND_CAST;
     case ND_MEMZERO;    // Zero-clear a stack variable
+    case ND_ASM;        // "asm"
 }

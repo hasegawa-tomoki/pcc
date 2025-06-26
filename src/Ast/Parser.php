@@ -1490,6 +1490,31 @@ class Parser
     }
 
     /**
+     * asm-stmt = "asm" ("volatile" | "inline")* "(" string-literal ")"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Node, 1: \Pcc\Tokenizer\Token}
+     */
+    public function asmStmt(Token $rest, Token $tok): array
+    {
+        $node = Node::newNode(NodeKind::ND_ASM, $tok);
+        $tok = $tok->next;
+
+        while ($this->tokenizer->equal($tok, 'volatile') || $this->tokenizer->equal($tok, 'inline')) {
+            $tok = $tok->next;
+        }
+
+        $tok = $this->tokenizer->skip($tok, '(');
+        if ($tok->kind !== TokenKind::TK_STR || $tok->ty->base->kind !== TypeKind::TY_CHAR) {
+            Console::errorTok($tok, 'expected string literal');
+        }
+        $node->asmStr = $tok->str;
+        $rest = $this->tokenizer->skip($tok->next, ')');
+        return [$node, $rest];
+    }
+
+    /**
      * stmt = "return" expr? ";"
      *      | "if" "(" expr ")" stmt ("else" stmt)?
      *      | "switch" "(" expr ")" stmt
@@ -1498,6 +1523,7 @@ class Parser
      *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
      *      | "while" "(" expr ")" stmt
      *      | "do" stmt "while" "(" expr ")" ";"
+     *      | "asm" asm-stmt
      *      | "goto" ident ";"
      *      | "break" ";"
      *      | "continue" ";"
@@ -1668,6 +1694,10 @@ class Parser
             $tok = $this->tokenizer->skip($tok, ')');
             $rest = $this->tokenizer->skip($tok, ';');
             return [$node, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, 'asm')){
+            return $this->asmStmt($rest, $tok);
         }
 
         if ($this->tokenizer->equal($tok, 'goto')){
