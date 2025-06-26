@@ -56,6 +56,14 @@ class Tokenizer
             Console::error("cannot open: %s", $currentFilename);
         }
         
+        // UTF-8 texts may start with a 3-byte "BOM" marker sequence.
+        // If exists, just skip them because they are useless bytes.
+        // (It is actually not recommended to add BOM markers to UTF-8
+        // texts, but it's not uncommon particularly on Windows.)
+        if (substr($this->currentInput, 0, 3) === "\xef\xbb\xbf") {
+            $this->currentInput = substr($this->currentInput, 3);
+        }
+        
         // Canonicalize newlines, remove backslash-newline sequences, and convert universal chars
         $canonicalized = self::canonicalizeNewline($this->currentInput);
         $backslashRemoved = self::removeBackslashNewline($canonicalized);

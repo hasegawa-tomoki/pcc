@@ -103,4 +103,8 @@ check -D
 echo foo | $pcc -Dfoo=bar -Ufoo -E - | grep -q foo
 check -U
 
+# BOM marker
+printf '\xef\xbb\xbfxyz\n' | $pcc -E -o- - | grep -q 'xyz'
+check 'BOM marker'
+
 echo OK
