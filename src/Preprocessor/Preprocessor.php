@@ -771,6 +771,23 @@ class Preprocessor
                 continue;
             }
 
+            // [GNU] If __VA_ARGS__ is empty, `,##__VA_ARGS__` is expanded
+            // to the empty token list. Otherwise, its expanded to `,` and
+            // __VA_ARGS__.
+            if ($tok->str === ',' && $tok->next && $tok->next->str === '##') {
+                $arg = self::findArg($args, $tok->next->next);
+                if ($arg && $arg->name === '__VA_ARGS__') {
+                    if ($arg->tok->kind === TokenKind::TK_EOF) {
+                        $tok = $tok->next->next->next;
+                    } else {
+                        $cur->next = self::copyToken($tok);
+                        $cur = $cur->next;
+                        $tok = $tok->next->next;
+                    }
+                    continue;
+                }
+            }
+
             if ($tok->str === '##') {
                 if ($cur === $head) {
                     Console::errorTok($tok, "'##' cannot appear at start of macro expansion");
