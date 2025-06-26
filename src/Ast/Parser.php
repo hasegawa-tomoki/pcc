@@ -891,12 +891,22 @@ class Parser
      */
     private function structDesignator(Token $rest, Token $tok, Type $ty): array
     {
+        $start = $tok;
         $tok = $this->tokenizer->skip($tok, '.');
         if ($tok->kind !== TokenKind::TK_IDENT) {
             Console::errorTok($tok, "expected a field designator");
         }
 
         foreach ($ty->members as $idx => $mem) {
+            // Anonymous struct member
+            if ($mem->ty->kind === TypeKind::TY_STRUCT && !$mem->name) {
+                if ($this->getStructMember($mem->ty, $tok)) {
+                    return [$idx, $start];
+                }
+                continue;
+            }
+
+            // Regular struct member
             if ($mem->name !== null && $mem->name->str === $tok->str) {
                 return [$idx, $tok->next];
             }
