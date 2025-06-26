@@ -257,19 +257,18 @@ class Pcc
         $baseFile = self::$options['base_file'] ?? '';
         $outputFile = self::$options['output_file'] ?? '';
 
-        if ($outputFile === '-' || $outputFile === ''){
-            $fpOut = fopen('php://output', 'w');
-        } else {
-            $fpOut = fopen($outputFile, 'w');
-        }
-        Console::$outputFile = $fpOut;
-
         $tokenizer = new Tokenizer($baseFile);
         $tokenizer->tokenize();
         $tok = Preprocessor::preprocess($tokenizer->tok);
 
         // If -E is given, print out preprocessed C code as a result.
         if (self::$options['E'] ?? false) {
+            if ($outputFile === '-' || $outputFile === ''){
+                $fpOut = fopen('php://output', 'w');
+            } else {
+                $fpOut = fopen($outputFile, 'w');
+            }
+            Console::$outputFile = $fpOut;
             self::printTokens($tok);
             return 0;
         }
@@ -280,8 +279,27 @@ class Pcc
         $parser = new Ast\Parser($tokenizer);
         $prog = $parser->parse();
 
+        // Open a temporary output buffer.
+        $outputBuffer = fopen('php://memory', 'w+');
+        Console::$outputFile = $outputBuffer;
+
+        // Traverse the AST to emit assembly.
         $codeGenerator = new CodeGenerator();
         $codeGenerator->gen($prog);
+
+        // Get the assembly text from buffer
+        rewind($outputBuffer);
+        $assemblyOutput = stream_get_contents($outputBuffer);
+        fclose($outputBuffer);
+
+        // Write the assembly text to a file.
+        if ($outputFile === '-' || $outputFile === ''){
+            $fpOut = fopen('php://output', 'w');
+        } else {
+            $fpOut = fopen($outputFile, 'w');
+        }
+        fwrite($fpOut, $assemblyOutput);
+        fclose($fpOut);
 
         return 0;
     }
