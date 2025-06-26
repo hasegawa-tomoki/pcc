@@ -1294,6 +1294,7 @@ class Preprocessor
         
         self::addBuiltin('__FILE__', [self::class, 'fileMacro']);
         self::addBuiltin('__LINE__', [self::class, 'lineMacro']);
+        self::addBuiltin('__COUNTER__', [self::class, 'counterMacro']);
         
         // Add __DATE__ and __TIME__ macros
         $now = time();
@@ -1346,6 +1347,12 @@ class Preprocessor
         return self::newNumToken($tmpl->lineNo ?? 1, $tmpl);
     }
 
+    // __COUNTER__ is expanded to serial values starting from 0.
+    private static function counterMacro(Token $tmpl): Token
+    {
+        static $i = 0;
+        return self::newNumToken($i++, $tmpl);
+    }
 
     /**
      * Concatenate adjacent string literals into a single string literal
