@@ -628,6 +628,17 @@ class Tokenizer
                 continue;
             }
 
+            // UTF-32 character literal
+            if (substr($this->currentInput, $pos, 2) === "U'") {
+                [$token, $pos] = $this->readCharLiteral($pos + 1, Type::tyUInt());
+                $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
+                $token->file = $this->currentFile;
+                $atBol = $hasSpace = false;
+                $tokens[] = $token;
+                continue;
+            }
+
             // Identifier or keyword
             if ($this->isIdent1($this->currentInput[$pos])){
                 $start = $pos;
