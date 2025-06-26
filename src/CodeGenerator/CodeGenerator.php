@@ -1049,8 +1049,15 @@ class CodeGenerator
                     continue;
                 }
 
+                // AMD64 System V ABI has a special alignment rule for an array of
+                // length at least 16 bytes. We need to align such array to at least
+                // 16-byte boundaries. See p.14 of
+                // https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-draft.pdf.
+                $align = ($var->ty->kind === TypeKind::TY_ARRAY && $var->ty->size >= 16)
+                    ? max(16, $var->align) : $var->align;
+
                 $bottom += $var->ty->size;
-                $bottom = Align::alignTo($bottom, $var->align);
+                $bottom = Align::alignTo($bottom, $align);
                 $var->offset = -1 * $bottom;
             }
 
@@ -1076,7 +1083,10 @@ class CodeGenerator
             } else {
                 Console::out("  .globl %s", $var->name);
             }
-            Console::out("  .align %d", $var->align);
+            
+            $align = ($var->ty->kind === TypeKind::TY_ARRAY && $var->ty->size >= 16)
+                ? max(16, $var->align) : $var->align;
+            Console::out("  .align %d", $align);
 
             if (! is_null($var->initData)){
                 Console::out("  .data");
