@@ -2165,7 +2165,7 @@ class Parser
     }
 
     /**
-     * conditional = logor ("?" expr ":" conditional)?
+     * conditional = logor ("?" expr? ":" conditional)?
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -2177,6 +2177,18 @@ class Parser
 
         if (! $this->tokenizer->equal($tok, '?')){
             return [$cond, $tok];
+        }
+
+        if ($this->tokenizer->equal($tok->next, ':')) {
+            // [GNU] Compile `a ?: b` as `tmp = a, tmp ? tmp : b`.
+            $cond->addType();
+            $var = $this->newLVar('', $cond->ty);
+            $lhs = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($var, $tok), $cond, $tok);
+            $rhs = Node::newNode(NodeKind::ND_COND, $tok);
+            $rhs->cond = Node::newVarNode($var, $tok);
+            $rhs->then = Node::newVarNode($var, $tok);
+            [$rhs->els, $rest] = $this->conditional($rest, $tok->next->next);
+            return [Node::newBinary(NodeKind::ND_COMMA, $lhs, $rhs, $tok), $rest];
         }
 
         $node = Node::newNode(NodeKind::ND_COND, $tok);
