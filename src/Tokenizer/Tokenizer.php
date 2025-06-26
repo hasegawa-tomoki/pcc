@@ -726,6 +726,18 @@ class Tokenizer
                 continue;
             }
 
+            // Wide string literal
+            if (substr($this->currentInput, $pos, 2) === 'L"') {
+                [$token, $newPos] = $this->readUtf32StringLiteral($pos, $pos + 1, Type::tyInt());
+                $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
+                $token->file = $this->currentFile;
+                $atBol = $hasSpace = false;
+                $tokens[] = $token;
+                $pos = $newPos;
+                continue;
+            }
+
             // UTF-32 string literal
             if (substr($this->currentInput, $pos, 2) === 'U"') {
                 [$token, $newPos] = $this->readUtf32StringLiteral($pos, $pos + 1, Type::tyUInt());
