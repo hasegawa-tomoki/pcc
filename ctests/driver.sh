@@ -107,4 +107,15 @@ check -U
 printf '\xef\xbb\xbfxyz\n' | $pcc -E -o- - | grep -q 'xyz'
 check 'BOM marker'
 
+# -fcommon
+echo 'int foo;' | $pcc -S -o- - | grep -q '\.comm foo'
+check '-fcommon (default)'
+
+echo 'int foo;' | $pcc -fcommon -S -o- - | grep -q '\.comm foo'
+check '-fcommon'
+
+# -fno-common
+echo 'int foo;' | $pcc -fno-common -S -o- - | grep -q '^foo:'
+check '-fno-common'
+
 echo OK

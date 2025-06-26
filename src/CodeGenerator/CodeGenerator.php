@@ -10,6 +10,7 @@ use Pcc\Ast\Type;
 use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
 use Pcc\Ast\TypeKind;
+use Pcc\Pcc;
 
 class CodeGenerator
 {
@@ -1091,7 +1092,7 @@ class CodeGenerator
                 ? max(16, $var->align) : $var->align;
             Console::out("  .align %d", $align);
 
-            if ($var->isTentative) {
+            if (Pcc::getOptFcommon() && $var->isTentative) {
                 Console::out("  .comm %s, %d, %d", $var->name, $var->ty->size, $align);
                 continue;
             }
