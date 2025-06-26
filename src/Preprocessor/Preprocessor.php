@@ -1294,6 +1294,32 @@ class Preprocessor
         
         self::addBuiltin('__FILE__', [self::class, 'fileMacro']);
         self::addBuiltin('__LINE__', [self::class, 'lineMacro']);
+        
+        // Add __DATE__ and __TIME__ macros
+        $now = time();
+        self::defineMacro('__DATE__', self::formatDate($now));
+        self::defineMacro('__TIME__', self::formatTime($now));
+    }
+
+    // __DATE__ is expanded to the current date, e.g. "May 17 2020".
+    private static function formatDate(int $timestamp): string
+    {
+        $monthNames = [
+            'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+            'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+        ];
+        
+        $month = $monthNames[date('n', $timestamp) - 1];
+        $day = date('j', $timestamp);
+        $year = date('Y', $timestamp);
+        
+        return sprintf('"%s %2d %d"', $month, $day, $year);
+    }
+
+    // __TIME__ is expanded to the current time, e.g. "13:34:03".
+    private static function formatTime(int $timestamp): string
+    {
+        return sprintf('"%02d:%02d:%02d"', date('H', $timestamp), date('i', $timestamp), date('s', $timestamp));
     }
 
     private static function addBuiltin(string $name, callable $fn): Macro
