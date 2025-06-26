@@ -127,7 +127,9 @@ class Type
 
     public static function funcType(Type $returnTy): Type
     {
-        $type = new Type(TypeKind::TY_FUNC);
+        // The C spec disallows sizeof(<function type>), but
+        // GCC allows that and the expression is evaluated to 1.
+        $type = new Type(TypeKind::TY_FUNC, null, 1, 1);
         $type->returnTy = $returnTy;
         return $type;
     }
