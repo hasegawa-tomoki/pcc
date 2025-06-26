@@ -241,6 +241,51 @@ class Tokenizer
     }
 
     /**
+     * Read a UTF-8-encoded string literal and transcode it in UTF-32.
+     * 
+     * UTF-32 is a fixed-width encoding for Unicode. Each code point is
+     * encoded in 4 bytes.
+     * @param int $start
+     * @param int $quote
+     * @param \Pcc\Ast\Type $ty
+     * @return array{0: \Pcc\Tokenizer\Token, 1: int}
+     */
+    public function readUtf32StringLiteral(int $start, int $quote, \Pcc\Ast\Type $ty): array
+    {
+        $endPos = $this->stringLiteralEndPos($quote + 1);
+        $buf = [];
+        $len = 0;
+
+        for ($i = $quote + 1; $i < $endPos; ){
+            if ($this->currentInput[$i] === '\\'){
+                [$c, $i] = $this->readEscapedChar($i + 1);
+                $buf[] = $c;
+                $len++;
+                continue;
+            }
+
+            [$c, $i] = self::decodeUtf8($this->currentInput, $i);
+            $buf[] = $c;
+            $len++;
+        }
+
+        // Add null terminator
+        $buf[] = 0;
+        $len++;
+
+        // Convert to binary string representation for C memory layout
+        $str = '';
+        foreach ($buf as $val) {
+            $str .= pack('V', $val); // little-endian 32-bit
+        }
+
+        $tok = new Token(TokenKind::TK_STR, $str, $start);
+        $tok->originalStr = substr($this->currentInput, $start, ($endPos + 1) - $start);
+        $tok->ty = Type::arrayOf($ty, $len);
+        return [$tok, $endPos + 1];
+    }
+
+    /**
      * @param int $start
      * @param \Pcc\Ast\Type $ty
      * @return array{0: \Pcc\Tokenizer\Token, 1: int}
@@ -672,6 +717,18 @@ class Tokenizer
             // UTF-16 string literal
             if (substr($this->currentInput, $pos, 2) === 'u"') {
                 [$token, $newPos] = $this->readUtf16StringLiteral($pos, $pos + 1);
+                $token->atBol = $atBol;
+                $token->hasSpace = $hasSpace;
+                $token->file = $this->currentFile;
+                $atBol = $hasSpace = false;
+                $tokens[] = $token;
+                $pos = $newPos;
+                continue;
+            }
+
+            // UTF-32 string literal
+            if (substr($this->currentInput, $pos, 2) === 'U"') {
+                [$token, $newPos] = $this->readUtf32StringLiteral($pos, $pos + 1, Type::tyUInt());
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
