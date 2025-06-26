@@ -123,33 +123,34 @@ class Tokenizer
 
     /**
      * @param int $pos
-     * @return array{0: string, 1: int}
+     * @param bool $isWide
+     * @return array{0: int, 1: int}
      */
-    public function readEscapedChar(int $pos): array
+    public function readEscapedChar(int $pos, bool $isWide = false): array
     {
         // Octal number
-        if (preg_match('/^([0-7]{1, 3})/', substr($this->currentInput, $pos), $matches)){
-            $c = chr(octdec($matches[1]));
+        if (preg_match('/^([0-7]{1,3})/', substr($this->currentInput, $pos), $matches)){
+            $c = octdec($matches[1]);
             $pos += strlen($matches[1]);
             return [$c, $pos];
         }
         // Hexadecimal number
         if (preg_match('/^x([0-9a-fA-F]+)/', substr($this->currentInput, $pos), $matches)){
-            $c = chr(hexdec($matches[1]));
+            $c = hexdec($matches[1]);
             $pos += strlen($matches[1]) + 1;
             return [$c, $pos];
         }
 
         $c = match ($this->currentInput[$pos]){
-            'a' => chr(7),
-            'b' => chr(8),
-            't' => "\t",
-            'n' => "\n",
-            'v' => "\v",
-            'f' => "\f",
-            'r' => "\r",
-            'e' => chr(27),
-            default => $this->currentInput[$pos],
+            'a' => 7,
+            'b' => 8,
+            't' => 9,
+            'n' => 10,
+            'v' => 11,
+            'f' => 12,
+            'r' => 13,
+            'e' => 27,
+            default => ord($this->currentInput[$pos]),
         };
         $pos++;
         return [$c, $pos];
@@ -168,7 +169,7 @@ class Tokenizer
         for ($i = $start + 1; $i < $endPos; ){
             if ($this->currentInput[$i] === '\\'){
                 [$c, $i] = $this->readEscapedChar($i + 1);
-                $str .= $c;
+                $str .= chr($c);
             } else {
                 $str .= $this->currentInput[$i];
                 $i++;
@@ -195,8 +196,7 @@ class Tokenizer
         if ($this->currentInput[$pos] === '\\'){
             [$c, $pos] = $this->readEscapedChar($pos + 1);
         } else {
-            $c = $this->currentInput[$pos];
-            $pos++;
+            [$c, $pos] = self::decodeUtf8($this->currentInput, $pos);
         }
 
         $end = strpos(substr($this->currentInput, $pos), "'");
@@ -207,16 +207,9 @@ class Tokenizer
         $originalStr = substr($this->currentInput, $start, ($pos + $end + 1) - $start);
         $tok = new Token(TokenKind::TK_NUM, $originalStr, $start, );
 
-        $val = ord($c);
-        if ($val & 0x80){
-            // Sign bit is set (negative number)
-            $signedVal = $val - 0x100;
-        } else {
-            // Sign bit is not set (positive number)
-            $signedVal = $val;
-        }
-        $tok->val = $signedVal;
-        $tok->gmpVal = gmp_init($signedVal);
+        // For multibyte characters, c is already an integer value (Unicode code point)
+        $tok->val = $c;
+        $tok->gmpVal = gmp_init($c);
         $tok->ty = Type::tyInt();
         return [$tok, $pos + $end + 1];
     }
@@ -597,6 +590,11 @@ class Tokenizer
             // Character literal
             if ($this->currentInput[$pos] === "'") {
                 [$token, $pos] = $this->readCharLiteral($pos);
+                // Cast to signed char (-128 to 127)
+                if ($token->val > 127) {
+                    $token->val = $token->val - 256;
+                }
+                $token->gmpVal = gmp_init($token->val);
                 $token->atBol = $atBol;
                 $token->hasSpace = $hasSpace;
                 $token->file = $this->currentFile;
@@ -704,6 +702,41 @@ class Tokenizer
     public static function newFile(string $name, int $fileNo, string $contents): File
     {
         return new File($name, $fileNo, $contents);
+    }
+
+    // Read a UTF-8-encoded Unicode code point from a source file.
+    // We assume that source files are always in UTF-8.
+    private static function decodeUtf8(string $p, int $pos): array
+    {
+        if (ord($p[$pos]) < 128) {
+            return [ord($p[$pos]), $pos + 1];
+        }
+
+        $start = $pos;
+        $len = 0;
+        $c = 0;
+
+        if (ord($p[$pos]) >= 0b11110000) {
+            $len = 4;
+            $c = ord($p[$pos]) & 0b111;
+        } elseif (ord($p[$pos]) >= 0b11100000) {
+            $len = 3;
+            $c = ord($p[$pos]) & 0b1111;
+        } elseif (ord($p[$pos]) >= 0b11000000) {
+            $len = 2;
+            $c = ord($p[$pos]) & 0b11111;
+        } else {
+            Console::errorAt($pos, $p, "invalid UTF-8 sequence");
+        }
+
+        for ($i = 1; $i < $len; $i++) {
+            if (($pos + $i) >= strlen($p) || (ord($p[$pos + $i]) >> 6) != 0b10) {
+                Console::errorAt($start, $p, "invalid UTF-8 sequence");
+            }
+            $c = ($c << 6) | (ord($p[$pos + $i]) & 0b111111);
+        }
+
+        return [$c, $pos + $len];
     }
 
     // Encode a given character in UTF-8.
