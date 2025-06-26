@@ -934,6 +934,13 @@ class Parser
             return [$init, $rest];
         }
 
+        if ($this->tokenizer->equal($tok, '.') && $init->ty->kind === TypeKind::TY_UNION) {
+            [$idx, $tok] = $this->structDesignator($tok, $tok, $init->ty);
+            $init->mem = $init->ty->members[$idx];
+            [$init->children[$idx], $rest] = $this->designation($rest, $tok, $init->children[$idx]);
+            return [$init, $rest];
+        }
+
         if ($this->tokenizer->equal($tok, '.')) {
             Console::errorTok($tok, "field name not in struct or union initializer");
         }
@@ -1093,6 +1100,19 @@ class Parser
      */
     public function unionInitializer(Token $rest, Token $tok, Initializer $init): array
     {
+        // Unlike structs, union initializers take only one initializer,
+        // and that initializes the first union member by default.
+        // You can initialize other member using a designated initializer.
+        if ($this->tokenizer->equal($tok, '{') && $this->tokenizer->equal($tok->next, '.')) {
+            [$idx, $tok] = $this->structDesignator($tok, $tok->next, $init->ty);
+            $init->mem = $init->ty->members[$idx];
+            [$init->children[$idx], $tok] = $this->designation($tok, $tok, $init->children[$idx]);
+            $rest = $this->tokenizer->skip($tok, '}');
+            return [$init, $rest];
+        }
+
+        $init->mem = $init->ty->members[0];
+
         if ($this->tokenizer->equal($tok, '{')){
             [$init->children[0], $rest] = $this->initializer2($tok, $tok->next, $init->children[0]);
             [$consumed, $rest] = $this->tokenizer->consume($rest, $rest, ',');
@@ -1237,8 +1257,10 @@ class Parser
         }
 
         if ($ty->kind === TypeKind::TY_UNION){
-            $desg2 = new InitDesg($desg, 0, [$ty->members[0]]);
-            return $this->createLVarInit($init->children[0], $ty->members[0]->ty, $desg2, $tok);
+            $mem = $init->mem ? $init->mem : $ty->members[0];
+            $idx = array_search($mem, $ty->members, true);
+            $desg2 = new InitDesg($desg, 0, [$mem]);
+            return $this->createLVarInit($init->children[$idx], $mem->ty, $desg2, $tok);
         }
 
         if (! $init->expr){
@@ -1365,7 +1387,11 @@ class Parser
         }
 
         if ($ty->kind === TypeKind::TY_UNION){
-            return $this->writeGVarData($rels, $init->children[0], $ty->members[0]->ty, $buf, $offset);
+            if (!$init->mem){
+                return [$buf, $rels];
+            }
+            $idx = array_search($init->mem, $ty->members, true);
+            return $this->writeGVarData($rels, $init->children[$idx], $init->mem->ty, $buf, $offset);
         }
 
         if (! $init->expr){

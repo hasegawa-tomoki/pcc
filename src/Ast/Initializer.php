@@ -14,4 +14,8 @@ class Initializer
 
     /** @var \Pcc\Ast\Initializer[] */
     public array $children = [];
+
+    // Only one member can be initialized for a union.
+    // `mem` is used to clarify which member is initialized.
+    public ?Member $mem = null;
 }
