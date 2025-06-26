@@ -882,7 +882,7 @@ class Parser
     }
 
     /**
-     * designation = ("[" const-expr "]")* "=" initializer
+     * designation = ("[" const-expr "]")* "="? initializer
      *
      * @param Token $rest
      * @param Token $tok
@@ -902,7 +902,9 @@ class Parser
             return [$init, $rest];
         }
         
-        $tok = $this->tokenizer->skip($tok, '=');
+        if ($this->tokenizer->equal($tok, '=')) {
+            $tok = $tok->next;
+        }
         [$init, $rest] = $this->initializer2($rest, $tok, $init);
         return [$init, $rest];
     }
