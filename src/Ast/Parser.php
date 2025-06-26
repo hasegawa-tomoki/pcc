@@ -260,7 +260,7 @@ class Parser
 
             // Handle user-defined types
             $ty2 = $this->findTypedef($tok);
-            if ($this->tokenizer->equal($tok, 'struct') or $this->tokenizer->equal($tok, 'union') or $this->tokenizer->equal($tok, 'enum') or $ty2){
+            if ($this->tokenizer->equal($tok, 'struct') or $this->tokenizer->equal($tok, 'union') or $this->tokenizer->equal($tok, 'enum') or $this->tokenizer->equal($tok, 'typeof') or $ty2){
                 if ($counter){
                     break;
                 }
@@ -271,6 +271,8 @@ class Parser
                     [$ty, $tok] = $this->unionDecl($tok, $tok->next);
                 } elseif ($this->tokenizer->equal($tok, 'enum')) {
                     [$ty, $tok] = $this->enumSpecifier($tok, $tok->next);
+                } elseif ($this->tokenizer->equal($tok, 'typeof')) {
+                    [$ty, $tok] = $this->typeofSpecifier($tok, $tok->next);
                 } else {
                     $ty = $ty2;
                     $tok = $tok->next;
@@ -665,6 +667,29 @@ class Parser
             $this->pushTagScope($tag, $ty);
         }
 
+        return [$ty, $rest];
+    }
+
+    /**
+     * typeof-specifier = "(" (expr | typename) ")"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
+     */
+    public function typeofSpecifier(Token $rest, Token $tok): array
+    {
+        $tok = $this->tokenizer->skip($tok, '(');
+
+        if ($this->isTypeName($tok)) {
+            [$ty, $tok] = $this->typename($tok, $tok);
+        } else {
+            [$node, $tok] = $this->expr($tok, $tok);
+            $node->addType();
+            $ty = $node->ty;
+        }
+        
+        $rest = $this->tokenizer->skip($tok, ')');
         return [$ty, $rest];
     }
 
@@ -1457,7 +1482,7 @@ class Parser
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
             'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
-            '__restrict__', '_Noreturn', 'float', 'double',
+            '__restrict__', '_Noreturn', 'float', 'double', 'typeof',
         ])){
             return true;
         }
