@@ -1164,6 +1164,12 @@ class CodeGenerator
                 continue;
             }
 
+            // No code is emitted for "static inline" functions
+            // if no one is referencing them.
+            if (!$fn->isLive) {
+                continue;
+            }
+
             if ($fn->isStatic){
                 Console::out("  .local %s", $fn->name);
             } else {

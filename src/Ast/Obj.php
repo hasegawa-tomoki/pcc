@@ -1,6 +1,7 @@
 <?php
 namespace Pcc\Ast;
 use Pcc\Tokenizer\Token;
+use Pcc\StringArray;
 
 class Obj
 {
@@ -35,9 +36,15 @@ class Obj
     public ?Obj $vaArea = null;
     public int $stackSize;
 
+    // Static inline function
+    public bool $isLive = false;
+    public bool $isRoot = false;
+    public StringArray $refs;
+
 
     public function __construct(string $name)
     {
         $this->name = $name;
+        $this->refs = new StringArray();
     }
 }

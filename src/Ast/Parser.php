@@ -3160,6 +3160,14 @@ class Parser
             $sc = $this->findVar($tok);
             $rest = $tok->next;
 
+            if ($sc && $sc->var && $sc->var->isFunction) {
+                if ($this->currentFn) {
+                    $this->currentFn->refs->push($sc->var->name);
+                } else {
+                    $sc->var->isRoot = true;
+                }
+            }
+
             if ($sc) {
                 if ($sc->var) {
                     return [Node::newVarNode($sc->var, $tok), $rest];
@@ -3271,6 +3279,7 @@ class Parser
         $fn->isDefinition = (! $consumed);
         $fn->isStatic = $attr->isStatic || ($attr->isInline && !$attr->isExtern);
         $fn->isInline = $attr->isInline;
+        $fn->isRoot = !($fn->isStatic && $fn->isInline);
 
         if (! $fn->isDefinition){
             return $tok;
@@ -3385,7 +3394,41 @@ class Parser
             // Global variable
             $tok = $this->globalVariable($tok, $basety, $attr);
         }
+
+        foreach ($this->globals as $var) {
+            if ($var->isRoot) {
+                $this->markLive($var);
+            }
+        }
+
         ray($this->globals);
         return $this->globals;
+    }
+
+    private function findFunc(string $name): ?Obj
+    {
+        // Find the function in the global scope
+        foreach ($this->globals as $var) {
+            if ($var->name === $name && $var->isFunction) {
+                return $var;
+            }
+        }
+        return null;
+    }
+
+    private function markLive(Obj $var): void
+    {
+        if (!$var->isFunction || $var->isLive) {
+            return;
+        }
+        $var->isLive = true;
+
+        $data = $var->refs->getData();
+        foreach ($data as $refName) {
+            $fn = $this->findFunc($refName);
+            if ($fn) {
+                $this->markLive($fn);
+            }
+        }
     }
 }
