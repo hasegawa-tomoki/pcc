@@ -882,7 +882,31 @@ class Parser
     }
 
     /**
-     * designation = ("[" const-expr "]")* "="? initializer
+     * struct-designator = "." ident
+     *
+     * @param Token $rest
+     * @param Token $tok
+     * @param Type $ty
+     * @return array{int, Token}
+     */
+    private function structDesignator(Token $rest, Token $tok, Type $ty): array
+    {
+        $tok = $this->tokenizer->skip($tok, '.');
+        if ($tok->kind !== TokenKind::TK_IDENT) {
+            Console::errorTok($tok, "expected a field designator");
+        }
+
+        foreach ($ty->members as $idx => $mem) {
+            if ($mem->name !== null && $mem->name->str === $tok->str) {
+                return [$idx, $tok->next];
+            }
+        }
+
+        Console::errorTok($tok, "struct has no such member");
+    }
+
+    /**
+     * designation = ("[" const-expr "]" | "." ident)* "="? initializer
      *
      * @param Token $rest
      * @param Token $tok
@@ -900,6 +924,18 @@ class Parser
             [$init->children[$i], $tok] = $this->designation($tok, $tok, $init->children[$i]);
             [$init, $rest] = $this->arrayInitializer2($rest, $tok, $init, $i + 1);
             return [$init, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '.') && $init->ty->kind === TypeKind::TY_STRUCT) {
+            [$idx, $tok] = $this->structDesignator($tok, $tok, $init->ty);
+            [$init->children[$idx], $tok] = $this->designation($tok, $tok, $init->children[$idx]);
+            $init->expr = null;
+            [$init, $rest] = $this->structInitializer2($rest, $tok, $init, $idx + 1);
+            return [$init, $rest];
+        }
+
+        if ($this->tokenizer->equal($tok, '.')) {
+            Console::errorTok($tok, "field name not in struct or union initializer");
         }
         
         if ($this->tokenizer->equal($tok, '=')) {
@@ -971,7 +1007,7 @@ class Parser
                 $tok = $this->tokenizer->skip($tok, ',');
             }
 
-            if ($this->tokenizer->equal($tok, '[')) {
+            if ($this->tokenizer->equal($tok, '[') || $this->tokenizer->equal($tok, '.')) {
                 return [$init, $start];
             }
 
@@ -993,9 +1029,19 @@ class Parser
         $tok = $this->tokenizer->skip($tok, '{');
 
         $idx = 0;
+        $first = true;
+        
         while ([$consumed, $rest] = $this->consumeEnd($rest, $tok) and (! $consumed)){
-            if ($idx > 0){
+            if (!$first) {
                 $tok = $this->tokenizer->skip($tok, ',');
+            }
+            $first = false;
+
+            if ($this->tokenizer->equal($tok, '.')) {
+                [$idx, $tok] = $this->structDesignator($tok, $tok, $init->ty);
+                [$init->children[$idx], $tok] = $this->designation($tok, $tok, $init->children[$idx]);
+                $idx++;
+                continue;
             }
 
             if (isset($init->ty->members[$idx])){
@@ -1015,16 +1061,23 @@ class Parser
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Initializer $init
+     * @param int $startIdx
      * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function structInitializer2(Token $rest, Token $tok, Initializer $init): array
+    public function structInitializer2(Token $rest, Token $tok, Initializer $init, int $startIdx = 0): array
     {
-        foreach ($init->ty->members as $idx => $mem){
-            if ($this->isEnd($tok)){
-                break;
-            }
-            if ($idx > 0){
+        $first = true;
+        
+        for ($idx = $startIdx; $idx < count($init->ty->members) && !$this->isEnd($tok); $idx++) {
+            $start = $tok;
+            
+            if (!$first) {
                 $tok = $this->tokenizer->skip($tok, ',');
+            }
+            $first = false;
+            
+            if ($this->tokenizer->equal($tok, '[') || $this->tokenizer->equal($tok, '.')) {
+                return [$init, $start];
             }
 
             [$init->children[$idx], $tok] = $this->initializer2($tok, $tok, $init->children[$idx]);
