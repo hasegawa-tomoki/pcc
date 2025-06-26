@@ -56,8 +56,9 @@ class Tokenizer
             Console::error("cannot open: %s", $currentFilename);
         }
         
-        // Remove backslash-newline sequences
-        $this->currentInput = self::removeBackslashNewline($this->currentInput);
+        // Canonicalize newlines and remove backslash-newline sequences
+        $canonicalized = self::canonicalizeNewline($this->currentInput);
+        $this->currentInput = self::removeBackslashNewline($canonicalized);
         
         self::$fileNo++;
         $this->currentFile = new File($currentFilename, self::$fileNo, $this->currentInput);
@@ -704,6 +705,31 @@ class Tokenizer
         return new File($name, $fileNo, $contents);
     }
 
+    // Replaces \r or \r\n with \n.
+    private static function canonicalizeNewline(string $p): string
+    {
+        $result = '';
+        $i = 0;
+        $len = strlen($p);
+
+        while ($i < $len) {
+            if ($i < $len - 1 && $p[$i] === "\r" && $p[$i + 1] === "\n") {
+                // \r\n -> \n
+                $i += 2;
+                $result .= "\n";
+            } elseif ($p[$i] === "\r") {
+                // \r -> \n
+                $i++;
+                $result .= "\n";
+            } else {
+                $result .= $p[$i];
+                $i++;
+            }
+        }
+
+        return $result;
+    }
+
     // Removes backslashes followed by a newline.
     private static function removeBackslashNewline(string $p): string
     {
@@ -745,8 +771,9 @@ class Tokenizer
         $tokenizer = new self($file->name, null, true);
         // Override file content initialization
         $tokenizer->currentFile = $file;
-        // Remove backslash-newline sequences before tokenizing
-        $tokenizer->currentInput = self::removeBackslashNewline($file->contents);
+        // Canonicalize newlines and remove backslash-newline sequences before tokenizing
+        $canonicalized = self::canonicalizeNewline($file->contents);
+        $tokenizer->currentInput = self::removeBackslashNewline($canonicalized);
         Console::$currentFilename = $file->name;
         Console::$currentInput = $tokenizer->currentInput;
         $tokenizer->tokenize();
