@@ -1344,6 +1344,7 @@ class Preprocessor
         self::addBuiltin('__FILE__', [self::class, 'fileMacro']);
         self::addBuiltin('__LINE__', [self::class, 'lineMacro']);
         self::addBuiltin('__COUNTER__', [self::class, 'counterMacro']);
+        self::addBuiltin('__TIMESTAMP__', [self::class, 'timestampMacro']);
         
         // Add __DATE__ and __TIME__ macros
         $now = time();
@@ -1402,6 +1403,30 @@ class Preprocessor
     {
         static $i = 0;
         return self::newNumToken($i++, $tmpl);
+    }
+
+    // __TIMESTAMP__ is expanded to a string describing the last
+    // modification time of the current file. E.g.
+    // "Fri Jul 24 01:32:50 2020"
+    private static function timestampMacro(Token $tmpl): Token
+    {
+        while ($tmpl->origin) {
+            $tmpl = $tmpl->origin;
+        }
+        
+        $filename = $tmpl->file->name ?? '<unknown>';
+        if (!file_exists($filename)) {
+            return self::newStrToken("??? ??? ?? ??:??:?? ????", $tmpl);
+        }
+        
+        $mtime = filemtime($filename);
+        if ($mtime === false) {
+            return self::newStrToken("??? ??? ?? ??:??:?? ????", $tmpl);
+        }
+        
+        // Format like "Fri Jul 24 01:32:50 2020"
+        $timestamp = date('D M j H:i:s Y', $mtime);
+        return self::newStrToken($timestamp, $tmpl);
     }
 
     /**
