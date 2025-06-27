@@ -26,6 +26,7 @@ class Pcc
     private static StringArray $tmpFiles;
     private static StringArray $inputPaths;
     private static StringArray $includePaths;
+    private static StringArray $ldExtraArgs;
 
     public static function getIncludePaths(): StringArray
     {
@@ -245,6 +246,11 @@ class Pcc
             
             if (str_starts_with($argv[$i], '-l')) {
                 self::$inputPaths->push($argv[$i]);
+                continue;
+            }
+
+            if ($argv[$i] === '-s') {
+                self::$ldExtraArgs->push('-s');
                 continue;
             }
 
@@ -555,6 +561,10 @@ class Pcc
         $arr->push('-L/usr/lib');
         $arr->push('-L/lib');
         
+        foreach (self::$ldExtraArgs->getData() as $arg) {
+            $arr->push($arg);
+        }
+        
         foreach ($inputs->getData() as $input) {
             $arr->push($input);
         }
@@ -601,6 +611,7 @@ class Pcc
         self::$tmpFiles = new StringArray();
         self::$inputPaths = new StringArray();
         self::$includePaths = new StringArray();
+        self::$ldExtraArgs = new StringArray();
         register_shutdown_function([self::class, 'cleanup']);
         
         Preprocessor::initMacros();
