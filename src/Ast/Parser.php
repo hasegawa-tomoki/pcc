@@ -4,7 +4,6 @@ namespace Pcc\Ast;
 
 use GMP;
 use Pcc\Ast\Scope\Scope;
-use Pcc\Ast\Scope\TagScope;
 use Pcc\Ast\Scope\VarScope;
 use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
@@ -56,37 +55,30 @@ class Parser
 
     public function findVar(Token $tok): ?VarScope
     {
-        foreach ($this->scopes as $sc){
-            foreach ($sc->vars as $vsc){
-                if ($vsc->name === $tok->str){
-                    return $vsc;
-                }
+        foreach ($this->scopes as $sc) {
+            $sc2 = $sc->vars->get2($tok->str, strlen($tok->str));
+            if ($sc2) {
+                return $sc2;
             }
         }
-
         return null;
     }
 
-    public function findTag(Token $tok): ?TagScope
+    public function findTag(Token $tok): ?Type
     {
-        foreach ($this->scopes as $sc){
-            foreach ($sc->tags as $tsc){
-                if ($tsc->name === $tok->str){
-                    return $tsc;
-                }
+        foreach ($this->scopes as $sc) {
+            $ty = $sc->tags->get2($tok->str, strlen($tok->str));
+            if ($ty) {
+                return $ty;
             }
         }
-
         return null;
     }
 
     public function pushScope(string $name): VarScope
     {
         $sc = new VarScope();
-        $sc->name = $name;
-        $sc->depth = $this->scopeDepth;
-
-        array_unshift($this->scopes[0]->vars, $sc);
+        $this->scopes[0]->vars->put($name, $sc);
         return $sc;
     }
 
@@ -190,12 +182,7 @@ class Parser
 
     public function pushTagScope(Token $tok, Type $ty): void
     {
-        $sc = new TagScope();
-        $sc->name = $tok->str;
-        $sc->depth = $this->scopeDepth;
-        $sc->ty = $ty;
-
-        array_unshift($this->scopes[0]->tags, $sc);
+        $this->scopes[0]->tags->put2($tok->str, strlen($tok->str), $ty);
     }
 
     /**
@@ -589,8 +576,10 @@ class Parser
     {
         [$ty, $tok] = $this->typespec($rest, $tok, null);
         if ($ty->kind === TypeKind::TY_STRUCT and $ty->size === -1){
-            $sc = $this->findTag($ty->name);
-            $ty = $sc->ty;
+            $foundTy = $this->findTag($ty->name);
+            if ($foundTy) {
+                $ty = $foundTy;
+            }
         }
         return $this->abstractDeclarator($rest, $tok, $ty);
     }
@@ -639,14 +628,14 @@ class Parser
         }
 
         if ($tag and (! $this->tokenizer->equal($tok, '{'))){
-            $sc = $this->findTag($tag);
-            if (! $sc){
+            $ty = $this->findTag($tag);
+            if (! $ty){
                 Console::errorTok($tag, 'unknown enum type');
             }
-            if ($sc->ty->kind !== TypeKind::TY_ENUM){
+            if ($ty->kind !== TypeKind::TY_ENUM){
                 Console::errorTok($tag, 'not an enum tag');
             }
-            return [$sc->ty, $tok];
+            return [$ty, $tok];
         }
 
         $tok = $this->tokenizer->skip($tok, '{');
@@ -2910,9 +2899,9 @@ class Parser
         if ($tag and (! $this->tokenizer->equal($tok, '{'))){
             $rest = $tok;
 
-            $sc = $this->findTag($tag);
-            if ($sc){
-                return [$sc->ty, $rest];
+            $ty = $this->findTag($tag);
+            if ($ty){
+                return [$ty, $rest];
             }
 
             $ty = Type::structType();
@@ -2932,10 +2921,15 @@ class Parser
         if ($tag){
             // If this is a redefinition, overwrite the previous type.
             // Otherwise, register the struct type.
-            $sc = $this->findTag($tag);
-            if ($sc and $sc->depth === $this->scopeDepth){
-                $sc->ty = $ty;
-                return [$sc->ty, $rest];
+            $ty2 = $this->scopes[0]->tags->get2($tag->str, strlen($tag->str));
+            if ($ty2) {
+                // Overwrite the existing type
+                $existingType = $ty2;
+                $existingType->kind = $ty->kind;
+                $existingType->size = $ty->size;
+                $existingType->align = $ty->align;
+                $existingType->members = $ty->members;
+                return [$existingType, $rest];
             }
 
             $this->pushTagScope($tag, $ty);
@@ -3026,8 +3020,10 @@ class Parser
     public function getStructMember(Type $ty, Token $tok): ?Member
     {
         if ($ty->size === -1){
-            $sc = $this->findTag($ty->name);
-            $ty = $sc->ty;
+            $foundTy = $this->findTag($ty->name);
+            if ($foundTy) {
+                $ty = $foundTy;
+            }
         }
 
         foreach ($ty->members as $mem){
@@ -3647,14 +3643,17 @@ class Parser
 
     private function findFunc(string $name): ?Obj
     {
-        // Find the function in the global scope (return the latest definition)
-        $result = null;
-        foreach ($this->globals as $var) {
-            if ($var->name === $name && $var->isFunction) {
-                $result = $var;
-            }
+        // Find the global scope
+        $sc = $this->scopes;
+        while (count($sc) > 1) {
+            array_shift($sc);
         }
-        return $result;
+        
+        $sc2 = $sc[0]->vars->get($name);
+        if ($sc2 && $sc2->var && $sc2->var->isFunction) {
+            return $sc2->var;
+        }
+        return null;
     }
 
     private function markLive(Obj $var): void

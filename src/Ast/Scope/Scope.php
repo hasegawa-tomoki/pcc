@@ -1,10 +1,17 @@
 <?php
 namespace Pcc\Ast\Scope;
 
+use Pcc\HashMap\HashMap;
+
 class Scope
 {
-    /** @var VarScope[] */
-    public array $vars = [];
-    /** @var TagScope[] */
-    public array $tags = [];
+    public ?Scope $next = null;
+    public HashMap $vars;
+    public HashMap $tags;
+
+    public function __construct()
+    {
+        $this->vars = new HashMap();
+        $this->tags = new HashMap();
+    }
 }

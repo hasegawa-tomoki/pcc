@@ -6,9 +6,6 @@ use Pcc\Ast\Type;
 
 class VarScope
 {
-    public string $name;
-    public int $depth;
-
     public ?Obj $var = null;
     public ?Type $typeDef = null;
     public ?Type $enumTy = null;
