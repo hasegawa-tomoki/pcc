@@ -225,6 +225,11 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-MP') {
+                self::$options['MP'] = true;
+                continue;
+            }
+
             if ($argv[$i] === '-fcommon') {
                 self::$optFcommon = true;
                 continue;
@@ -414,6 +419,21 @@ class Pcc
             }
         }
         fprintf($fpOut, "\n\n");
+        
+        if (isset(self::$options['MP'])) {
+            // Skip the first file (which is the main source file)
+            $isFirst = true;
+            foreach ($files as $file) {
+                if ($isFirst) {
+                    $isFirst = false;
+                    continue;
+                }
+                // Skip built-in files and other special files
+                if ($file->name !== '<built-in>' && $file->name !== '<command line>') {
+                    fprintf($fpOut, "%s:\n\n", $file->name);
+                }
+            }
+        }
         
         if ($path !== '-' && !empty($path)) {
             fclose($fpOut);
