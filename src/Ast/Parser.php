@@ -368,7 +368,7 @@ class Parser
                     $ty = Type::tyDouble();
                     break;
                 case TypeCount::LONG->value + TypeCount::DOUBLE->value:
-                    $ty = Type::tyDouble();
+                    $ty = Type::tyLdouble();
                     break;
                 default:
                     Console::errorTok($tok, 'invalid type');
@@ -3331,6 +3331,9 @@ class Parser
                     // Convert float to 32-bit IEEE 754 representation
                     $bits = unpack('L', pack('f', $tok->fval))[1];
                     $node->gmpVal = gmp_init($bits);
+                } elseif ($tok->ty->kind === TypeKind::TY_LDOUBLE) {
+                    // For long double, use 0 as placeholder in gmpVal
+                    $node->gmpVal = gmp_init(0);
                 } else {
                     // Convert double to 64-bit IEEE 754 representation
                     $bits = unpack('Q', pack('d', $tok->fval))[1];

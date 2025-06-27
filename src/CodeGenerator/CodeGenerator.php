@@ -34,19 +34,25 @@ class CodeGenerator
     public string $i32f32 = "cvtsi2ssl %eax, %xmm0";
     public string $i32i64 = "movsxd %eax, %rax";
     public string $i32f64 = "cvtsi2sdl %eax, %xmm0";
+    public string $i32f80 = "mov %eax, -4(%rsp); fildl -4(%rsp)";
     
     public string $u32f32 = "mov %eax, %eax; cvtsi2ssq %rax, %xmm0";
     public string $u32i64 = "mov %eax, %eax";
     public string $u32f64 = "mov %eax, %eax; cvtsi2sdq %rax, %xmm0";
+    public string $u32f80 = "mov %eax, %eax; mov %rax, -8(%rsp); fildll -8(%rsp)";
     
     public string $i64f32 = "cvtsi2ssq %rax, %xmm0";
     public string $i64f64 = "cvtsi2sdq %rax, %xmm0";
+    public string $i64f80 = "movq %rax, -8(%rsp); fildll -8(%rsp)";
     
     public string $u64f32 = "cvtsi2ssq %rax, %xmm0";
     public string $u64f64 = 
         "test %rax,%rax; js 1f; pxor %xmm0,%xmm0; cvtsi2sd %rax,%xmm0; jmp 2f; ".
         "1: mov %rax,%rdi; and $1,%eax; pxor %xmm0,%xmm0; shr %rdi; ".
         "or %rax,%rdi; cvtsi2sd %rdi,%xmm0; addsd %xmm0,%xmm0; 2:";
+    public string $u64f80 = 
+        "mov %rax, -8(%rsp); fildq -8(%rsp); test %rax, %rax; jns 1f;".
+        "mov $1602224128, %eax; mov %eax, -4(%rsp); fadds -4(%rsp); 1:";
     
     public string $f32i8 = "cvttss2sil %xmm0, %eax; movsbl %al, %eax";
     public string $f32u8 = "cvttss2sil %xmm0, %eax; movzbl %al, %eax";
@@ -57,6 +63,7 @@ class CodeGenerator
     public string $f32i64 = "cvttss2siq %xmm0, %rax";
     public string $f32u64 = "cvttss2siq %xmm0, %rax";
     public string $f32f64 = "cvtss2sd %xmm0, %xmm0";
+    public string $f32f80 = "movss %xmm0, -4(%rsp); flds -4(%rsp)";
     
     public string $f64i8 = "cvttsd2sil %xmm0, %eax; movsbl %al, %eax";
     public string $f64u8 = "cvttsd2sil %xmm0, %eax; movzbl %al, %eax";
@@ -67,6 +74,23 @@ class CodeGenerator
     public string $f64f32 = "cvtsd2ss %xmm0, %xmm0";
     public string $f64i64 = "cvttsd2siq %xmm0, %rax";
     public string $f64u64 = "cvttsd2siq %xmm0, %rax";
+    public string $f64f80 = "movsd %xmm0, -8(%rsp); fldl -8(%rsp)";
+    
+    private string $fromF801 = 
+        "fnstcw -10(%rsp); movzwl -10(%rsp), %eax; or $12, %ah; ".
+        "mov %ax, -12(%rsp); fldcw -12(%rsp); ";
+    private string $fromF802 = " -24(%rsp); fldcw -10(%rsp); ";
+    
+    public string $f80i8;
+    public string $f80u8;
+    public string $f80i16;
+    public string $f80u16;
+    public string $f80i32;
+    public string $f80u32;
+    public string $f80i64;
+    public string $f80u64;
+    public string $f80f32 = "fstps -8(%rsp); movss -8(%rsp), %xmm0";
+    public string $f80f64 = "fstpl -8(%rsp); movsd -8(%rsp), %xmm0";
     
     public array $castTable = [];
 
@@ -103,20 +127,30 @@ class CodeGenerator
 
     public function __construct()
     {
+        $this->f80i8 = $this->fromF801 . "fistps" . $this->fromF802 . "movsbl -24(%rsp), %eax";
+        $this->f80u8 = $this->fromF801 . "fistps" . $this->fromF802 . "movzbl -24(%rsp), %eax";
+        $this->f80i16 = $this->fromF801 . "fistps" . $this->fromF802 . "movzbl -24(%rsp), %eax";
+        $this->f80u16 = $this->fromF801 . "fistpl" . $this->fromF802 . "movswl -24(%rsp), %eax";
+        $this->f80i32 = $this->fromF801 . "fistpl" . $this->fromF802 . "mov -24(%rsp), %eax";
+        $this->f80u32 = $this->fromF801 . "fistpl" . $this->fromF802 . "mov -24(%rsp), %eax";
+        $this->f80i64 = $this->fromF801 . "fistpq" . $this->fromF802 . "mov -24(%rsp), %rax";
+        $this->f80u64 = $this->fromF801 . "fistpq" . $this->fromF802 . "mov -24(%rsp), %rax";
+        
         $this->castTable = [
-             // i8         i16            i32            i64            u8            u16            u32            u64            f32            f64
-            [null,         null,          null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // i8
-            [$this->i32i8, null,          null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // i16
-            [$this->i32i8, $this->i32i16, null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // i32
-            [$this->i32i8, $this->i32i16, null,          null,          $this->i32u8, $this->i32u16, null,          null,          $this->i64f32, $this->i64f64, ], // i64
+             // i8         i16            i32            i64            u8            u16            u32            u64            f32            f64            f80
+            [null,         null,          null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, $this->i32f80], // i8
+            [$this->i32i8, null,          null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, $this->i32f80], // i16
+            [$this->i32i8, $this->i32i16, null,          $this->i32i64, $this->i32u8, $this->i32u16, null,          $this->i32i64, $this->i32f32, $this->i32f64, $this->i32f80], // i32
+            [$this->i32i8, $this->i32i16, null,          null,          $this->i32u8, $this->i32u16, null,          null,          $this->i64f32, $this->i64f64, $this->i64f80], // i64
             
-            [$this->i32i8, null,          null,          $this->i32i64, null,         null,          null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // u8
-            [$this->i32i8, $this->i32i16, null,          $this->i32i64, $this->i32u8, null,          null,          $this->i32i64, $this->i32f32, $this->i32f64, ], // u16
-            [$this->i32i8, $this->i32i16, null,          $this->u32i64, $this->i32u8, $this->i32u16, null,          $this->u32i64, $this->u32f32, $this->u32f64, ], // u32
-            [$this->i32i8, $this->i32i16, null,          null,          $this->i32u8, $this->i32u16, null,          null,          $this->u64f32, $this->u64f64, ], // u64
+            [$this->i32i8, null,          null,          $this->i32i64, null,         null,          null,          $this->i32i64, $this->i32f32, $this->i32f64, $this->i32f80], // u8
+            [$this->i32i8, $this->i32i16, null,          $this->i32i64, $this->i32u8, null,          null,          $this->i32i64, $this->i32f32, $this->i32f64, $this->i32f80], // u16
+            [$this->i32i8, $this->i32i16, null,          $this->u32i64, $this->i32u8, $this->i32u16, null,          $this->u32i64, $this->u32f32, $this->u32f64, $this->u32f80], // u32
+            [$this->i32i8, $this->i32i16, null,          null,          $this->i32u8, $this->i32u16, null,          null,          $this->u64f32, $this->u64f64, $this->u64f80], // u64
             
-            [$this->f32i8, $this->f32i16, $this->f32i32, $this->f32i64, $this->f32u8, $this->f32u16, $this->f32u32, $this->f32u64, null,          $this->f32f64, ], // f32
-            [$this->f64i8, $this->f64i16, $this->f64i32, $this->f64i64, $this->f64u8, $this->f64u16, $this->f64u32, $this->f64u64, $this->f64f32, null, ],          // f64
+            [$this->f32i8, $this->f32i16, $this->f32i32, $this->f32i64, $this->f32u8, $this->f32u16, $this->f32u32, $this->f32u64, null,          $this->f32f64, $this->f32f80], // f32
+            [$this->f64i8, $this->f64i16, $this->f64i32, $this->f64i64, $this->f64u8, $this->f64u16, $this->f64u32, $this->f64u64, $this->f64f32, null,          $this->f64f80], // f64
+            [$this->f80i8, $this->f80i16, $this->f80i32, $this->f80i64, $this->f80u8, $this->f80u16, $this->f80u32, $this->f80u64, $this->f80f32, $this->f80f64, null], // f80
         ];
     }
 
@@ -177,6 +211,11 @@ class CodeGenerator
             case TypeKind::TY_DOUBLE:
                 $this->pushf();
                 break;
+            case TypeKind::TY_LDOUBLE:
+                Console::out("  sub \$16, %%rsp");
+                Console::out("  fstpt (%%rsp)");
+                $this->depth += 2;
+                break;
             default:
                 $this->push();
         }
@@ -224,6 +263,10 @@ class CodeGenerator
                         $arg->passByStack = true;
                         $stack++;
                     }
+                    break;
+                case TypeKind::TY_LDOUBLE:
+                    $arg->passByStack = true;
+                    $stack += 2;
                     break;
                 default:
                     if ($gp++ >= self::GP_MAX) {
@@ -371,6 +414,9 @@ class CodeGenerator
             case TypeKind::TY_DOUBLE:
                 Console::out("  movsd (%%rax), %%xmm0");
                 return;
+            case TypeKind::TY_LDOUBLE:
+                Console::out("  fldt (%%rax)");
+                return;
         }
 
         $insn = $ty->isUnsigned? 'movz' : 'movs';
@@ -404,6 +450,9 @@ class CodeGenerator
             case TypeKind::TY_DOUBLE:
                 Console::out("  movsd %%xmm0, (%%rdi)");
                 return;
+            case TypeKind::TY_LDOUBLE:
+                Console::out("  fstpt (%%rdi)");
+                return;
         }
 
         if ($ty->size === 1){
@@ -425,6 +474,10 @@ class CodeGenerator
         } elseif ($ty->kind === TypeKind::TY_DOUBLE) {
             Console::out("  xorpd %%xmm1, %%xmm1");
             Console::out("  ucomisd %%xmm1, %%xmm0");
+        } elseif ($ty->kind === TypeKind::TY_LDOUBLE) {
+            Console::out("  fldz");
+            Console::out("  fucomip");
+            Console::out("  fstp %%st(0)");
         } elseif ($ty->isInteger() and $ty->size <= 4){
             Console::out("  cmp \$0, %%eax");
         } else {
@@ -435,13 +488,14 @@ class CodeGenerator
     public function getTypeId(Type $ty): int
     {
         return match ($ty->kind) {
-            TypeKind::TY_CHAR   => $ty->isUnsigned? TypeId::U8->value:  TypeId::I8->value,
-            TypeKind::TY_SHORT  => $ty->isUnsigned? TypeId::U16->value: TypeId::I16->value,
-            TypeKind::TY_INT    => $ty->isUnsigned? TypeId::U32->value: TypeId::I32->value,
-            TypeKind::TY_LONG   => $ty->isUnsigned? TypeId::U64->value: TypeId::I64->value,
-            TypeKind::TY_FLOAT  => TypeId::F32->value,
-            TypeKind::TY_DOUBLE => TypeId::F64->value,
-            default             => TypeId::U64->value,
+            TypeKind::TY_CHAR    => $ty->isUnsigned? TypeId::U8->value:  TypeId::I8->value,
+            TypeKind::TY_SHORT   => $ty->isUnsigned? TypeId::U16->value: TypeId::I16->value,
+            TypeKind::TY_INT     => $ty->isUnsigned? TypeId::U32->value: TypeId::I32->value,
+            TypeKind::TY_LONG    => $ty->isUnsigned? TypeId::U64->value: TypeId::I64->value,
+            TypeKind::TY_FLOAT   => TypeId::F32->value,
+            TypeKind::TY_DOUBLE  => TypeId::F64->value,
+            TypeKind::TY_LDOUBLE => TypeId::F80->value,
+            default              => TypeId::U64->value,
         };
     }
 
@@ -497,7 +551,7 @@ class CodeGenerator
             return true;
         }
 
-        return $offset < $lo || $hi <= $offset || $ty->isFlonum();
+        return $offset < $lo || $hi <= $offset || $ty->kind === TypeKind::TY_FLOAT || $ty->kind === TypeKind::TY_DOUBLE;
     }
 
     private function hasFlonum1(Type $ty): bool
@@ -537,11 +591,23 @@ class CodeGenerator
                     case TypeKind::TY_FLOAT:
                         Console::out("  mov \$%u, %%eax   # float %f", PccGMP::toPHPInt(PccGMP::toUint32t($node->gmpVal)), $node->fval);
                         Console::out("  movq %%rax, %%xmm0");
-                        break;
+                        return;
                     case TypeKind::TY_DOUBLE:
                         Console::out("  mov \$%lu, %%rax   # double %f", PccGMP::toPHPInt(PccGMP::toUint64t($node->gmpVal)), $node->fval);
                         Console::out("  movq %%rax, %%xmm0");
-                        break;
+                        return;
+                    case TypeKind::TY_LDOUBLE:
+                        $bytes = [];
+                        $ldoubleBytes = pack('E', $node->fval);
+                        for ($i = 0; $i < 16; $i++) {
+                            $bytes[] = isset($ldoubleBytes[$i]) ? ord($ldoubleBytes[$i]) : 0;
+                        }
+                        Console::out("  mov \$%lu, %%rax  # long double %f", ($bytes[7] << 56) | ($bytes[6] << 48) | ($bytes[5] << 40) | ($bytes[4] << 32) | ($bytes[3] << 24) | ($bytes[2] << 16) | ($bytes[1] << 8) | $bytes[0], $node->fval);
+                        Console::out("  mov %%rax, -16(%%rsp)");
+                        Console::out("  mov \$%lu, %%rax", ($bytes[15] << 56) | ($bytes[14] << 48) | ($bytes[13] << 40) | ($bytes[12] << 32) | ($bytes[11] << 24) | ($bytes[10] << 16) | ($bytes[9] << 8) | $bytes[8]);
+                        Console::out("  mov %%rax, -8(%%rsp)");
+                        Console::out("  fldt -16(%%rsp)");
+                        return;
                 }
                 Console::out("  mov \$%ld, %%rax", PccGMP::toPHPInt($node->gmpVal));
                 return;
@@ -655,6 +721,9 @@ class CodeGenerator
                         Console::out("  movq %%rax, %%xmm1");
                         Console::out("  xorpd %%xmm1, %%xmm0");
                         return;
+                    case TypeKind::TY_LDOUBLE:
+                        Console::out("  fchs");
+                        return;
                 }
                 
                 Console::out("  neg %%rax");
@@ -744,6 +813,8 @@ class CodeGenerator
                                 $this->popf($fp++);
                             }
                             break;
+                        case TypeKind::TY_LDOUBLE:
+                            break;
                         default:
                             if ($gp < self::GP_MAX) {
                                 $this->pop($this->argreg64[$gp++]);
@@ -791,53 +862,96 @@ class CodeGenerator
                 return;
         }
 
-        if ($node->lhs->ty->isFlonum()) {
-            $this->genExpr($node->rhs);
-            $this->pushf();
-            $this->genExpr($node->lhs);
-            $this->popf(1);
+        switch ($node->lhs->ty->kind) {
+            case TypeKind::TY_FLOAT:
+            case TypeKind::TY_DOUBLE:
+                $this->genExpr($node->rhs);
+                $this->pushf();
+                $this->genExpr($node->lhs);
+                $this->popf(1);
 
-            $sz = ($node->lhs->ty->kind === TypeKind::TY_FLOAT) ? 'ss' : 'sd';
+                $sz = ($node->lhs->ty->kind === TypeKind::TY_FLOAT) ? 'ss' : 'sd';
 
-            switch ($node->kind) {
-                case NodeKind::ND_ADD:
-                    Console::out("  add%s %%xmm1, %%xmm0", $sz);
-                    return;
-                case NodeKind::ND_SUB:
-                    Console::out("  sub%s %%xmm1, %%xmm0", $sz);
-                    return;
-                case NodeKind::ND_MUL:
-                    Console::out("  mul%s %%xmm1, %%xmm0", $sz);
-                    return;
-                case NodeKind::ND_DIV:
-                    Console::out("  div%s %%xmm1, %%xmm0", $sz);
-                    return;
-                case NodeKind::ND_EQ:
-                case NodeKind::ND_NE:
-                case NodeKind::ND_LT:
-                case NodeKind::ND_LE:
-                    Console::out("  ucomi%s %%xmm0, %%xmm1", $sz);
+                switch ($node->kind) {
+                    case NodeKind::ND_ADD:
+                        Console::out("  add%s %%xmm1, %%xmm0", $sz);
+                        return;
+                    case NodeKind::ND_SUB:
+                        Console::out("  sub%s %%xmm1, %%xmm0", $sz);
+                        return;
+                    case NodeKind::ND_MUL:
+                        Console::out("  mul%s %%xmm1, %%xmm0", $sz);
+                        return;
+                    case NodeKind::ND_DIV:
+                        Console::out("  div%s %%xmm1, %%xmm0", $sz);
+                        return;
+                    case NodeKind::ND_EQ:
+                    case NodeKind::ND_NE:
+                    case NodeKind::ND_LT:
+                    case NodeKind::ND_LE:
+                        Console::out("  ucomi%s %%xmm0, %%xmm1", $sz);
 
-                    if ($node->kind === NodeKind::ND_EQ) {
-                        Console::out("  sete %%al");
-                        Console::out("  setnp %%dl");
-                        Console::out("  and %%dl, %%al");
-                    } elseif ($node->kind === NodeKind::ND_NE) {
-                        Console::out("  setne %%al");
-                        Console::out("  setp %%dl");
-                        Console::out("  or %%dl, %%al");
-                    } elseif ($node->kind === NodeKind::ND_LT) {
-                        Console::out("  seta %%al");
-                    } else {
-                        Console::out("  setae %%al");
-                    }
+                        if ($node->kind === NodeKind::ND_EQ) {
+                            Console::out("  sete %%al");
+                            Console::out("  setnp %%dl");
+                            Console::out("  and %%dl, %%al");
+                        } elseif ($node->kind === NodeKind::ND_NE) {
+                            Console::out("  setne %%al");
+                            Console::out("  setp %%dl");
+                            Console::out("  or %%dl, %%al");
+                        } elseif ($node->kind === NodeKind::ND_LT) {
+                            Console::out("  seta %%al");
+                        } else {
+                            Console::out("  setae %%al");
+                        }
 
-                    Console::out("  and $1, %%al");
-                    Console::out("  movzb %%al, %%rax");
-                    return;
-            }
+                        Console::out("  and $1, %%al");
+                        Console::out("  movzb %%al, %%rax");
+                        return;
+                }
 
-            Console::errorTok($node->tok, 'invalid expression');
+                Console::errorTok($node->tok, 'invalid expression');
+                break;
+            case TypeKind::TY_LDOUBLE:
+                $this->genExpr($node->lhs);
+                $this->genExpr($node->rhs);
+
+                switch ($node->kind) {
+                    case NodeKind::ND_ADD:
+                        Console::out("  faddp");
+                        return;
+                    case NodeKind::ND_SUB:
+                        Console::out("  fsubrp");
+                        return;
+                    case NodeKind::ND_MUL:
+                        Console::out("  fmulp");
+                        return;
+                    case NodeKind::ND_DIV:
+                        Console::out("  fdivrp");
+                        return;
+                    case NodeKind::ND_EQ:
+                    case NodeKind::ND_NE:
+                    case NodeKind::ND_LT:
+                    case NodeKind::ND_LE:
+                        Console::out("  fcomip");
+                        Console::out("  fstp %%st(0)");
+
+                        if ($node->kind === NodeKind::ND_EQ) {
+                            Console::out("  sete %%al");
+                        } elseif ($node->kind === NodeKind::ND_NE) {
+                            Console::out("  setne %%al");
+                        } elseif ($node->kind === NodeKind::ND_LT) {
+                            Console::out("  seta %%al");
+                        } else {
+                            Console::out("  setae %%al");
+                        }
+
+                        Console::out("  movzb %%al, %%rax");
+                        return;
+                }
+
+                Console::errorTok($node->tok, 'invalid expression');
+                break;
         }
 
         $this->genExpr($node->rhs);
@@ -1088,6 +1202,8 @@ class CodeGenerator
                             if ($fp++ < self::FP_MAX) {
                                 continue 2;
                             }
+                            break;
+                        case TypeKind::TY_LDOUBLE:
                             break;
                         default:
                             if ($gp++ < self::GP_MAX) {

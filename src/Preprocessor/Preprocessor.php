@@ -1212,16 +1212,20 @@ class Preprocessor
         }
 
         // If it's not an integer, it must be a floating point constant
-        $val = floatval($tok->str);
-        
         $str = $tok->str;
         $ty = Type::tyDouble();
         
+        // Remove suffix for parsing the value
+        $valStr = $str;
         if (str_ends_with(strtolower($str), 'f')) {
             $ty = Type::tyFloat();
+            $valStr = substr($str, 0, -1);
         } elseif (str_ends_with(strtolower($str), 'l')) {
-            $ty = Type::tyDouble();
+            $ty = Type::tyLdouble();
+            $valStr = substr($str, 0, -1);
         }
+        
+        $val = floatval($valStr);
 
         $tok->kind = TokenKind::TK_NUM;
         $tok->fval = $val;
@@ -1231,6 +1235,12 @@ class Preprocessor
     private static function convertPpInt(Token $tok): bool
     {
         $p = $tok->str;
+        
+        // If it contains a decimal point, it's definitely a floating point number
+        if (strpos($p, '.') !== false) {
+            return false;
+        }
+        
         $base = 10;
         
         if (str_starts_with($p, '0x') || str_starts_with($p, '0X')) {

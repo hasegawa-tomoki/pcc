@@ -14,4 +14,5 @@ enum TypeId: int
     case U64 = 7;
     case F32 = 8;
     case F64 = 9;
+    case F80 = 10;
 }

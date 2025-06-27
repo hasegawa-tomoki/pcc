@@ -99,6 +99,11 @@ class Type
         return new Type(TypeKind::TY_DOUBLE, null, 8, 8);
     }
 
+    public static function tyLdouble(): Type
+    {
+        return new Type(TypeKind::TY_LDOUBLE, null, 16, 16);
+    }
+
     public static function newType(TypeKind $kind, int $size, int $align): Type
     {
         return new Type($kind, null, $size, $align);
@@ -115,7 +120,8 @@ class Type
 
     public function isFlonum(): bool
     {
-        return $this->kind === TypeKind::TY_FLOAT || $this->kind === TypeKind::TY_DOUBLE;
+        return $this->kind === TypeKind::TY_FLOAT || $this->kind === TypeKind::TY_DOUBLE ||
+               $this->kind === TypeKind::TY_LDOUBLE;
     }
 
     public function isNumeric(): bool
@@ -176,6 +182,9 @@ class Type
             return self::pointerTo($ty2);
         }
 
+        if ($ty1->kind === TypeKind::TY_LDOUBLE or $ty2->kind === TypeKind::TY_LDOUBLE) {
+            return self::tyLdouble();
+        }
         if ($ty1->kind === TypeKind::TY_DOUBLE or $ty2->kind === TypeKind::TY_DOUBLE) {
             return self::tyDouble();
         }
@@ -235,6 +244,7 @@ class Type
                 return $t1->isUnsigned === $t2->isUnsigned;
             case TypeKind::TY_FLOAT:
             case TypeKind::TY_DOUBLE:
+            case TypeKind::TY_LDOUBLE:
                 return true;
             case TypeKind::TY_PTR:
                 return self::isCompatible($t1->base, $t2->base);

@@ -175,7 +175,9 @@ class Node
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($this->kind){
             case NodeKind::ND_NUM:
-                $this->ty = Type::tyInt();
+                if (!$this->ty) {
+                    $this->ty = Type::tyInt();
+                }
                 return;
             case NodeKind::ND_ADD:
             case NodeKind::ND_SUB:

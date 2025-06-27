@@ -12,6 +12,7 @@ enum TypeKind
     case TY_LONG;
     case TY_FLOAT;
     case TY_DOUBLE;
+    case TY_LDOUBLE;
     case TY_ENUM;
     case TY_PTR;
     case TY_FUNC;
