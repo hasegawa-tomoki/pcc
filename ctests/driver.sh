@@ -139,4 +139,20 @@ check '-x none'
 echo foo | $pcc -E - | grep -q foo
 check -E
 
+# .a file
+echo 'void foo() {}' | $pcc -c -xc -o $tmp/foo.o -
+echo 'void bar() {}' | $pcc -c -xc -o $tmp/bar.o -
+ar rcs $tmp/foo.a $tmp/foo.o $tmp/bar.o
+echo 'void foo(); void bar(); int main() { foo(); bar(); }' > $tmp/main.c
+$pcc -o $tmp/foo $tmp/main.c $tmp/foo.a
+check '.a'
+
+# .so file
+echo 'void foo() {}' | cc -fPIC -c -xc -o $tmp/foo.o -
+echo 'void bar() {}' | cc -fPIC -c -xc -o $tmp/bar.o -
+cc -shared -o $tmp/foo.so $tmp/foo.o $tmp/bar.o
+echo 'void foo(); void bar(); int main() { foo(); bar(); }' > $tmp/main.c
+$pcc -o $tmp/foo $tmp/main.c $tmp/foo.so
+check '.so'
+
 echo OK

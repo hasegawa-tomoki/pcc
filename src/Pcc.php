@@ -12,6 +12,8 @@ enum FileType {
     case FILE_C;
     case FILE_ASM;
     case FILE_OBJ;
+    case FILE_AR;
+    case FILE_DSO;
 }
 
 class Pcc
@@ -582,14 +584,19 @@ class Pcc
 
     private static function getFileType(string $filename): FileType
     {
-        if (self::endswith($filename, '.o')) {
-            return FileType::FILE_OBJ;
-        }
-
         if (self::$optX !== FileType::FILE_NONE) {
             return self::$optX;
         }
 
+        if (self::endswith($filename, '.a')) {
+            return FileType::FILE_AR;
+        }
+        if (self::endswith($filename, '.so')) {
+            return FileType::FILE_DSO;
+        }
+        if (self::endswith($filename, '.o')) {
+            return FileType::FILE_OBJ;
+        }
         if (self::endswith($filename, '.c')) {
             return FileType::FILE_C;
         }
@@ -650,8 +657,8 @@ class Pcc
 
             $type = self::getFileType($inputPath);
 
-            // Handle .o
-            if ($type === FileType::FILE_OBJ) {
+            // Handle .o or .a
+            if ($type === FileType::FILE_OBJ || $type === FileType::FILE_AR || $type === FileType::FILE_DSO) {
                 $ldArgs->push($inputPath);
                 continue;
             }
