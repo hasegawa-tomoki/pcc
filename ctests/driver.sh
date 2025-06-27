@@ -103,9 +103,72 @@ check -D
 echo foo | $pcc -Dfoo=bar -Ufoo -E -xc - | grep -q foo
 check -U
 
+# ignored options
+$pcc -c -O -Wall -g -std=c11 -ffreestanding -fno-builtin \
+         -fno-omit-frame-pointer -fno-stack-protector -fno-strict-aliasing \
+         -m64 -mno-red-zone -w -o /dev/null $tmp/empty.c
+check 'ignored options'
+
 # BOM marker
 printf '\xef\xbb\xbfxyz\n' | $pcc -E -o- -xc - | grep -q 'xyz'
 check 'BOM marker'
+
+# Inline functions
+echo 'inline void foo() {}' > $tmp/inline1.c
+echo 'inline void foo() {}' > $tmp/inline2.c
+echo 'int main() { return 0; }' > $tmp/inline3.c
+$pcc -o /dev/null $tmp/inline1.c $tmp/inline2.c $tmp/inline3.c
+check inline
+
+echo 'extern inline void foo() {}' > $tmp/inline1.c
+echo 'int foo(); int main() { foo(); }' > $tmp/inline2.c
+$pcc -o /dev/null $tmp/inline1.c $tmp/inline2.c
+check inline
+
+echo 'static inline void f1() {}' | $pcc -o- -S -xc - | grep -v -q f1:
+check inline
+
+echo 'static inline void f1() {} void foo() { f1(); }' | $pcc -o- -S -xc - | grep -q f1:
+check inline
+
+echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f1(); }' | $pcc -o- -S -xc - | grep -q f1:
+check inline
+
+echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f1(); }' | $pcc -o- -S -xc - | grep -v -q f2:
+check inline
+
+echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f2(); }' | $pcc -o- -S -xc - | grep -q f1:
+check inline
+
+echo 'static inline void f1() {} static inline void f2() { f1(); } void foo() { f2(); }' | $pcc -o- -S -xc - | grep -q f2:
+check inline
+
+echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() {}' | $pcc -o- -S -xc - | grep -v -q f1:
+check inline
+
+echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() {}' | $pcc -o- -S -xc - | grep -v -q f2:
+check inline
+
+echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f1(); }' | $pcc -o- -S -xc - | grep -q f1:
+check inline
+
+echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f1(); }' | $pcc -o- -S -xc - | grep -q f2:
+check inline
+
+echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f2(); }' | $pcc -o- -S -xc - | grep -q f1:
+check inline
+
+echo 'static inline void f2(); static inline void f1() { f2(); } static inline void f2() { f1(); } void foo() { f2(); }' | $pcc -o- -S -xc - | grep -q f2:
+check inline
+
+# -idirafter
+mkdir -p $tmp/dir1 $tmp/dir2
+echo foo > $tmp/dir1/idirafter
+echo bar > $tmp/dir2/idirafter
+echo "#include \"idirafter\"" | $pcc -I$tmp/dir1 -I$tmp/dir2 -E -xc - | grep -q foo
+check -idirafter
+echo "#include \"idirafter\"" | $pcc -idirafter $tmp/dir1 -I$tmp/dir2 -E -xc - | grep -q bar
+check -idirafter
 
 # -fcommon
 echo 'int foo;' | $pcc -S -o- -xc - | grep -q '\.comm foo'
@@ -154,5 +217,6 @@ cc -shared -o $tmp/foo.so $tmp/foo.o $tmp/bar.o
 echo 'void foo(); void bar(); int main() { foo(); bar(); }' > $tmp/main.c
 $pcc -o $tmp/foo $tmp/main.c $tmp/foo.so
 check '.so'
+
 
 echo OK

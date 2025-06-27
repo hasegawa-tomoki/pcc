@@ -3640,19 +3640,21 @@ class Parser
         // Remove redundant tentative definitions.
         $this->scanGlobals();
         
+        
         ray($this->globals);
         return $this->globals;
     }
 
     private function findFunc(string $name): ?Obj
     {
-        // Find the function in the global scope
+        // Find the function in the global scope (return the latest definition)
+        $result = null;
         foreach ($this->globals as $var) {
             if ($var->name === $name && $var->isFunction) {
-                return $var;
+                $result = $var;
             }
         }
-        return null;
+        return $result;
     }
 
     private function markLive(Obj $var): void
