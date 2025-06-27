@@ -1765,6 +1765,14 @@ class Parser
         }
 
         if ($this->tokenizer->equal($tok, 'goto')){
+            if ($this->tokenizer->equal($tok->next, '*')) {
+                // [GNU] `goto *ptr` jumps to the address specified by `ptr`.
+                $node = Node::newNode(NodeKind::ND_GOTO_EXPR, $tok);
+                [$node->lhs, $tok] = $this->expr($tok, $tok->next->next);
+                $rest = $this->tokenizer->skip($tok, ';');
+                return [$node, $rest];
+            }
+
             $node = Node::newNode(NodeKind::ND_GOTO, $tok);
             $node->label = $this->getIdent($tok->next);
             array_unshift($this->gotos, $node);
@@ -2799,6 +2807,17 @@ class Parser
         if ($this->tokenizer->equal($tok, '--')){
             [$unary, $rest] = $this->unary($rest, $tok->next);
             return [$this->toAssign($this->newSub($unary, Node::newNum(1, $tok), $tok)), $rest];
+        }
+
+        // [GNU] labels-as-values
+        if ($this->tokenizer->equal($tok, '&&')) {
+            $node = Node::newNode(NodeKind::ND_LABEL_VAL, $tok);
+            if ($tok->next->kind !== TokenKind::TK_IDENT) {
+                Console::errorTok($tok->next, 'expected label name');
+            }
+            $node->label = $tok->next->str;
+            $this->gotos[] = $node;
+            return [$node, $tok->next->next];
         }
 
         return $this->postfix($rest, $tok);

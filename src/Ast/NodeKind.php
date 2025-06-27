@@ -38,7 +38,9 @@ enum NodeKind
     case ND_CASE;
     case ND_BLOCK;
     case ND_GOTO;
+    case ND_GOTO_EXPR; // "goto" labels-as-values
     case ND_LABEL;
+    case ND_LABEL_VAL; // [GNU] Labels-as-values
     case ND_FUNCALL;
     case ND_EXPR_STMT;
     case ND_STMT_EXPR;

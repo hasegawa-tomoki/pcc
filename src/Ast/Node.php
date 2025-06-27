@@ -269,6 +269,9 @@ class Node
                     }
                 }
                 Console::errorTok($this->tok, 'statement expression returning void is not supported');
+            case NodeKind::ND_LABEL_VAL:
+                $this->ty = Type::pointerTo(Type::tyVoid());
+                return;
         }
     }
 }

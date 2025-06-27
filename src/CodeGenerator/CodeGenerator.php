@@ -756,6 +756,9 @@ class CodeGenerator
                 Console::out("  mov \$1, %%rax");
                 Console::out(".L.end.%d:", $c);
                 return;
+            case NodeKind::ND_LABEL_VAL:
+                Console::out("  lea %s(%%rip), %%rax", $node->uniqueLabel);
+                return;
             case NodeKind::ND_FUNCALL:
                 // Handle alloca() as builtin function
                 if ($node->lhs->kind === NodeKind::ND_VAR && $node->lhs->var->name === 'alloca') {
@@ -1139,6 +1142,10 @@ class CodeGenerator
                 return;
             case NodeKind::ND_GOTO:
                 Console::out("  jmp %s", $node->uniqueLabel);
+                return;
+            case NodeKind::ND_GOTO_EXPR:
+                $this->genExpr($node->lhs);
+                Console::out("  jmp *%%rax");
                 return;
             case NodeKind::ND_LABEL:
                 Console::out("%s:", $node->uniqueLabel);
