@@ -5,7 +5,7 @@ class Relocation
 {
     public function __construct(
         public int $offset = 0,
-        public string $label = '',
+        public ?array &$label = null,
         public int $addend = 0,
     )
     {

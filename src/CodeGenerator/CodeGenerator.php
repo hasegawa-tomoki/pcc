@@ -1149,6 +1149,10 @@ class CodeGenerator
                 return;
             case NodeKind::ND_LABEL:
                 Console::out("%s:", $node->uniqueLabel);
+                // Also emit the original label name for labels-as-values
+                if ($node->label) {
+                    Console::out("%s:", $node->label);
+                }
                 $this->genStmt($node->lhs);
                 return;
             case NodeKind::ND_RETURN:
@@ -1302,7 +1306,7 @@ class CodeGenerator
                 while ($pos < $var->ty->size){
                     $rel = $var->rels[$relIdx] ?? null;
                     if ($rel and $rel->offset === $pos){
-                        Console::out("  .quad %s%+ld", $rel->label, $rel->addend);
+                        Console::out("  .quad %s%+ld", $rel->label[0], $rel->addend);
                         $relIdx++;
                         $pos += 8;
                     } else {

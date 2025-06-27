@@ -1500,7 +1500,8 @@ class Parser
             return [$buf, $rels];
         }
 
-        [$gmpVal, $label] = $this->evaluate2($init->expr, '');
+        $label = null;
+        [$gmpVal, $label] = $this->evaluate2($init->expr, $label);
 
         if (! $label){
             $buf = $this->writeBuf($buf, $offset, PccGMP::toPHPInt($gmpVal), $ty->size);
@@ -1905,17 +1906,18 @@ class Parser
 
     public function evaluate(Node $node): GMP
     {
-        [$val, ] = $this->evaluate2($node, null);
+        $label = null;
+        [$val, ] = $this->evaluate2($node, $label);
         return $val;
     }
 
     /**
-     * int64_t eval2(Node *node, char **label)
+     * int64_t eval2(Node *node, char ***label)
      * @param \Pcc\Ast\Node $node
-     * @param ?string $label
-     * @return array{0: GMP, 1: $string}
+     * @param ?array $label
+     * @return array{0: GMP, 1: ?array}
      */
-    public function evaluate2(Node $node, ?string $label): array
+    public function evaluate2(Node $node, ?array &$label): array
     {
         $node->addType();
 
@@ -2032,27 +2034,36 @@ class Parser
                 [$val, $label] = $this->evalRval($node->lhs, $label);
                 break;
             case NodeKind::ND_MEMBER:
-                if (is_null($label)){
-                    Console::errorTok($node->tok, 'not a compile-time constant (ND_MEMBER)');
-                }
-                if ($node->ty->kind !== TypeKind::TY_ARRAY){
+                // Only arrays and functions can be used in compile-time expressions
+                if ($node->ty->kind !== TypeKind::TY_ARRAY and $node->ty->kind !== TypeKind::TY_FUNC){
                     Console::errorTok($node->tok, 'invalid initializer');
                 }
                 [$val, $label] = $this->evalRval($node->lhs, $label);
-                $val = gmp_add($val, $node->member->offset);
-                break;
-            case NodeKind::ND_VAR:
                 if (is_null($label)){
-                    Console::errorTok($node->tok, 'not a compile-time constant (ND_VAR)');
+                    Console::errorTok($node->tok, 'not a compile-time constant (ND_MEMBER)');
                 }
-                if ($node->var->ty->kind !== TypeKind::TY_ARRAY and $node->var->ty->kind !== TypeKind::TY_FUNC){
-                    Console::errorTok($node->tok, 'invalid initializer');
-                }
-                $val = gmp_init(0);
-                $label = $node->var->name;
+                $val = gmp_add($val, $node->member->offset);
                 break;
             case NodeKind::ND_NUM:
                 $val = $node->gmpVal;
+                break;
+            case NodeKind::ND_LABEL_VAL:
+                // For labels-as-values, we store the label name directly
+                // The unique label will be resolved later by the linker
+                $label = [$node->label];
+                $val = gmp_init(0);
+                break;
+            case NodeKind::ND_VAR:
+                // Array or function variables in expression context
+                if ($node->var->ty->kind === TypeKind::TY_ARRAY || $node->var->ty->kind === TypeKind::TY_FUNC) {
+                    if ($node->var->isLocal) {
+                        Console::errorTok($node->tok, 'not a compile-time constant');
+                    }
+                    $label = [$node->var->name];
+                    $val = gmp_init(0);
+                } else {
+                    Console::errorTok($node->tok, 'not a compile-time constant (ND_VAR)');
+                }
                 break;
         }
         if ($node->ty->isFlonum()) {
@@ -2073,10 +2084,10 @@ class Parser
 
     /**
      * @param \Pcc\Ast\Node $node
-     * @param ?string $label
-     * @return array{0: GMP, 1: string}
+     * @param ?array $label
+     * @return array{0: GMP, 1: ?array}
      */
-    public function evalRval(Node $node, ?string $label): array
+    public function evalRval(Node $node, ?array &$label): array
     {
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch($node->kind){
@@ -2084,7 +2095,7 @@ class Parser
                 if ($node->var->isLocal){
                     Console::errorTok($node->tok, 'not a compile-time constant');
                 }
-                $label = $node->var->name;
+                $label = [$node->var->name];
                 return [gmp_init(0), $label];
             case NodeKind::ND_DEREF:
                 return $this->evaluate2($node->lhs, $label);
@@ -2574,6 +2585,8 @@ class Parser
         if ($lhs->ty->isNumeric() and $rhs->ty->isNumeric()){
             return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
         }
+        
+        
         if ($lhs->ty->base and $rhs->ty->base){
             Console::errorTok($tok, 'invalid operands');
         }
