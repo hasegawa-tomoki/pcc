@@ -8,19 +8,13 @@ use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
 use Pcc\Clib\Stdlib;
 use Pcc\File;
+use Pcc\HashMap\HashMap;
 
 class Tokenizer
 {
     /** @var Token[] */
     public array $tokens;
-    public array $keywords = [
-        'return', 'if', 'else', 'for', 'while', 'int', 'sizeof', 'char',
-        'struct', 'union', 'short', 'long', 'void', 'typedef', '_Bool',
-        'enum', 'static', 'goto', 'break', 'continue', 'switch', 'case',
-        'default', 'extern', '_Alignof', '_Alignas', 'do', 'signed',
-        'unsigned', 'float', 'double', 'typeof', 'asm', 'inline',
-        '_Thread_local', '__thread',
-    ];
+    private static ?HashMap $keywordMap = null;
     public Token $tok {
         get {
             return $this->tokens[0];
@@ -362,10 +356,38 @@ class Tokenizer
         return [$tok, $pos + $end + 1];
     }
 
+    private static function initKeywordMap(): void
+    {
+        if (self::$keywordMap !== null) {
+            return;
+        }
+
+        self::$keywordMap = new HashMap();
+        $keywords = [
+            'return', 'if', 'else', 'for', 'while', 'int', 'sizeof', 'char',
+            'struct', 'union', 'short', 'long', 'void', 'typedef', '_Bool',
+            'enum', 'static', 'goto', 'break', 'continue', 'switch', 'case',
+            'default', 'extern', '_Alignof', '_Alignas', 'do', 'signed',
+            'unsigned', 'const', 'volatile', 'auto', 'register', 'restrict',
+            '__restrict', '__restrict__', '_Noreturn', 'float', 'double',
+            'typeof', 'asm', '_Thread_local', '__thread',
+        ];
+
+        foreach ($keywords as $kw) {
+            self::$keywordMap->put($kw, true);
+        }
+    }
+
+    private static function isKeyword(Token $tok): bool
+    {
+        self::initKeywordMap();
+        return self::$keywordMap->get2($tok->str, strlen($tok->str)) !== null;
+    }
+
     public function convertPpTokens(): void
     {
         foreach ($this->tokens as $idx => $token){
-            if (in_array($token->str, $this->keywords)){
+            if (self::isKeyword($token)){
                 $this->tokens[$idx]->kind = TokenKind::TK_KEYWORD;
             } elseif ($token->kind === TokenKind::TK_PP_NUM) {
                 $this->convertPpNumber($this->tokens[$idx]);

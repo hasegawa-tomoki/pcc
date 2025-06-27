@@ -7,6 +7,7 @@ use Pcc\Ast\Scope\Scope;
 use Pcc\Ast\Scope\VarScope;
 use Pcc\Ast\Type\PccGMP;
 use Pcc\Console;
+use Pcc\HashMap\HashMap;
 use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\Tokenizer;
 use Pcc\Tokenizer\TokenKind;
@@ -33,6 +34,8 @@ class Parser
     public ?Node $currentSwitch = null;
 
     private ?Obj $builtinAlloca = null;
+    
+    private static ?HashMap $typenameMap = null;
 
     public function __construct(
         private readonly Tokenizer $tokenizer,
@@ -1515,15 +1518,31 @@ class Parser
         return $rest;
     }
 
-    public function isTypeName(Token $tok): bool
+    private static function initTypenameMap(): void
     {
-        if (in_array($tok->str, [
+        if (self::$typenameMap !== null) {
+            return;
+        }
+
+        self::$typenameMap = new HashMap();
+        $keywords = [
             'void', '_Bool', 'char', 'short', 'int', 'long', 'struct', 'union',
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
             'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
             '__restrict__', '_Noreturn', 'float', 'double', 'typeof', 'inline',
             '_Thread_local', '__thread',
-        ])){
+        ];
+
+        foreach ($keywords as $kw) {
+            self::$typenameMap->put($kw, true);
+        }
+    }
+
+    public function isTypeName(Token $tok): bool
+    {
+        self::initTypenameMap();
+        
+        if (self::$typenameMap->get2($tok->str, strlen($tok->str)) !== null) {
             return true;
         }
         return $this->findTypedef($tok) !== null;
