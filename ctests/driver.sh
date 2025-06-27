@@ -218,5 +218,7 @@ echo 'void foo(); void bar(); int main() { foo(); bar(); }' > $tmp/main.c
 $pcc -o $tmp/foo $tmp/main.c $tmp/foo.so
 check '.so'
 
+$pcc -hashmap-test
+check 'hashmap'
 
 echo OK

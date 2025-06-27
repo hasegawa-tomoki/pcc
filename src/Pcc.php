@@ -2,6 +2,7 @@
 namespace Pcc;
 
 use Pcc\CodeGenerator\CodeGenerator;
+use Pcc\HashMap\HashMap;
 use Pcc\Tokenizer\Tokenizer;
 use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\TokenKind;
@@ -125,6 +126,11 @@ class Pcc
             if ($argv[$i] === '-cc1') {
                 self::$options['cc1'] = true;
                 continue;
+            }
+
+            if ($argv[$i] === '-hashmap-test') {
+                HashMap::test();
+                exit(0);
             }
 
             if ($argv[$i] === '--help') {
