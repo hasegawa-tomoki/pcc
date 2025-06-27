@@ -3,6 +3,8 @@ namespace Pcc;
 
 use Pcc\CodeGenerator\CodeGenerator;
 use Pcc\Tokenizer\Tokenizer;
+use Pcc\Tokenizer\Token;
+use Pcc\Tokenizer\TokenKind;
 use Pcc\Preprocessor\Preprocessor;
 
 class Pcc
@@ -12,6 +14,7 @@ class Pcc
     //private static bool $optHashHashHash = false;
     private static array $options = [];
     private static bool $optFcommon = true;
+    private static StringArray $optInclude;
     private static StringArray $tmpFiles;
     private static StringArray $inputPaths;
     private static StringArray $includePaths;
@@ -33,7 +36,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D', '-U', '-idirafter'];
+        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -144,6 +147,12 @@ class Pcc
 
             if ($argv[$i] === '-idirafter' and isset($argv[$i + 1])) {
                 $idirafter->push($argv[$i + 1]);
+                $i++;
+                continue;
+            }
+
+            if ($argv[$i] === '-include' and isset($argv[$i + 1])) {
+                self::$optInclude->push($argv[$i + 1]);
                 $i++;
                 continue;
             }
@@ -297,15 +306,61 @@ class Pcc
         }
     }
 
+    private static function mustTokenizeFile(string $path): ?Token
+    {
+        $tokenizer = new Tokenizer($path);
+        $tokenizer->tokenize();
+        if ($tokenizer->tok === null) {
+            Console::error('%s: file not found or cannot be read', $path);
+        }
+        return $tokenizer->tok;
+    }
+
+    private static function appendTokens(?Token $tok1, ?Token $tok2): ?Token
+    {
+        if ($tok1 === null || $tok1->kind === TokenKind::TK_EOF) {
+            return $tok2;
+        }
+
+        $t = $tok1;
+        while ($t->next->kind !== TokenKind::TK_EOF) {
+            $t = $t->next;
+        }
+        $t->next = $tok2;
+        return $tok1;
+    }
+
     private static function cc1(): int
     {
         $baseFile = self::$options['base_file'] ?? '';
         $outputFile = self::$options['output_file'] ?? '';
 
-        $tokenizer = new Tokenizer($baseFile);
-        $tokenizer->tokenize();
+        $tok = null;
+
+        // Process -include option
+        for ($i = 0; $i < self::$optInclude->getLength(); $i++) {
+            $incl = self::$optInclude->getData()[$i];
+
+            $path = null;
+            if (Preprocessor::fileExists($incl)) {
+                $path = $incl;
+            } else {
+                $path = Preprocessor::searchIncludePaths($incl);
+                if ($path === null) {
+                    Console::error('-include: %s: file not found', $incl);
+                }
+            }
+
+            $tok2 = self::mustTokenizeFile($path);
+            $tok = self::appendTokens($tok, $tok2);
+        }
+
+        // Tokenize and parse.
+        $tok2 = self::mustTokenizeFile($baseFile);
+        $tok = self::appendTokens($tok, $tok2);
+        
         Preprocessor::setBaseFile($baseFile);
-        $tok = Preprocessor::preprocess($tokenizer->tok);
+        $tok = Preprocessor::preprocess($tok);
 
         // If -E is given, print out preprocessed C code as a result.
         if (self::$options['E'] ?? false) {
@@ -319,6 +374,8 @@ class Pcc
             return 0;
         }
 
+        // Create a new tokenizer for parsing
+        $tokenizer = new Tokenizer($baseFile);
         // Update tokenizer with preprocessed tokens
         $tokenizer->updateTokensArray($tok);
         
@@ -472,6 +529,7 @@ class Pcc
 
     public static function main(?int $argc = null, ?array $argv = null): int
     {
+        self::$optInclude = new StringArray();
         self::$tmpFiles = new StringArray();
         self::$inputPaths = new StringArray();
         self::$includePaths = new StringArray();

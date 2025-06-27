@@ -62,7 +62,7 @@ class Preprocessor
     }
 
     // Returns true if a given file exists.
-    private static function fileExists(string $path): bool
+    public static function fileExists(string $path): bool
     {
         return file_exists($path);
     }
@@ -448,7 +448,7 @@ class Preprocessor
         return ""; // This line should never be reached
     }
 
-    private static function searchIncludePaths(string $filename): ?string
+    public static function searchIncludePaths(string $filename): ?string
     {
         if ($filename[0] === '/') {
             return $filename;
