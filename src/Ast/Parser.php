@@ -33,6 +33,8 @@ class Parser
 
     public ?Node $currentSwitch = null;
 
+    private ?Obj $builtinAlloca = null;
+
     public function __construct(
         private readonly Tokenizer $tokenizer,
     )
@@ -453,11 +455,14 @@ class Parser
             return [Type::arrayOf($ty, -1), $rest];
         }
 
-        [$gmpSz, $tok] = $this->constExpr($tok, $tok);
-        $sz = PccGMP::toPHPInt($gmpSz, 32);
+        [$expr, $tok] = $this->conditional($tok, $tok);
         $tok = $this->tokenizer->skip($tok, ']');
         [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
-        return [Type::arrayOf($ty, $sz), $rest];
+
+        if ($ty->kind === TypeKind::TY_VLA || !$this->isConstExpr($expr)) {
+            return [Type::vlaOf($ty, $expr), $rest];
+        }
+        return [Type::arrayOf($ty, PccGMP::toPHPInt($this->evaluate($expr), 32)), $rest];
     }
 
     /**
@@ -730,6 +735,28 @@ class Parser
                 if ($this->tokenizer->equal($tok, '=')){
                     $tok = $this->gVarInitializer($tok, $tok->next, $var);
                 }
+                continue;
+            }
+
+            // Generate code for computing a VLA size. We need to do this
+            // even if ty is not VLA because ty may be a pointer to VLA
+            // (e.g. int (*foo)[n][m] where n and m are variables.)
+            $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->computeVlaSize($ty, $tok), $tok);
+
+            if ($ty->kind === TypeKind::TY_VLA) {
+                if ($this->tokenizer->equal($tok, '=')) {
+                    Console::errorTok($tok, 'variable-sized object may not be initialized');
+                }
+
+                // Variable length arrays (VLAs) are translated to alloca() calls.
+                // For example, `int x[n+2]` is translated to `tmp = n + 2,
+                // x = alloca(tmp)`.
+                $var = $this->newLvar($this->getIdent($ty->name), $ty);
+                $expr = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVar($var, $tok),
+                                      $this->newAlloca(Node::newVar($ty->vlaSize, $tok)),
+                                      $tok);
+
+                $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $expr, $tok);
                 continue;
             }
 
@@ -2078,6 +2105,81 @@ class Parser
         Console::errorTok($node->tok, 'not a compile-time constant');
     }
 
+    private function isConstExpr(Node $node): bool
+    {
+        $node->addType();
+
+        switch ($node->kind) {
+            case NodeKind::ND_ADD:
+            case NodeKind::ND_SUB:
+            case NodeKind::ND_MUL:
+            case NodeKind::ND_DIV:
+            case NodeKind::ND_BITAND:
+            case NodeKind::ND_BITOR:
+            case NodeKind::ND_BITXOR:
+            case NodeKind::ND_SHL:
+            case NodeKind::ND_SHR:
+            case NodeKind::ND_EQ:
+            case NodeKind::ND_NE:
+            case NodeKind::ND_LT:
+            case NodeKind::ND_LE:
+            case NodeKind::ND_LOGAND:
+            case NodeKind::ND_LOGOR:
+                return $this->isConstExpr($node->lhs) && $this->isConstExpr($node->rhs);
+            case NodeKind::ND_COND:
+                if (!$this->isConstExpr($node->cond)) {
+                    return false;
+                }
+                return $this->isConstExpr($this->evaluate($node->cond) ? $node->then : $node->els);
+            case NodeKind::ND_COMMA:
+                return $this->isConstExpr($node->rhs);
+            case NodeKind::ND_NEG:
+            case NodeKind::ND_NOT:
+            case NodeKind::ND_BITNOT:
+            case NodeKind::ND_CAST:
+                return $this->isConstExpr($node->lhs);
+            case NodeKind::ND_NUM:
+                return true;
+        }
+
+        return false;
+    }
+
+    // Generate code for computing a VLA size.
+    private function computeVlaSize(Type $ty, Token $tok): Node
+    {
+        $node = Node::newNullExpr($tok);
+        if ($ty->base) {
+            $node = Node::newBinary(NodeKind::ND_COMMA, $node, $this->computeVlaSize($ty->base, $tok), $tok);
+        }
+
+        if ($ty->kind !== TypeKind::TY_VLA) {
+            return $node;
+        }
+
+        if ($ty->base->kind === TypeKind::TY_VLA) {
+            $baseSz = Node::newVar($ty->base->vlaSize, $tok);
+        } else {
+            $baseSz = Node::newNum($ty->base->size, $tok);
+        }
+
+        $ty->vlaSize = $this->newLvar('', Type::tyUlong());
+        $expr = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVar($ty->vlaSize, $tok),
+                              Node::newBinary(NodeKind::ND_MUL, $ty->vlaLen, $baseSz, $tok),
+                              $tok);
+        return Node::newBinary(NodeKind::ND_COMMA, $node, $expr, $tok);
+    }
+
+    private function newAlloca(Node $sz): Node
+    {
+        $node = Node::newUnary(NodeKind::ND_FUNCALL, Node::newVar($this->builtinAlloca, $sz->tok), $sz->tok);
+        $node->funcTy = $this->builtinAlloca->ty;
+        $node->ty = $this->builtinAlloca->ty->returnTy;
+        $node->args = [$sz];
+        $sz->addType();
+        return $node;
+    }
+
     /**
      * Convert `A op= B` to `tmp = &A, *tmp = *tmp op B`
      * where tmp is a fresh pointer variable.
@@ -3110,12 +3212,18 @@ class Parser
         if ($this->tokenizer->equal($tok, 'sizeof') and $this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
             [$ty, $tok] = $this->typename($tok, $tok->next->next);
             $rest = $this->tokenizer->skip($tok, ')');
+            if ($ty->kind === TypeKind::TY_VLA) {
+                return [Node::newVar($ty->vlaSize, $tok), $rest];
+            }
             return [Node::newUlong($ty->size, $start), $rest];
         }
 
         if ($this->tokenizer->equal($tok, 'sizeof')){
             [$node, $rest] = $this->unary($rest, $tok->next);
             $node->addType();
+            if ($node->ty->kind === TypeKind::TY_VLA) {
+                return [Node::newVar($node->ty->vlaSize, $tok), $rest];
+            }
             return [Node::newUlong($node->ty->size, $tok), $rest];
         }
 
@@ -3477,8 +3585,8 @@ class Parser
     {
         $ty = Type::funcType(Type::pointerTo(Type::tyVoid()));
         $ty->params = [Type::copyType(Type::tyInt())];
-        $builtin = $this->newGvar('alloca', $ty);
-        $builtin->isDefinition = false;
-        $this->globals[] = $builtin;
+        $this->builtinAlloca = $this->newGvar('alloca', $ty);
+        $this->builtinAlloca->isDefinition = false;
+        $this->globals[] = $this->builtinAlloca;
     }
 }

@@ -18,6 +18,9 @@ class Type
     public ?Token $namePos = null;
     // Array
     public int $arrayLen;
+    // Variable-length array
+    public ?Node $vlaLen = null; // # of elements
+    public ?Obj $vlaSize = null; // sizeof() value
     /** @var \Pcc\Ast\Member[] */
     public array $members = [];
     public bool $isFlexible = false;
@@ -139,6 +142,14 @@ class Type
         $ty = self::newType(TypeKind::TY_ARRAY, $base->size * $len, $base->align);
         $ty->base = $base;
         $ty->arrayLen = $len;
+        return $ty;
+    }
+
+    public static function vlaOf(Type $base, Node $len): Type
+    {
+        $ty = self::newType(TypeKind::TY_VLA, 8, 8);
+        $ty->base = $base;
+        $ty->vlaLen = $len;
         return $ty;
     }
 

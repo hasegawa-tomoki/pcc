@@ -73,6 +73,11 @@ class Node
         return $node;
     }
 
+    public static function newNullExpr(Token $tok): Node
+    {
+        return self::newNode(NodeKind::ND_NULL_EXPR, $tok);
+    }
+
     public static function newBinary(NodeKind $nodeKind, Node $lhs, Node $rhs, Token $tok): Node
     {
         $node = self::newNode($nodeKind, $tok);
@@ -120,6 +125,11 @@ class Node
         $node = self::newNode(NodeKind::ND_VAR, $tok);
         $node->var = $var;
         return $node;
+    }
+
+    public static function newVar(Obj $var, Token $tok): Node
+    {
+        return self::newVarNode($var, $tok);
     }
 
     public static function newCast(Node $expr, Type $ty): Node
@@ -188,7 +198,7 @@ class Node
                 $this->ty = Type::tyInt();
                 return;
             case NodeKind::ND_FUNCALL:
-                $this->ty = Type::tyLong();
+                $this->ty = $this->funcTy->returnTy;
                 return;
             case NodeKind::ND_NOT:
             case NodeKind::ND_LOGAND:

@@ -16,6 +16,7 @@ enum TypeKind
     case TY_PTR;
     case TY_FUNC;
     case TY_ARRAY;
+    case TY_VLA; // variable-length array
     case TY_STRUCT;
     case TY_UNION;
 }
