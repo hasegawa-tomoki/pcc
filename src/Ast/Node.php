@@ -53,6 +53,10 @@ class Node
     public array $cases = [];
     public ?Node $defaultCase = null;
 
+    // Case range
+    public int $begin = 0;
+    public int $end = 0;
+
     // "asm" string literal
     public ?string $asmStr = null;
 

@@ -1550,7 +1550,7 @@ class Parser
      * stmt = "return" expr? ";"
      *      | "if" "(" expr ")" stmt ("else" stmt)?
      *      | "switch" "(" expr ")" stmt
-     *      | "case" const-expr ":" stmt
+     *      | "case" const-expr ("..." const-expr)? ":" stmt
      *      | "default" ":" stmt
      *      | "for" "(" expr-stmt expr? ";" expr? ")" stmt
      *      | "while" "(" expr ")" stmt
@@ -1625,12 +1625,26 @@ class Parser
             }
 
             $node = Node::newNode(NodeKind::ND_CASE, $tok);
-            [$gmpVal, $tok] = $this->constExpr($tok, $tok->next);
+            [$beginGmp, $tok] = $this->constExpr($tok, $tok->next);
+            $begin = PccGMP::toPHPInt($beginGmp);
+            $end = $begin;
+            
+            if ($this->tokenizer->equal($tok, '...')){
+                // GNU case ranges, e.g. "case 1 ... 5:"
+                [$endGmp, $tok] = $this->constExpr($tok, $tok->next);
+                $end = PccGMP::toPHPInt($endGmp);
+                if ($end < $begin){
+                    Console::errorTok($tok, 'empty case range specified');
+                }
+            }
+            
             $tok = $this->tokenizer->skip($tok, ':');
             $node->label = $this->newUniqueName();
             [$node->lhs, $rest] = $this->stmt($rest, $tok);
-            $node->val = PccGMP::toPHPInt($gmpVal);
-            $node->gmpVal = $gmpVal;
+            $node->begin = $begin;
+            $node->end = $end;
+            $node->val = $begin;  // Keep val for backward compatibility
+            $node->gmpVal = $beginGmp;
             array_unshift($this->currentSwitch->cases, $node);
 
             return [$node, $rest];

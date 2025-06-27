@@ -1104,9 +1104,20 @@ class CodeGenerator
                 $this->genExpr($node->cond);
 
                 foreach ($node->cases as $n){
-                    $reg = ($node->cond->ty->size == 8) ? '%rax' : '%eax';
-                    Console::out("  cmp \$%ld, %s", PccGMP::toPHPInt($n->gmpVal), $reg);
-                    Console::out("  je %s", $n->label);
+                    $ax = ($node->cond->ty->size == 8) ? '%rax' : '%eax';
+                    $di = ($node->cond->ty->size == 8) ? '%rdi' : '%edi';
+
+                    if ($n->begin == $n->end) {
+                        Console::out("  cmp \$%ld, %s", $n->begin, $ax);
+                        Console::out("  je %s", $n->label);
+                        continue;
+                    }
+
+                    // GNU case ranges
+                    Console::out("  mov %s, %s", $ax, $di);
+                    Console::out("  sub \$%ld, %s", $n->begin, $di);
+                    Console::out("  cmp \$%ld, %s", $n->end - $n->begin, $di);
+                    Console::out("  jbe %s", $n->label);
                 }
 
                 if ($node->defaultCase){
