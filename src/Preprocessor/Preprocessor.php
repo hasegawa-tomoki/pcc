@@ -7,25 +7,22 @@ use Pcc\Tokenizer\Tokenizer;
 use Pcc\Console;
 use Pcc\Ast\Parser;
 use Pcc\Ast\Type;
+use Pcc\HashMap\HashMap;
 
 class Macro
 {
-    public ?Macro $next;
     public string $name;
     public bool $isObjlike;
     public ?MacroParam $params = null;
     public ?string $vaArgsName = null;
     public ?Token $body;
-    public bool $deleted;
     public $handler = null; // callable|null for dynamic macros
 
-    public function __construct(?Macro $next, string $name, bool $isObjlike, ?Token $body)
+    public function __construct(string $name, bool $isObjlike, ?Token $body)
     {
-        $this->next = $next;
         $this->name = $name;
         $this->isObjlike = $isObjlike;
         $this->body = $body;
-        $this->deleted = false;
     }
 }
 
@@ -52,9 +49,16 @@ class CondIncl
 
 class Preprocessor
 {
-    private static ?Macro $macros = null;
+    private static HashMap $macros;
     private static ?CondIncl $condIncl = null;
     private static string $baseFile = '';
+
+    private static function initMacrosIfNeeded(): void
+    {
+        if (!isset(self::$macros)) {
+            self::$macros = new HashMap();
+        }
+    }
 
     private static function isHash(Token $tok): bool
     {
@@ -595,19 +599,15 @@ class Preprocessor
         if ($tok->kind !== TokenKind::TK_IDENT) {
             return null;
         }
-
-        for ($m = self::$macros; $m; $m = $m->next) {
-            if (strlen($m->name) === strlen($tok->str) && $m->name === $tok->str) {
-                return $m->deleted ? null : $m;
-            }
-        }
-        return null;
+        self::initMacrosIfNeeded();
+        return self::$macros->get2($tok->str, strlen($tok->str));
     }
 
     private static function addMacro(string $name, bool $isObjlike, ?Token $body): Macro
     {
-        $m = new Macro(self::$macros, $name, $isObjlike, $body);
-        self::$macros = $m;
+        self::initMacrosIfNeeded();
+        $m = new Macro($name, $isObjlike, $body);
+        self::$macros->put($name, $m);
         return $m;
     }
 
@@ -931,7 +931,7 @@ class Preprocessor
         }
 
         $m = self::findMacro($tok);
-        if (!$m || $m->deleted) {
+        if (!$m) {
             return false;
         }
 
@@ -1357,12 +1357,13 @@ class Preprocessor
 
     public static function undefMacro(string $name): void
     {
-        $m = self::addMacro($name, true, null);
-        $m->deleted = true;
+        self::initMacrosIfNeeded();
+        self::$macros->delete($name);
     }
 
     public static function initMacros(): void
     {
+        self::initMacrosIfNeeded();
         // Define predefined macros
         self::defineMacro('_LP64', '1');
         self::defineMacro('__C99_MACRO_WITH_VA_ARGS', '1');
