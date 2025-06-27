@@ -80,8 +80,8 @@ $ docker compose run --rm php php pcc.php     # pcc.phpを単体で実行
 
 ```
 ├ /                           # プロジェクトルート。make ctest はこのディレクトリをカレントディレクトリとして実行する。
-├ chibicc/                    # chibiccのソースコードと .git ディレクトリ。chibiccのソースコードに対する git status や git diff はこのディレクトリをカレントディレクトリとして実行する。
-├ chibicc/test                # chibiccのテストコード。ここからコピーして使用する。 
-├ ctest/test                  # pccのテストコード。テストはここに追加する。
-├ src/                        # pccのソースコード。開発ではここを編集する。
+├ /chibicc/                    # chibiccのソースコードと .git ディレクトリ。chibiccのソースコードに対する git status や git diff はこのディレクトリをカレントディレクトリとして実行する。
+├ /chibicc/test                # chibiccのテストコード。ここからコピーして使用する。 
+├ /ctest/test                  # pccのテストコード。テストはここに追加する。
+├ /src/                        # pccのソースコード。開発ではここを編集する。
 ```
