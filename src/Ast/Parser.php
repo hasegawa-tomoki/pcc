@@ -3227,9 +3227,17 @@ class Parser
         if ($this->tokenizer->equal($tok, 'sizeof') and $this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
             [$ty, $tok] = $this->typename($tok, $tok->next->next);
             $rest = $this->tokenizer->skip($tok, ')');
+            
             if ($ty->kind === TypeKind::TY_VLA) {
-                return [Node::newVar($ty->vlaSize, $tok), $rest];
+                if ($ty->vlaSize) {
+                    return [Node::newVar($ty->vlaSize, $tok), $rest];
+                }
+                
+                $lhs = $this->computeVlaSize($ty, $tok);
+                $rhs = Node::newVar($ty->vlaSize, $tok);
+                return [Node::newBinary(NodeKind::ND_COMMA, $lhs, $rhs, $tok), $rest];
             }
+            
             return [Node::newUlong($ty->size, $start), $rest];
         }
 
