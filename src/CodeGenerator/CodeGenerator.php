@@ -1144,7 +1144,6 @@ class CodeGenerator
             
             $align = ($var->ty->kind === TypeKind::TY_ARRAY && $var->ty->size >= 16)
                 ? max(16, $var->align) : $var->align;
-            Console::out("  .align %d", $align);
 
             if (Pcc::getOptFcommon() && $var->isTentative) {
                 Console::out("  .comm %s, %d, %d", $var->name, $var->ty->size, $align);
@@ -1159,6 +1158,9 @@ class CodeGenerator
                     Console::out("  .data");
                 }
 
+                Console::out("  .type %s, @object", $var->name);
+                Console::out("  .size %s, %d", $var->name, $var->ty->size);
+                Console::out("  .align %d", $align);
                 Console::out("%s:", $var->name);
 
                 $pos = 0;
@@ -1183,6 +1185,7 @@ class CodeGenerator
                 Console::out("  .bss");
             }
 
+            Console::out("  .align %d", $align);
             Console::out("%s:", $var->name);
             Console::out("  .zero %d", $var->ty->size);
         }
@@ -1249,6 +1252,7 @@ class CodeGenerator
             }
 
             Console::out("  .text");
+            Console::out("  .type %s, @function", $fn->name);
             Console::out("%s:", $fn->name);
             $this->currentFn = $fn;
 
