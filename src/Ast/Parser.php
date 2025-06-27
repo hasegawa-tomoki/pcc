@@ -881,12 +881,9 @@ class Parser
             $first = false;
             
             if ($this->tokenizer->equal($tok, '[')) {
-                [$i, $tok] = $this->arrayDesignator($tok, $tok, $ty);
-                if ($this->tokenizer->equal($tok, '...')) {
-                    [$i, $tok] = $this->constExpr($tok, $tok->next);
-                    $i = gmp_intval($i);
-                }
+                [$begin, $end, $tok] = $this->arrayDesignator($tok, $tok, $ty);
                 [$dummy, $tok] = $this->designation($tok, $tok, $dummy);
+                $i = $end;
             } else {
                 [$dummy, $tok] = $this->initializer2($tok, $tok, $dummy);
             }
@@ -921,20 +918,31 @@ class Parser
      * @param Token $rest
      * @param Token $tok
      * @param Type $ty
-     * @return array{int, Token}
+     * @return array{int, int, Token}
      */
     private function arrayDesignator(Token $rest, Token $tok, Type $ty): array
     {
-        $start = $tok;
-        [$i, $tok] = $this->constExpr($tok, $tok->next);
-        $i = gmp_intval($i);
+        [$begin, $tok] = $this->constExpr($tok, $tok->next);
+        $begin = gmp_intval($begin);
         
-        if ($ty->arrayLen > 0 && $i >= $ty->arrayLen) {
-            Console::errorTok($start, "array designator index exceeds array bounds");
+        if ($ty->arrayLen > 0 && $begin >= $ty->arrayLen) {
+            Console::errorTok($tok, "array designator index exceeds array bounds");
         }
-        
+
+        $end = $begin;
+        if ($this->tokenizer->equal($tok, '...')) {
+            [$endVal, $tok] = $this->constExpr($tok, $tok->next);
+            $end = gmp_intval($endVal);
+            if ($ty->arrayLen > 0 && $end >= $ty->arrayLen) {
+                Console::errorTok($tok, "array designator index exceeds array bounds");
+            }
+            if ($end < $begin) {
+                Console::errorTok($tok, "array designator range [{$begin}, {$end}] is empty");
+            }
+        }
+
         $tok = $this->tokenizer->skip($tok, ']');
-        return [$i, $tok];
+        return [$begin, $end, $tok];
     }
 
     /**
@@ -986,9 +994,13 @@ class Parser
                 Console::errorTok($tok, "array index in non-array initializer");
             }
             
-            [$i, $tok] = $this->arrayDesignator($tok, $tok, $init->ty);
-            [$init->children[$i], $tok] = $this->designation($tok, $tok, $init->children[$i]);
-            [$init, $rest] = $this->arrayInitializer2($rest, $tok, $init, $i + 1);
+            [$begin, $end, $tok] = $this->arrayDesignator($tok, $tok, $init->ty);
+            
+            $tok2 = null;
+            for ($i = $begin; $i <= $end; $i++) {
+                [$init->children[$i], $tok2] = $this->designation($tok2 ?? $tok, $tok, $init->children[$i]);
+            }
+            [$init, $rest] = $this->arrayInitializer2($rest, $tok2, $init, $begin + 1);
             return [$init, $rest];
         }
 
@@ -1044,8 +1056,14 @@ class Parser
             $first = false;
 
             if ($this->tokenizer->equal($tok, '[')) {
-                [$i, $tok] = $this->arrayDesignator($tok, $tok, $init->ty);
-                [$init->children[$i], $tok] = $this->designation($tok, $tok, $init->children[$i]);
+                [$begin, $end, $tok] = $this->arrayDesignator($tok, $tok, $init->ty);
+                
+                $tok2 = null;
+                for ($j = $begin; $j <= $end; $j++) {
+                    [$init->children[$j], $tok2] = $this->designation($tok2 ?? $tok, $tok, $init->children[$j]);
+                }
+                $tok = $tok2;
+                $i = $end;
                 continue;
             }
 
