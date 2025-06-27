@@ -132,6 +132,13 @@ class Node
         return self::newVarNode($var, $tok);
     }
 
+    public static function newVlaPtr(Obj $var, Token $tok): Node
+    {
+        $node = self::newNode(NodeKind::ND_VLA_PTR, $tok);
+        $node->var = $var;
+        return $node;
+    }
+
     public static function newCast(Node $expr, Type $ty): Node
     {
         $expr->addType();
@@ -212,6 +219,7 @@ class Node
                 $this->ty = $this->lhs->ty;
                 return;
             case NodeKind::ND_VAR:
+            case NodeKind::ND_VLA_PTR:
                 $this->ty = $this->var->ty;
                 return;
             case NodeKind::ND_COND:

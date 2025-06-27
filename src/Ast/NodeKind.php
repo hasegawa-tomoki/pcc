@@ -43,6 +43,7 @@ enum NodeKind
     case ND_EXPR_STMT;
     case ND_STMT_EXPR;
     case ND_VAR;
+    case ND_VLA_PTR;    // VLA designator
     case ND_NUM;
     case ND_CAST;
     case ND_MEMZERO;    // Zero-clear a stack variable

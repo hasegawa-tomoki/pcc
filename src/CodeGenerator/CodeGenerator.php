@@ -298,6 +298,12 @@ class CodeGenerator
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
             case NodeKind::ND_VAR:
+                // Variable-length array, which is always local.
+                if ($node->var->ty->kind === TypeKind::TY_VLA) {
+                    Console::out("  mov %d(%%rbp), %%rax", $node->var->offset);
+                    return;
+                }
+
                 // Local variable
                 if ($node->var->isLocal){
                     Console::out("  lea %d(%%rbp), %%rax", $node->var->offset);
@@ -341,6 +347,9 @@ class CodeGenerator
                     return;
                 }
                 break;
+            case NodeKind::ND_VLA_PTR:
+                Console::out("  lea %d(%%rbp), %%rax", $node->var->offset);
+                return;
         }
 
         Console::errorTok($node->tok, 'not an lvalue');
@@ -354,6 +363,7 @@ class CodeGenerator
             case TypeKind::TY_STRUCT:
             case TypeKind::TY_UNION:
             case TypeKind::TY_FUNC:
+            case TypeKind::TY_VLA:
                 return;
             case TypeKind::TY_FLOAT:
                 Console::out("  movss (%%rax), %%xmm0");

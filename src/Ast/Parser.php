@@ -752,7 +752,7 @@ class Parser
                 // For example, `int x[n+2]` is translated to `tmp = n + 2,
                 // x = alloca(tmp)`.
                 $var = $this->newLvar($this->getIdent($ty->name), $ty);
-                $expr = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVar($var, $tok),
+                $expr = Node::newBinary(NodeKind::ND_ASSIGN, Node::newVlaPtr($var, $tok),
                                       $this->newAlloca(Node::newVar($ty->vlaSize, $tok)),
                                       $tok);
 
@@ -2545,6 +2545,12 @@ class Parser
             $rhs = $tmp;
         }
 
+        // VLA + num
+        if ($lhs->ty->base->kind === TypeKind::TY_VLA) {
+            $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newVar($lhs->ty->base->vlaSize, $tok), $tok);
+            return Node::newBinary(NodeKind::ND_ADD, $lhs, $rhs, $tok);
+        }
+
         // ptr + num
         return Node::newBinary(NodeKind::ND_ADD, $lhs, Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newLong($lhs->ty->base->size, $tok), $tok), $tok);
     }
@@ -2557,6 +2563,15 @@ class Parser
         // num - num
         if ($lhs->ty->isNumeric() and $rhs->ty->isNumeric()){
             return Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
+        }
+
+        // VLA + num
+        if ($lhs->ty->base->kind === TypeKind::TY_VLA) {
+            $rhs = Node::newBinary(NodeKind::ND_MUL, $rhs, Node::newVar($lhs->ty->base->vlaSize, $tok), $tok);
+            $rhs->addType();
+            $node = Node::newBinary(NodeKind::ND_SUB, $lhs, $rhs, $tok);
+            $node->ty = $lhs->ty;
+            return $node;
         }
 
         // ptr - num
