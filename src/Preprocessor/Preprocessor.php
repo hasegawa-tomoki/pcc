@@ -1373,7 +1373,6 @@ class Preprocessor
         self::defineMacro('__STDC_NO_ATOMICS__', '1');
         self::defineMacro('__STDC_NO_COMPLEX__', '1');
         self::defineMacro('__STDC_NO_THREADS__', '1');
-        self::defineMacro('__STDC_NO_VLA__', '1');
         self::defineMacro('__STDC_UTF_16__', '1');
         self::defineMacro('__STDC_UTF_32__', '1');
         self::defineMacro('__STDC_VERSION__', '201112L');
