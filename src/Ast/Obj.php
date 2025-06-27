@@ -36,6 +36,7 @@ class Obj
     /** @var array<string, \Pcc\Ast\Obj> */
     public array $locals = [];
     public ?Obj $vaArea = null;
+    public ?Obj $allocaBottom = null;
     public int $stackSize;
 
     // Static inline function

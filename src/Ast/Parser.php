@@ -3158,6 +3158,7 @@ class Parser
             return [Node::newNum(2, $start), $rest];
         }
 
+
         if ($tok->isKind(TokenKind::TK_IDENT)){
             // Variable or enum constant
             $sc = $this->findVar($tok);
@@ -3306,6 +3307,7 @@ class Parser
         if ($ty->isVariadic){
             $fn->vaArea = $this->newLvar('__va_area__', Type::arrayOf(Type::tyChar(), 136));
         }
+        $fn->allocaBottom = $this->newLvar('__alloca_size__', Type::pointerTo(Type::tyChar()));
 
         $tok = $this->tokenizer->skip($tok, '{');
 
@@ -3407,6 +3409,7 @@ class Parser
      */
     public function parse(): array
     {
+        $this->declareBuiltinFunctions();
         $tok = $this->tokenizer->tokens[0];
         $this->globals = [];
 
@@ -3468,5 +3471,14 @@ class Parser
                 $this->markLive($fn);
             }
         }
+    }
+
+    private function declareBuiltinFunctions(): void
+    {
+        $ty = Type::funcType(Type::pointerTo(Type::tyVoid()));
+        $ty->params = [Type::copyType(Type::tyInt())];
+        $builtin = $this->newGvar('alloca', $ty);
+        $builtin->isDefinition = false;
+        $this->globals[] = $builtin;
     }
 }

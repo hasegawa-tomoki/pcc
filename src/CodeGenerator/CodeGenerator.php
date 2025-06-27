@@ -72,6 +72,35 @@ class CodeGenerator
 
     public Obj $currentFn;
 
+    private function builtinAlloca(): void
+    {
+        // Align size to 16 bytes
+        Console::out("  add \$15, %%rdi");
+        Console::out("  and \$0xfffffff0, %%edi");
+        
+        // Shift the temporary area by %rdi
+        Console::out("  mov %d(%%rbp), %%rcx", $this->currentFn->allocaBottom->offset);
+        Console::out("  sub %%rsp, %%rcx");
+        Console::out("  mov %%rsp, %%rax");
+        Console::out("  sub %%rdi, %%rsp");
+        Console::out("  mov %%rsp, %%rdx");
+        Console::out("1:");
+        Console::out("  cmp \$0, %%rcx");
+        Console::out("  je 2f");
+        Console::out("  mov (%%rax), %%r8b");
+        Console::out("  mov %%r8b, (%%rdx)");
+        Console::out("  inc %%rdx");
+        Console::out("  inc %%rax");
+        Console::out("  dec %%rcx");
+        Console::out("  jmp 1b");
+        Console::out("2:");
+        
+        // Move alloca_bottom pointer
+        Console::out("  mov %d(%%rbp), %%rax", $this->currentFn->allocaBottom->offset);
+        Console::out("  sub %%rdi, %%rax");
+        Console::out("  mov %%rax, %d(%%rbp)", $this->currentFn->allocaBottom->offset);
+    }
+
     public function __construct()
     {
         $this->castTable = [
@@ -649,6 +678,14 @@ class CodeGenerator
                 Console::out(".L.end.%d:", $c);
                 return;
             case NodeKind::ND_FUNCALL:
+                // Handle alloca() as builtin function
+                if ($node->lhs->kind === NodeKind::ND_VAR && $node->lhs->var->name === 'alloca') {
+                    $this->genExpr($node->args[0]);
+                    Console::out("  mov %%rax, %%rdi");
+                    $this->builtinAlloca();
+                    return;
+                }
+                
                 $stackArgs = $this->pushArgs($node);
                 $this->genExpr($node->lhs);
 
@@ -1209,6 +1246,7 @@ class CodeGenerator
             Console::out("  push %%rbp");
             Console::out("  mov %%rsp, %%rbp");
             Console::out("  sub \$%d, %%rsp", $fn->stackSize);
+            Console::out("  mov %%rsp, %d(%%rbp)", $fn->allocaBottom->offset);
 
             // Save arg registers if function is variadic
             if ($fn->vaArea) {
