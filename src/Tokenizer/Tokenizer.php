@@ -46,10 +46,11 @@ class Tokenizer
             return;
         }
         
-        $this->currentInput = $this->readFile($currentFilename);
-        if ($this->currentInput === null) {
+        $fileContent = $this->readFile($currentFilename);
+        if ($fileContent === null) {
             Console::error("cannot open: %s", $currentFilename);
         }
+        $this->currentInput = $fileContent;
         
         // UTF-8 texts may start with a 3-byte "BOM" marker sequence.
         // If exists, just skip them because they are useless bytes.

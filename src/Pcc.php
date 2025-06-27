@@ -213,6 +213,11 @@ class Pcc
                 self::$options['c'] = true;
                 continue;
             }
+            
+            if ($argv[$i] === '-M') {
+                self::$options['M'] = true;
+                continue;
+            }
 
             if ($argv[$i] === '-fcommon') {
                 self::$optFcommon = true;
@@ -279,14 +284,19 @@ class Pcc
         }
 
         // -E implies that the input is the C macro language.
-        if (self::$options['E'] ?? false) {
+        if (isset(self::$options['E'])) {
+            self::$optX = FileType::FILE_C;
+        }
+
+        // -M implies that the input is the C macro language.
+        if (isset(self::$options['M'])) {
             self::$optX = FileType::FILE_C;
         }
     }
 
     private static function runSubprocess(array $argv): void
     {
-        if (self::$options['###'] ?? false){
+        if (isset(self::$options['###'])) {
             fwrite(STDERR, $argv[0]);
             for ($i = 1; $i < count($argv); $i++) {
                 fwrite(STDERR, ' ' . $argv[$i]);
@@ -363,6 +373,40 @@ class Pcc
         }
     }
 
+    /**
+     * If -M options is given, the compiler write a list of input files to
+     * stdout in a format that "make" command can read. This feature is
+     * used to automate file dependency management.
+     */
+    private static function printDependencies(): void
+    {
+        $output = self::$options['o'] ?? '-';
+        
+        if ($output === '-' || empty($output)) {
+            $fpOut = fopen('php://output', 'w');
+        } else {
+            $fpOut = fopen($output, 'w');
+        }
+        
+        $baseFile = self::$options['base_file'] ?? '';
+        $target = self::replaceExt($baseFile, '.o');
+        fprintf($fpOut, "%s:", $target);
+        
+        $files = File::getInputFiles();
+        
+        foreach ($files as $file) {
+            // Skip built-in files and other special files
+            if ($file->name !== '<built-in>' && $file->name !== '<command line>') {
+                fprintf($fpOut, " \\\n  %s", $file->name);
+            }
+        }
+        fprintf($fpOut, "\n\n");
+        
+        if ($output !== '-' && !empty($output)) {
+            fclose($fpOut);
+        }
+    }
+
     private static function mustTokenizeFile(string $path): ?Token
     {
         $tokenizer = new Tokenizer($path);
@@ -419,8 +463,14 @@ class Pcc
         Preprocessor::setBaseFile($baseFile);
         $tok = Preprocessor::preprocess($tok);
 
+        // If -M is given, print file dependencies.
+        if (isset(self::$options['M'])) {
+            self::printDependencies();
+            return 0;
+        }
+
         // If -E is given, print out preprocessed C code as a result.
-        if (self::$options['E'] ?? false) {
+        if (isset(self::$options['E'])) {
             if ($outputFile === '-' || $outputFile === ''){
                 $fpOut = fopen('php://output', 'w');
             } else {
@@ -630,18 +680,18 @@ class Pcc
         Preprocessor::initMacros();
         self::parseArgs($argc, $argv);
 
-        if (self::$options['help'] ?? false) {
+        if (isset(self::$options['help'])) {
             self::displayHelp();
             return 0;
         }
 
-        if (self::$options['cc1'] ?? false){
+        if (isset(self::$options['cc1'])) {
             self::addDefaultIncludePaths($argv[0]);
             return self::cc1();
         }
         
-        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (self::$options['c'] ?? false or self::$options['S'] ?? false or self::$options['E'] ?? false)) {
-            Console::error("cannot specify '-o' with '-c,' '-S' or '-E' with multiple files");
+        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (isset(self::$options['c']) or isset(self::$options['S']) or isset(self::$options['E']) or isset(self::$options['M']))) {
+            Console::error("cannot specify '-o' with '-c,' '-S', '-E' or '-M' with multiple files");
         }
         
         $ldArgs = new StringArray();
@@ -655,7 +705,7 @@ class Pcc
 
             if (isset(self::$options['o'])) {
                 $outputPath = self::$options['o'];
-            } else if (self::$options['S'] ?? false) {
+            } else if (isset(self::$options['S'])) {
                 $outputPath = self::replaceExt($inputPath, '.s');
             } else {
                 $outputPath = self::replaceExt($inputPath, '.o');
@@ -671,7 +721,7 @@ class Pcc
             
             // Handle .s
             if ($type === FileType::FILE_ASM) {
-                if (!(self::$options['S'] ?? false)) {
+                if (!isset(self::$options['S'])) {
                     self::assemble($inputPath, $outputPath);
                 }
                 continue;
@@ -680,19 +730,19 @@ class Pcc
             assert($type === FileType::FILE_C);
             
             // Just preprocess
-            if (self::$options['E'] ?? false) {
+            if (isset(self::$options['E']) || isset(self::$options['M'])) {
                 self::runCc1($argc, $argv, $inputPath, null);
                 continue;
             }
             
             // Just compile
-            if (self::$options['S'] ?? false) {
+            if (isset(self::$options['S'])) {
                 self::runCc1($argc, $argv, $inputPath, $outputPath);
                 continue;
             }
             
             // Compile and assemble
-            if (self::$options['c'] ?? false) {
+            if (isset(self::$options['c'])) {
                 $tmp = self::createTmpfile();
                 self::runCc1($argc, $argv, $inputPath, $tmp);
                 self::assemble($tmp, $outputPath);
