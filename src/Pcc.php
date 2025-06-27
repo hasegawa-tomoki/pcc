@@ -7,6 +7,13 @@ use Pcc\Tokenizer\Token;
 use Pcc\Tokenizer\TokenKind;
 use Pcc\Preprocessor\Preprocessor;
 
+enum FileType {
+    case FILE_NONE;
+    case FILE_C;
+    case FILE_ASM;
+    case FILE_OBJ;
+}
+
 class Pcc
 {
     //private static bool $optS = false;
@@ -14,6 +21,7 @@ class Pcc
     //private static bool $optHashHashHash = false;
     private static array $options = [];
     private static bool $optFcommon = true;
+    private static FileType $optX = FileType::FILE_NONE;
     private static StringArray $optInclude;
     private static StringArray $tmpFiles;
     private static StringArray $inputPaths;
@@ -36,7 +44,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include'];
+        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -73,6 +81,20 @@ class Pcc
         $len1 = strlen($p);
         $len2 = strlen($q);
         return ($len1 >= $len2) && (substr($p, $len1 - $len2) === $q);
+    }
+
+    private static function parseOptX(string $s): FileType
+    {
+        if ($s === 'c') {
+            return FileType::FILE_C;
+        }
+        if ($s === 'assembler') {
+            return FileType::FILE_ASM;
+        }
+        if ($s === 'none') {
+            return FileType::FILE_NONE;
+        }
+        Console::error('<command line>: unknown argument for -x: %s', $s);
     }
 
     private static function parseArgs(int $argc, array $argv): void
@@ -154,6 +176,17 @@ class Pcc
             if ($argv[$i] === '-include' and isset($argv[$i + 1])) {
                 self::$optInclude->push($argv[$i + 1]);
                 $i++;
+                continue;
+            }
+
+            if ($argv[$i] === '-x' and isset($argv[$i + 1])) {
+                self::$optX = self::parseOptX($argv[$i + 1]);
+                $i++;
+                continue;
+            }
+
+            if (str_starts_with($argv[$i], '-x')) {
+                self::$optX = self::parseOptX(substr($argv[$i], 2));
                 continue;
             }
 
@@ -527,6 +560,31 @@ class Pcc
         self::runSubprocess($arr->getData());
     }
 
+    private static function getFileType(string $filename): FileType
+    {
+        if (self::endswith($filename, '.o')) {
+            return FileType::FILE_OBJ;
+        }
+
+        if (self::$optX !== FileType::FILE_NONE) {
+            return self::$optX;
+        }
+
+        if (self::endswith($filename, '.c')) {
+            return FileType::FILE_C;
+        }
+        if (self::endswith($filename, '.s')) {
+            return FileType::FILE_ASM;
+        }
+
+        if ($filename === '-') {
+            // stdin requires -x option
+            Console::error('<command line>: -x option is required for stdin');
+        }
+
+        Console::error('<command line>: unknown file extension: %s', $filename);
+    }
+
     public static function main(?int $argc = null, ?array $argv = null): int
     {
         self::$optInclude = new StringArray();
@@ -564,24 +622,23 @@ class Pcc
                 $outputPath = self::replaceExt($inputPath, '.o');
             }
 
+            $type = self::getFileType($inputPath);
+
             // Handle .o
-            if (self::endswith($inputPath, '.o')) {
+            if ($type === FileType::FILE_OBJ) {
                 $ldArgs->push($inputPath);
                 continue;
             }
             
             // Handle .s
-            if (self::endswith($inputPath, '.s')) {
+            if ($type === FileType::FILE_ASM) {
                 if (!(self::$options['S'] ?? false)) {
                     self::assemble($inputPath, $outputPath);
                 }
                 continue;
             }
             
-            // Handle .c
-            if (!self::endswith($inputPath, '.c') and $inputPath !== '-') {
-                Console::error("unknown file extension: $inputPath");
-            }
+            assert($type === FileType::FILE_C);
             
             // Just preprocess
             if (self::$options['E'] ?? false) {
