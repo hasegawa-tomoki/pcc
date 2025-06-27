@@ -228,4 +228,9 @@ touch $tmp/out2.h $tmp/out3.h
 $pcc -M -I$tmp $tmp/out.c 2>/dev/null | tr '\n' ' ' | grep -q 'out.o: .*/out\.c .*/out2\.h .*/out3\.h'
 check -M
 
+# -MF
+$pcc -MF $tmp/mf -M -I$tmp $tmp/out.c
+grep -q -z '^out.o: .*/out\.c .*/out2\.h .*/out3\.h' $tmp/mf
+check -MF
+
 echo OK

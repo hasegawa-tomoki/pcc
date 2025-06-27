@@ -48,7 +48,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x'];
+        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x', '-MF'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -219,6 +219,12 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-MF' and isset($argv[$i + 1])) {
+                self::$options['MF'] = $argv[$i + 1];
+                $i++;
+                continue;
+            }
+
             if ($argv[$i] === '-fcommon') {
                 self::$optFcommon = true;
                 continue;
@@ -380,12 +386,19 @@ class Pcc
      */
     private static function printDependencies(): void
     {
-        $output = self::$options['o'] ?? '-';
+        $path = null;
+        if (isset(self::$options['MF'])) {
+            $path = self::$options['MF'];
+        } elseif (isset(self::$options['o'])) {
+            $path = self::$options['o'];
+        } else {
+            $path = '-';
+        }
         
-        if ($output === '-' || empty($output)) {
+        if ($path === '-' || empty($path)) {
             $fpOut = fopen('php://output', 'w');
         } else {
-            $fpOut = fopen($output, 'w');
+            $fpOut = fopen($path, 'w');
         }
         
         $baseFile = self::$options['base_file'] ?? '';
@@ -402,7 +415,7 @@ class Pcc
         }
         fprintf($fpOut, "\n\n");
         
-        if ($output !== '-' && !empty($output)) {
+        if ($path !== '-' && !empty($path)) {
             fclose($fpOut);
         }
     }
