@@ -258,6 +258,11 @@ class Pcc
         if (self::$inputPaths->getLength() === 0) {
             Console::error('no input files');
         }
+
+        // -E implies that the input is the C macro language.
+        if (self::$options['E'] ?? false) {
+            self::$optX = FileType::FILE_C;
+        }
     }
 
     private static function runSubprocess(array $argv): void
