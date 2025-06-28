@@ -101,6 +101,36 @@ class Pcc
         Console::error('<command line>: unknown argument for -x: %s', $s);
     }
 
+    private static function quoteMakefile(string $s): string
+    {
+        $buf = '';
+        $len = strlen($s);
+        
+        for ($i = 0; $i < $len; $i++) {
+            switch ($s[$i]) {
+                case '$':
+                    $buf .= '$$';
+                    break;
+                case '#':
+                    $buf .= '\\#';
+                    break;
+                case ' ':
+                case "\t":
+                    // Count preceding backslashes
+                    for ($k = $i - 1; $k >= 0 && $s[$k] === '\\'; $k--) {
+                        $buf .= '\\';
+                    }
+                    $buf .= '\\';
+                    $buf .= $s[$i];
+                    break;
+                default:
+                    $buf .= $s[$i];
+                    break;
+            }
+        }
+        return $buf;
+    }
+
     private static function parseArgs(int $argc, array $argv): void
     {
         $idirafter = new StringArray();
@@ -240,6 +270,16 @@ class Pcc
                     self::$options['MT'] = $argv[$i + 1];
                 } else {
                     self::$options['MT'] = self::$options['MT'] . ' ' . $argv[$i + 1];
+                }
+                $i++;
+                continue;
+            }
+
+            if ($argv[$i] === '-MQ' and isset($argv[$i + 1])) {
+                if (!isset(self::$options['MT'])) {
+                    self::$options['MT'] = self::quoteMakefile($argv[$i + 1]);
+                } else {
+                    self::$options['MT'] = self::$options['MT'] . ' ' . self::quoteMakefile($argv[$i + 1]);
                 }
                 $i++;
                 continue;
@@ -431,8 +471,11 @@ class Pcc
         }
         
         $baseFile = self::$options['base_file'] ?? '';
-        $target = isset(self::$options['MT']) ? self::$options['MT'] : self::replaceExt($baseFile, '.o');
-        fprintf($fpOut, "%s:", $target);
+        if (isset(self::$options['MT'])) {
+            fprintf($fpOut, "%s:", self::$options['MT']);
+        } else {
+            fprintf($fpOut, "%s:", self::quoteMakefile(self::replaceExt($baseFile, '.o')));
+        }
         
         $files = File::getInputFiles();
         
@@ -454,7 +497,7 @@ class Pcc
                 }
                 // Skip built-in files and other special files
                 if ($file->name !== '<built-in>' && $file->name !== '<command line>') {
-                    fprintf($fpOut, "%s:\n\n", $file->name);
+                    fprintf($fpOut, "%s:\n\n", self::quoteMakefile($file->name));
                 }
             }
         }
