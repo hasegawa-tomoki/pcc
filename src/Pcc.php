@@ -30,6 +30,7 @@ class Pcc
     private static StringArray $inputPaths;
     private static StringArray $includePaths;
     private static StringArray $ldExtraArgs;
+    private static StringArray $stdIncludePaths;
 
     public static function getIncludePaths(): StringArray
     {
@@ -78,6 +79,11 @@ class Pcc
         self::$includePaths->push('/usr/local/include');
         self::$includePaths->push('/usr/include/x86_64-linux-gnu');
         self::$includePaths->push('/usr/include');
+        
+        // Keep a copy of the standard include paths for -MMD option.
+        for ($i = 0; $i < self::$includePaths->getLength(); $i++) {
+            self::$stdIncludePaths->push(self::$includePaths->getData()[$i]);
+        }
     }
     
     private static function endswith(string $p, string $q): bool
@@ -285,6 +291,12 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-MMD') {
+                self::$options['MD'] = true;
+                self::$options['MMD'] = true;
+                continue;
+            }
+
             if ($argv[$i] === '-fcommon') {
                 self::$optFcommon = true;
                 continue;
@@ -444,6 +456,19 @@ class Pcc
         }
     }
 
+    private static function inStdIncludePath(string $path): bool
+    {
+        $data = self::$stdIncludePaths->getData();
+        for ($i = 0; $i < self::$stdIncludePaths->getLength(); $i++) {
+            $dir = $data[$i];
+            $len = strlen($dir);
+            if (strncmp($dir, $path, $len) === 0 && strlen($path) > $len && $path[$len] === '/') {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * If -M options is given, the compiler write a list of input files to
      * stdout in a format that "make" command can read. This feature is
@@ -482,6 +507,9 @@ class Pcc
         foreach ($files as $file) {
             // Skip built-in files and other special files
             if ($file->name !== '<built-in>' && $file->name !== '<command line>') {
+                if (isset(self::$options['MMD']) && self::inStdIncludePath($file->name)) {
+                    continue;
+                }
                 fprintf($fpOut, " \\\n  %s", $file->name);
             }
         }
@@ -497,6 +525,9 @@ class Pcc
                 }
                 // Skip built-in files and other special files
                 if ($file->name !== '<built-in>' && $file->name !== '<command line>') {
+                    if (isset(self::$options['MMD']) && self::inStdIncludePath($file->name)) {
+                        continue;
+                    }
                     fprintf($fpOut, "%s:\n\n", self::quoteMakefile($file->name));
                 }
             }
@@ -777,6 +808,7 @@ class Pcc
         self::$inputPaths = new StringArray();
         self::$includePaths = new StringArray();
         self::$ldExtraArgs = new StringArray();
+        self::$stdIncludePaths = new StringArray();
         register_shutdown_function([self::class, 'cleanup']);
         
         Preprocessor::initMacros();
