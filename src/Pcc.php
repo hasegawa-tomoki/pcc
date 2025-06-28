@@ -48,7 +48,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x', '-MF'];
+        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x', '-MF', '-MT'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -230,6 +230,16 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-MT' and isset($argv[$i + 1])) {
+                if (!isset(self::$options['MT'])) {
+                    self::$options['MT'] = $argv[$i + 1];
+                } else {
+                    self::$options['MT'] = self::$options['MT'] . ' ' . $argv[$i + 1];
+                }
+                $i++;
+                continue;
+            }
+
             if ($argv[$i] === '-fcommon') {
                 self::$optFcommon = true;
                 continue;
@@ -407,7 +417,7 @@ class Pcc
         }
         
         $baseFile = self::$options['base_file'] ?? '';
-        $target = self::replaceExt($baseFile, '.o');
+        $target = isset(self::$options['MT']) ? self::$options['MT'] : self::replaceExt($baseFile, '.o');
         fprintf($fpOut, "%s:", $target);
         
         $files = File::getInputFiles();

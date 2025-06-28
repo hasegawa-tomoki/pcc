@@ -240,4 +240,10 @@ check -MP
 grep -q '^.*/out3.h:' $tmp/mp
 check -MP
 
+# -MT
+$pcc -MT foo -M -I$tmp $tmp/out.c | grep -q '^foo:'
+check -MT
+$pcc -MT foo -MT bar -M -I$tmp $tmp/out.c | grep -q '^foo bar:'
+check -MT
+
 echo OK

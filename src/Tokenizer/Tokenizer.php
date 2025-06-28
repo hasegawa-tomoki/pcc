@@ -803,6 +803,8 @@ class Tokenizer
 
         $eofToken = new Token(TokenKind::TK_EOF, '', $pos);
         $this->setTokenFileInfo($eofToken);
+        $eofToken->atBol = $atBol;
+        $eofToken->hasSpace = $hasSpace;
         $tokens[] = $eofToken;
         $this->tokens = $tokens;
         for ($i = 0; $i < count($this->tokens) - 1; $i++){
