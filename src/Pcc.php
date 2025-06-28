@@ -219,6 +219,11 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-MD') {
+                self::$options['MD'] = true;
+                continue;
+            }
+
             if ($argv[$i] === '-MF' and isset($argv[$i + 1])) {
                 self::$options['MF'] = $argv[$i + 1];
                 $i++;
@@ -313,6 +318,11 @@ class Pcc
         if (isset(self::$options['M'])) {
             self::$optX = FileType::FILE_C;
         }
+
+        // -MD implies that the input is the C macro language.
+        if (isset(self::$options['MD'])) {
+            self::$optX = FileType::FILE_C;
+        }
     }
 
     private static function runSubprocess(array $argv): void
@@ -404,6 +414,10 @@ class Pcc
         $path = null;
         if (isset(self::$options['MF'])) {
             $path = self::$options['MF'];
+        } elseif (isset(self::$options['MD'])) {
+            $baseFile = self::$options['base_file'] ?? '';
+            $outputPath = isset(self::$options['o']) ? self::$options['o'] : $baseFile;
+            $path = self::replaceExt($outputPath, '.d');
         } elseif (isset(self::$options['o'])) {
             $path = self::$options['o'];
         } else {
@@ -506,10 +520,12 @@ class Pcc
         Preprocessor::setBaseFile($baseFile);
         $tok = Preprocessor::preprocess($tok);
 
-        // If -M is given, print file dependencies.
-        if (isset(self::$options['M'])) {
+        // If -M or -MD are given, print file dependencies.
+        if (isset(self::$options['M']) || isset(self::$options['MD'])) {
             self::printDependencies();
-            return 0;
+            if (isset(self::$options['M'])) {
+                return 0;
+            }
         }
 
         // If -E is given, print out preprocessed C code as a result.
@@ -733,8 +749,8 @@ class Pcc
             return self::cc1();
         }
         
-        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (isset(self::$options['c']) or isset(self::$options['S']) or isset(self::$options['E']) or isset(self::$options['M']))) {
-            Console::error("cannot specify '-o' with '-c,' '-S', '-E' or '-M' with multiple files");
+        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (isset(self::$options['c']) or isset(self::$options['S']) or isset(self::$options['E']) or isset(self::$options['M']) or isset(self::$options['MD']))) {
+            Console::error("cannot specify '-o' with '-c,' '-S', '-E', '-M' or '-MD' with multiple files");
         }
         
         $ldArgs = new StringArray();
