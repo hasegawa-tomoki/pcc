@@ -9,6 +9,15 @@ RUN apt-get update  \
         ssh \
         libssl-dev \
         zlib1g-dev \
+        tcl \
+        re2c \
+        bison \
+        autoconf \
+        make \
+        libtool \
+        ccache \
+        libxml2-dev \
+        libsqlite3-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pecl install xdebug
