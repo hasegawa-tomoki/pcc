@@ -1513,7 +1513,6 @@ class Preprocessor
         self::defineMacro('__SIZEOF_SIZE_T__', '8');
         self::defineMacro('__SIZE_TYPE__', 'unsigned long');
         self::defineMacro('__STDC_HOSTED__', '1');
-        self::defineMacro('__STDC_NO_ATOMICS__', '1');
         self::defineMacro('__STDC_NO_COMPLEX__', '1');
         self::defineMacro('__STDC_NO_THREADS__', '1');
         self::defineMacro('__STDC_UTF_16__', '1');
