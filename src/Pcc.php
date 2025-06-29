@@ -754,19 +754,10 @@ class Pcc
     
     private static function findGccLibpath(): string
     {
-        $paths = [
-            '/usr/lib/gcc/x86_64-linux-gnu/*/crtbegin.o',
-            '/usr/lib/gcc/x86_64-pc-linux-gnu/*/crtbegin.o',
-            '/usr/lib/gcc/x86_64-redhat-linux/*/crtbegin.o',
-        ];
-        
-        foreach ($paths as $pattern) {
-            $path = self::findFile($pattern);
-            if ($path) {
-                return dirname($path);
-            }
+        $path = self::findFile('/usr/lib*/gcc/x86_64*-linux*/*/crtbegin.o');
+        if ($path) {
+            return dirname($path);
         }
-        
         Console::error('gcc library path is not found');
     }
     

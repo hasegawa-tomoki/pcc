@@ -1587,6 +1587,7 @@ class CodeGenerator
         $funcs = $this->assignLVarOffsets($funcs);
         $this->emitData($funcs);
         $this->emitText($funcs);
+        Console::out("  .section  .note.GNU-stack,\"\",@progbits");
     }
 
     private function copyStructReg(): void
