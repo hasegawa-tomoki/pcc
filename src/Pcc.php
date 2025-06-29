@@ -381,6 +381,11 @@ class Pcc
                 continue;
             }
 
+            if (str_starts_with($argv[$i], '-l') || str_starts_with($argv[$i], '-Wl,')) {
+                self::$inputPaths->push($argv[$i]);
+                continue;
+            }
+
             if (str_starts_with($argv[$i], '-') and $argv[$i] !== '-') {
                 Console::error("unknown argument: {$argv[$i]}");
             }
@@ -891,6 +896,17 @@ class Pcc
         foreach ($inputFiles as $inputPath) {
             if (str_starts_with($inputPath, '-l')) {
                 $ldArgs->push($inputPath);
+                continue;
+            }
+
+            if (str_starts_with($inputPath, '-Wl,')) {
+                $s = substr($inputPath, 4);
+                $args = explode(',', $s);
+                foreach ($args as $arg) {
+                    if ($arg !== '') {
+                        $ldArgs->push($arg);
+                    }
+                }
                 continue;
             }
 

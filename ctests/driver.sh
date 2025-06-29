@@ -295,4 +295,11 @@ echo 'int foo(); int bar=3; int main() { foo(); }' > $tmp/bar.c
 $pcc -o $tmp/foo $tmp/bar.c -L$tmp -lfoobar
 check -L
 
+# -Wl,
+echo 'int foo() {}' | $pcc -c -o $tmp/foo.o -xc -
+echo 'int foo() {}' | $pcc -c -o $tmp/bar.o -xc -
+echo 'int main() {}' | $pcc -c -o $tmp/baz.o -xc -
+cc -Wl,-z,muldefs,--gc-sections -o $tmp/foo $tmp/foo.o $tmp/bar.o $tmp/baz.o
+check -Wl,
+
 echo OK
