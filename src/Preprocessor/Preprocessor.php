@@ -52,11 +52,19 @@ class Preprocessor
     private static HashMap $macros;
     private static ?CondIncl $condIncl = null;
     private static string $baseFile = '';
+    private static HashMap $cache;
 
     private static function initMacrosIfNeeded(): void
     {
         if (!isset(self::$macros)) {
             self::$macros = new HashMap();
+        }
+    }
+
+    private static function initCacheIfNeeded(): void
+    {
+        if (!isset(self::$cache)) {
+            self::$cache = new HashMap();
         }
     }
 
@@ -458,23 +466,33 @@ class Preprocessor
             return $filename;
         }
 
+        self::initCacheIfNeeded();
+        $cached = self::$cache->get($filename);
+        if ($cached) {
+            return $cached;
+        }
+
         // Search a file from the include paths.
         $includePaths = \Pcc\Pcc::getIncludePaths();
         foreach ($includePaths->getData() as $path) {
             $fullPath = $path . '/' . $filename;
-            if (self::fileExists($fullPath)) {
-                return $fullPath;
+            if (!self::fileExists($fullPath)) {
+                continue;
             }
+            self::$cache->put($filename, $fullPath);
+            return $fullPath;
         }
         
         // For testing purposes, also search in the current directory and TestCase directory
         if (self::fileExists($filename)) {
+            self::$cache->put($filename, $filename);
             return $filename;
         }
         
         // Also search in TestCase directory for tests
         $testCasePath = 'test/' . $filename;
         if (self::fileExists($testCasePath)) {
+            self::$cache->put($filename, $testCasePath);
             return $testCasePath;
         }
         
