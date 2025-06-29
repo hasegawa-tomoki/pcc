@@ -3,7 +3,8 @@
 **このセクションの指示は非常に重要です。必ず守ってください。**
 
 このプロジェクトはPHPで書かれたCコンパイラの実装です。
-このプロジェクトの目的は、chibiccというCコンパイラの実装を段階的に再現することです。
+このプロジェクトの目的は、chibicc と slimcc というCコンパイラの実装を段階的に再現することです。
+現在は chibicc のすべての実装を完了し、slimcc の実装を段階的に進めています。
 
 ### Basic Guidelines
 
@@ -21,12 +22,12 @@
 $ make ctest                         # Cで書いたテスト
 ```
 
-エラーになった場合は、エラーの内容から自動的に適切な修正をおこなってください。
+エラーになった場合は、エラーの内容と参考にする slimcc のコードをもとに適切な修正をおこなってください。
 
 ### Git Commit Policy
 
 実装が終わってテストがすべてパスしたらGitコミットを作ってください。
-コミットメッセージは対応するchibiccのコミットメッセージと完全に同じ内容にしてください。
+コミットメッセージは対応する slimcc のコミットメッセージと完全に同じ内容にしてください。
 余計な装飾や追加の文字列を追加することは禁じられています。
 
 ### Coding Standards
@@ -37,17 +38,17 @@ $ make ctest                         # Cで書いたテスト
 
 ### Testing Policy
 
-テストコードは chibicc の対象コミットに含まれるものと同じものを使用します。
+テストコードは slimcc の対象コミットに含まれるものと同じものを使用します。
 テストコードを変更することは禁じられています。
 デバッグのためにテストコードを追加する時は ctests/test 配下に追加してください。
 
 テストコードをすべて実行する場合はプロジェクトルートで make ctest としてください。
 テストコードを単体で実行する場合はプロジェクトルートで make ctest file=filename.c としてください。
-phpコマンドを実行する場合は必ず docker compose run --rm php php pcc.php のように実行してください。
+phpコマンドや slimcc を実行する場合は必ず docker compose run --rm php php pcc.php のように実行し、Dockerコンテナの中で実行してください。
 
 実装が完了したら必ず以下を確認してください。
 
-* テストコードが chibicc と完全に一致していること
+* テストコードが slimcc と完全に一致していること
 * make ctest を実行してすべてのテストがパスすること
 
 ### External Dependencies
@@ -56,12 +57,13 @@ Composer や npm で外部の依存を新しく増やしたくなったときは
 
 ### 参考にするコード
 
-このプロジェクトは chibicc のgitコミットと1:1対応させて、ステップバイステップで開発します。
+このプロジェクトは slimcc のgitコミットと1:1対応させて、ステップバイステップで開発します。
 chibicc は ./chibicc ディレクトリにcloneしてあります。
-最初にchibiccからテストコードをpccに反映してから作業を開始してください。
-chibiccのコードをよく見て慎重に設計し、設計がchibiccと離れない様に設計してください。
-chibicc に対してコンパイル・ビルドしたりテスト実行したりする場合は `docker compose exec php bash` としてコンテナ内に入ってから実行してください。
-chibicc を実行する時もコンテナ内に入ってから実行してください。
+slimcc は ./slimcc ディレクトリにcloneしてあります。
+最初に slimcc からテストコードをpccに反映してから作業を開始してください。
+slimcc のコードをよく見て慎重に設計し、設計が slimcc と離れない様に設計してください。
+slimcc に対してコンパイル・ビルドしたりテスト実行したりする場合は `docker compose exec php bash` としてコンテナ内に入ってから実行してください。
+slimcc を実行する時もコンテナ内に入ってから実行してください。
 
 ## Essential Development Commands
 
@@ -80,8 +82,9 @@ $ docker compose run --rm php php pcc.php     # pcc.phpを単体で実行
 
 ```
 ├ /                           # プロジェクトルート。make ctest はこのディレクトリをカレントディレクトリとして実行する。
-├ /chibicc/                    # chibiccのソースコードと .git ディレクトリ。chibiccのソースコードに対する git status や git diff はこのディレクトリをカレントディレクトリとして実行する。
-├ /chibicc/test                # chibiccのテストコード。ここからコピーして使用する。 
+├ /chibicc/                    # chibiccのソースコードと .git ディレクトリ。chibicc のソースコードに対する git status や git diff はこのディレクトリをカレントディレクトリとして実行する。
+├ /slimcc/                     # slimccのソースコードと .git ディレクトリ。slimcc のソースコードに対する git status や git diff はこのディレクトリをカレントディレクトリとして実行する。
+├ /slimcc/test                 # slimccのテストコード。ここからコピーして使用する。 
 ├ /ctest/test                  # pccのテストコード。テストはここに追加する。
 ├ /src/                        # pccのソースコード。開発ではここを編集する。
 ```
