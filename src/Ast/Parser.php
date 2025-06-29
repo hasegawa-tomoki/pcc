@@ -3584,16 +3584,33 @@ class Parser
         if (! $ty->name){
             Console::errorTok($ty->namePos, 'function name omitted');
         }
+        $nameStr = $this->getIdent($ty->name);
 
-        $fn = $this->newGVar($this->getIdent($ty->name), $ty);
-        $fn->isFunction = true;
-        [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';');
-        $fn->isDefinition = (! $consumed);
-        $fn->isStatic = $attr->isStatic || ($attr->isInline && !$attr->isExtern);
-        $fn->isInline = $attr->isInline;
+        $fn = $this->findFunc($nameStr);
+        if ($fn) {
+            // Redeclaration
+            if (!$fn->isFunction) {
+                Console::errorTok($tok, 'redeclared as a different kind of symbol');
+            }
+            if ($fn->isDefinition && $this->tokenizer->equal($tok, '{')) {
+                Console::errorTok($tok, 'redefinition of ' . $nameStr);
+            }
+            if (!$fn->isStatic && $attr->isStatic) {
+                Console::errorTok($tok, 'static declaration follows a non-static declaration');
+            }
+            $fn->isDefinition = $fn->isDefinition || $this->tokenizer->equal($tok, '{');
+        } else {
+            $fn = $this->newGVar($nameStr, $ty);
+            $fn->isFunction = true;
+            $fn->isDefinition = $this->tokenizer->equal($tok, '{');
+            $fn->isStatic = $attr->isStatic || ($attr->isInline && !$attr->isExtern);
+            $fn->isInline = $attr->isInline;
+        }
+
         $fn->isRoot = !($fn->isStatic && $fn->isInline);
 
-        if (! $fn->isDefinition){
+        [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';');
+        if ($consumed) {
             return $tok;
         }
 
