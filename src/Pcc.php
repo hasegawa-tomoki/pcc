@@ -77,8 +77,11 @@ class Pcc
 
     private static function addDefaultIncludePaths(string $argv0): void
     {
-        // We expect that chibicc-specific include files are installed
-        // to ./include relative to argv[0].
+        // We expect that pcc-specific include files are installed
+        // to ./ctests/include relative to argv[0].
+        self::$includePaths->push(dirname($argv0) . '/ctests/include');
+        
+        // Also include ./include for compatibility
         self::$includePaths->push(dirname($argv0) . '/include');
 
         // Add standard include paths.
