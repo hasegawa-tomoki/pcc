@@ -970,8 +970,8 @@ class Parser
         }
 
         foreach ($ty->members as $idx => $mem) {
-            // Anonymous struct member
-            if ($mem->ty->kind === TypeKind::TY_STRUCT && !$mem->name) {
+            // Anonymous struct/union member
+            if (($mem->ty->kind === TypeKind::TY_STRUCT || $mem->ty->kind === TypeKind::TY_UNION) && !$mem->name) {
                 if ($this->getStructMember($mem->ty, $tok)) {
                     return [$idx, $start];
                 }
