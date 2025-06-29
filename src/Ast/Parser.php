@@ -3049,8 +3049,7 @@ class Parser
 
             $ty->size = -1;
             $ty->name = $tag;
-            // In pcc, getStructMember() will call findTag().
-            // $this->pushTagScope($tag, $ty);
+            $this->pushTagScope($tag, $ty);
             return [$ty, $rest];
         }
 
@@ -3163,13 +3162,6 @@ class Parser
 
     public function getStructMember(Type $ty, Token $tok): ?Member
     {
-        if ($ty->size === -1){
-            $foundTy = $this->findTag($ty->name);
-            if ($foundTy) {
-                $ty = $foundTy;
-            }
-        }
-
         foreach ($ty->members as $mem){
             // Anonymous struct member
             if (($mem->ty->kind === TypeKind::TY_STRUCT || $mem->ty->kind === TypeKind::TY_UNION) &&
