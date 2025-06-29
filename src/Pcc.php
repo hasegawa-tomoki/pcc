@@ -356,6 +356,12 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-static') {
+                self::$options['static'] = true;
+                self::$ldExtraArgs->push('-static');
+                continue;
+            }
+
             if (str_starts_with($argv[$i], '-') and $argv[$i] !== '-') {
                 Console::error("unknown argument: {$argv[$i]}");
             }
@@ -743,8 +749,6 @@ class Pcc
         $arr->push($output);
         $arr->push('-m');
         $arr->push('elf_x86_64');
-        $arr->push('-dynamic-linker');
-        $arr->push('/lib64/ld-linux-x86-64.so.2');
         
         $libpath = self::findLibPath();
         $gccLibpath = self::findGccLibpath();
@@ -753,8 +757,7 @@ class Pcc
         $arr->push("$libpath/crti.o");
         $arr->push("$gccLibpath/crtbegin.o");
         $arr->push("-L$gccLibpath");
-        $arr->push("-L$libpath");
-        $arr->push("-L$libpath/..");
+        $arr->push('-L/usr/lib/x86_64-linux-gnu');
         $arr->push('-L/usr/lib64');
         $arr->push('-L/lib64');
         $arr->push('-L/usr/lib/x86_64-linux-gnu');
@@ -762,6 +765,11 @@ class Pcc
         $arr->push('-L/usr/lib/x86_64-redhat-linux');
         $arr->push('-L/usr/lib');
         $arr->push('-L/lib');
+        
+        if (!isset(self::$options['static'])) {
+            $arr->push('-dynamic-linker');
+            $arr->push('/lib64/ld-linux-x86-64.so.2');
+        }
         
         foreach (self::$ldExtraArgs->getData() as $arg) {
             $arr->push($arg);
@@ -771,11 +779,20 @@ class Pcc
             $arr->push($input);
         }
         
-        $arr->push('-lc');
-        $arr->push('-lgcc');
-        $arr->push('--as-needed');
-        $arr->push('-lgcc_s');
-        $arr->push('--no-as-needed');
+        if (isset(self::$options['static'])) {
+            $arr->push('--start-group');
+            $arr->push('-lgcc');
+            $arr->push('-lgcc_eh');
+            $arr->push('-lc');
+            $arr->push('--end-group');
+        } else {
+            $arr->push('-lc');
+            $arr->push('-lgcc');
+            $arr->push('--as-needed');
+            $arr->push('-lgcc_s');
+            $arr->push('--no-as-needed');
+        }
+        
         $arr->push("$gccLibpath/crtend.o");
         $arr->push("$libpath/crtn.o");
         
