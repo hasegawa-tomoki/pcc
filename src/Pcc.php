@@ -55,7 +55,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x', '-MF', '-MT'];
+        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x', '-MF', '-MT', '-L'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -365,6 +365,19 @@ class Pcc
             if ($argv[$i] === '-shared') {
                 self::$options['shared'] = true;
                 self::$ldExtraArgs->push('-shared');
+                continue;
+            }
+
+            if ($argv[$i] === '-L' and isset($argv[$i + 1])) {
+                self::$ldExtraArgs->push('-L');
+                self::$ldExtraArgs->push($argv[$i + 1]);
+                $i++;
+                continue;
+            }
+
+            if (str_starts_with($argv[$i], '-L')){
+                self::$ldExtraArgs->push('-L');
+                self::$ldExtraArgs->push(substr($argv[$i], 2));
                 continue;
             }
 
