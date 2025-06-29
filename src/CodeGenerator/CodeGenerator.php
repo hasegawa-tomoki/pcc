@@ -408,6 +408,13 @@ class CodeGenerator
             case NodeKind::ND_VLA_PTR:
                 Console::out("  lea %d(%%rbp), %%rax", $node->var->offset);
                 return;
+            case NodeKind::ND_ASSIGN:
+            case NodeKind::ND_COND:
+                if ($node->ty->kind === TypeKind::TY_STRUCT or $node->ty->kind === TypeKind::TY_UNION) {
+                    $this->genExpr($node);
+                    return;
+                }
+                break;
         }
 
         Console::errorTok($node->tok, 'not an lvalue');
