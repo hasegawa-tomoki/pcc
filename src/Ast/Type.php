@@ -25,6 +25,7 @@ class Type
     /** @var \Pcc\Ast\Member[] */
     public array $members = [];
     public bool $isFlexible = false;
+    public bool $isPacked = false;
     // Function type
     public Type $returnTy;
     /** @var \Pcc\Ast\Type[] */

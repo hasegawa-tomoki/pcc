@@ -1546,7 +1546,7 @@ class Parser
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
             'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
             '__restrict__', '_Noreturn', 'float', 'double', 'typeof', 'inline',
-            '_Thread_local', '__thread', '_Atomic',
+            '_Thread_local', '__thread', '_Atomic', '__attribute__',
         ];
 
         foreach ($keywords as $kw) {
@@ -2974,7 +2974,30 @@ class Parser
     }
 
     /**
-     * struct-union-decl = ident? ("{" struct-members)?
+     * attribute = ("__attribute__" "(" "(" "packed" ")" ")")?
+     *
+     * @param \Pcc\Tokenizer\Token $tok
+     * @param \Pcc\Ast\Type $ty
+     * @return \Pcc\Tokenizer\Token
+     */
+    public function attribute(Token $tok, Type $ty): Token
+    {
+        if (!$this->tokenizer->equal($tok, '__attribute__')) {
+            return $tok;
+        }
+
+        $tok = $tok->next;
+        $tok = $this->tokenizer->skip($tok, '(');
+        $tok = $this->tokenizer->skip($tok, '(');
+        $tok = $this->tokenizer->skip($tok, 'packed');
+        $tok = $this->tokenizer->skip($tok, ')');
+        $tok = $this->tokenizer->skip($tok, ')');
+        $ty->isPacked = true;
+        return $tok;
+    }
+
+    /**
+     * struct-union-decl = attribute? ident? ("{" struct-members)?
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
@@ -2982,6 +3005,9 @@ class Parser
      */
     public function structUnionDecl(Token $rest, Token $tok): array
     {
+        $ty = Type::structType();
+        $tok = $this->attribute($tok, $ty);
+
         // Read a tag.
         $tag = null;
         if ($tok->isKind(TokenKind::TK_IDENT)){
@@ -2992,12 +3018,11 @@ class Parser
         if ($tag and (! $this->tokenizer->equal($tok, '{'))){
             $rest = $tok;
 
-            $ty = $this->findTag($tag);
-            if ($ty){
-                return [$ty, $rest];
+            $ty2 = $this->findTag($tag);
+            if ($ty2){
+                return [$ty2, $rest];
             }
 
-            $ty = Type::structType();
             $ty->size = -1;
             $ty->name = $tag;
             // In pcc, getStructMember() will call findTag().
@@ -3008,8 +3033,8 @@ class Parser
         $tok = $this->tokenizer->skip($tok, '{');
 
         // Construct a struct object.
-        $ty = Type::structType();
-        $rest = $this->structMembers($rest, $tok, $ty);
+        $rest = $this->structMembers($tok, $tok, $ty);
+        $rest = $this->attribute($rest, $ty);
 
         if ($tag){
             // If this is a redefinition, overwrite the previous type.
@@ -3065,12 +3090,14 @@ class Parser
                 $mem->bitOffset = $bits % ($sz * 8);
                 $bits += $mem->bitWidth;
             } else {
-                $bits = Align::alignTo($bits, $mem->align * 8);
+                if (!$ty->isPacked) {
+                    $bits = Align::alignTo($bits, $mem->align * 8);
+                }
                 $mem->offset = intval($bits / 8);
                 $bits += $mem->ty->size * 8;
             }
 
-            if ($ty->align < $mem->align) {
+            if (!$ty->isPacked && $ty->align < $mem->align) {
                 $ty->align = $mem->align;
             }
         }
