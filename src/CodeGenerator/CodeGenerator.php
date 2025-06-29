@@ -620,11 +620,24 @@ class CodeGenerator
         }
     }
 
+    private static int $lastFileNo = 0;
+    private static int $lastLineNo = 0;
+
+    private function printLoc(\Pcc\Tokenizer\Token $tok): void
+    {
+        if (self::$lastFileNo === $tok->displayFileNo && self::$lastLineNo === $tok->displayLineNo) {
+            return;
+        }
+
+        Console::out("  .loc %d %d", $tok->displayFileNo, $tok->displayLineNo);
+
+        self::$lastFileNo = $tok->displayFileNo;
+        self::$lastLineNo = $tok->displayLineNo;
+    }
+
     public function genExpr(Node $node): void
     {
-        if ($node->tok->file !== null) {
-            Console::out("  .loc %d %d", $node->tok->file->fileNo, $node->tok->lineNo);
-        }
+        $this->printLoc($node->tok);
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
@@ -1127,7 +1140,7 @@ class CodeGenerator
 
     public function genStmt(Node $node): void
     {
-        Console::out("  .loc %d %d", $node->tok->file->fileNo, $node->tok->lineNo);
+        $this->printLoc($node->tok);
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){

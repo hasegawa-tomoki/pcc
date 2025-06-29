@@ -1078,7 +1078,18 @@ class Preprocessor
         if ($tok->kind !== TokenKind::TK_STR) {
             Console::errorTok($tok, "filename expected");
         }
-        $start->file->displayName = rtrim($tok->str, "\0"); // remove null terminator
+        $start->file->displayFile = Tokenizer::addInputFile(rtrim($tok->str, "\0"), null);
+    }
+
+    private static function addLocInfo(Token $tok): void
+    {
+        $tmpl = $tok;
+        while ($tmpl->origin) {
+            $tmpl = $tmpl->origin;
+        }
+
+        $tok->displayFileNo = $tmpl->file->displayFile->fileNo;
+        $tok->displayLineNo = $tmpl->lineNo + $tmpl->file->lineDelta;
     }
 
     /**
@@ -1097,8 +1108,7 @@ class Preprocessor
             
             // "#"でない場合はそのまま通す
             if (!self::isHash($tok)) {
-                $tok->lineDelta = $tok->file->lineDelta;
-                $tok->filename = $tok->file->displayName;
+                self::addLocInfo($tok);
                 $cur->next = $tok;
                 $cur = $tok;
                 $tok = $tok->next;

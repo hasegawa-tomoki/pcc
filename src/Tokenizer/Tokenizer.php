@@ -821,7 +821,7 @@ class Tokenizer
     private function setTokenFileInfo(Token $tok): void
     {
         $tok->file = $this->currentFile;
-        $tok->filename = $this->currentFile->displayName;
+        $tok->filename = $this->currentFile->displayFile->name;
     }
    
     private function readFile(string $path): ?string
@@ -855,6 +855,22 @@ class Tokenizer
     public static function newFile(string $name, int $fileNo, string $contents): File
     {
         return new File($name, $fileNo, $contents);
+    }
+
+    public static function addInputFile(string $path, ?string $contents): File
+    {
+        // Check if file already exists in input files
+        foreach (self::$inputFiles as $file) {
+            if ($file->name === $path) {
+                return $file;
+            }
+        }
+
+        self::$fileNo++;
+        $file = new File($path, self::$fileNo, $contents ?? '');
+        self::$inputFiles[] = $file;
+        
+        return $file;
     }
 
     // Read a UTF-8-encoded Unicode code point from a source file.

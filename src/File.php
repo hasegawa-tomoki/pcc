@@ -8,7 +8,7 @@ class File
     public string $contents;
     
     // For #line directive
-    public string $displayName;
+    public ?File $displayFile = null;
     public int $lineDelta = 0;
     
     private static array $inputFiles = [];
@@ -16,7 +16,7 @@ class File
     public function __construct(string $name, int $fileNo, string $contents)
     {
         $this->name = $name;
-        $this->displayName = $name;
+        $this->displayFile = $this;
         $this->fileNo = $fileNo;
         $this->contents = $contents;
         
