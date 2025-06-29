@@ -302,4 +302,11 @@ echo 'int main() {}' | $pcc -c -o $tmp/baz.o -xc -
 cc -Wl,-z,muldefs,--gc-sections -o $tmp/foo $tmp/foo.o $tmp/bar.o $tmp/baz.o
 check -Wl,
 
+# -Xlinker
+echo 'int foo() {}' | $pcc -c -o $tmp/foo.o -xc -
+echo 'int foo() {}' | $pcc -c -o $tmp/bar.o -xc -
+echo 'int main() {}' | $pcc -c -o $tmp/baz.o -xc -
+cc -Xlinker -z -Xlinker muldefs -Xlinker --gc-sections -o $tmp/foo $tmp/foo.o $tmp/bar.o $tmp/baz.o
+check -Xlinker
+
 echo OK

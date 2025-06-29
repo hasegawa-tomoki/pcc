@@ -55,7 +55,7 @@ class Pcc
     
     private static function takeArg(string $arg): bool
     {
-        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x', '-MF', '-MT', '-L'];
+        $x = ['-o', '-I', '-D', '-U', '-idirafter', '-include', '-x', '-MF', '-MT', '-L', '-Xlinker'];
         
         foreach ($x as $option) {
             if ($arg === $option) {
@@ -383,6 +383,12 @@ class Pcc
 
             if (str_starts_with($argv[$i], '-l') || str_starts_with($argv[$i], '-Wl,')) {
                 self::$inputPaths->push($argv[$i]);
+                continue;
+            }
+
+            if ($argv[$i] === '-Xlinker' and isset($argv[$i + 1])) {
+                self::$ldExtraArgs->push($argv[$i + 1]);
+                $i++;
                 continue;
             }
 
