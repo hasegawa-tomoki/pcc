@@ -3380,6 +3380,16 @@ class Parser
             return [$node, $rest];
         }
 
+        if ($this->tokenizer->equal($tok, '__builtin_atomic_exchange')){
+            $node = Node::newNode(NodeKind::ND_EXCH, $tok);
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$node->lhs, $tok] = $this->assign($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ',');
+            [$node->rhs, $tok] = $this->assign($tok, $tok);
+            $rest = $this->tokenizer->skip($tok, ')');
+            return [$node, $rest];
+        }
+
         if ($tok->isKind(TokenKind::TK_IDENT)){
             // Variable or enum constant
             $sc = $this->findVar($tok);

@@ -290,6 +290,12 @@ class Node
                     Console::errorTok($this->casOld->tok, 'pointer expected');
                 }
                 return;
+            case NodeKind::ND_EXCH:
+                if ($this->lhs && $this->lhs->ty->kind !== TypeKind::TY_PTR) {
+                    Console::errorTok($this->lhs->tok, 'pointer expected');
+                }
+                $this->ty = $this->lhs->ty->base;
+                return;
         }
     }
 }

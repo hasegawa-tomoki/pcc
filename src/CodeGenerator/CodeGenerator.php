@@ -815,6 +815,15 @@ class CodeGenerator
                 Console::out("1:");
                 Console::out("  movzbl %%cl, %%eax");
                 return;
+            case NodeKind::ND_EXCH:
+                $this->genExpr($node->lhs);
+                $this->push();
+                $this->genExpr($node->rhs);
+                $this->pop("%rdi");
+
+                $sz = $node->lhs->ty->base->size;
+                Console::out("  xchg %s, (%%rdi)", $this->regAx($sz));
+                return;
             case NodeKind::ND_FUNCALL:
                 // Handle alloca() as builtin function
                 if ($node->lhs->kind === NodeKind::ND_VAR && $node->lhs->var->name === 'alloca') {

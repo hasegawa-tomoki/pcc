@@ -51,4 +51,5 @@ enum NodeKind
     case ND_MEMZERO;    // Zero-clear a stack variable
     case ND_ASM;        // "asm"
     case ND_CAS;        // Atomic compare-and-swap
+    case ND_EXCH;       // Atomic exchange
 }
