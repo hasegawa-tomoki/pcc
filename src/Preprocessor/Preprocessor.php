@@ -55,6 +55,7 @@ class Preprocessor
     private static HashMap $cache;
     private static HashMap $includeGuards;
     private static HashMap $pragmaOnce;
+    private static int $includeNextIdx = 0;
 
     private static function initMacrosIfNeeded(): void
     {
@@ -490,12 +491,14 @@ class Preprocessor
 
         // Search a file from the include paths.
         $includePaths = \Pcc\Pcc::getIncludePaths();
-        foreach ($includePaths->getData() as $path) {
-            $fullPath = $path . '/' . $filename;
+        $data = $includePaths->getData();
+        for ($i = 0; $i < $includePaths->getLength(); $i++) {
+            $fullPath = $data[$i] . '/' . $filename;
             if (!self::fileExists($fullPath)) {
                 continue;
             }
             self::$cache->put($filename, $fullPath);
+            self::$includeNextIdx = $i + 1;
             return $fullPath;
         }
         
@@ -512,6 +515,20 @@ class Preprocessor
             return $testCasePath;
         }
         
+        return null;
+    }
+
+    public static function searchIncludeNext(string $filename): ?string
+    {
+        $includePaths = \Pcc\Pcc::getIncludePaths();
+        $data = $includePaths->getData();
+        
+        for ($i = self::$includeNextIdx; $i < $includePaths->getLength(); $i++) {
+            $fullPath = $data[$i] . '/' . $filename;
+            if (self::fileExists($fullPath)) {
+                return $fullPath;
+            }
+        }
         return null;
     }
 
@@ -1163,6 +1180,15 @@ class Preprocessor
                 }
 
                 $path = self::searchIncludePaths($filename);
+                $tok = self::includeFile($restTok, $path ? $path : $filename, $start->next->next);
+                continue;
+            }
+
+            if ($tok->str === 'include_next') {
+                $isDquote = false;
+                $restTok = $tok; // Initialize with current token
+                $filename = self::readIncludeFilename($restTok, $tok->next, $isDquote);
+                $path = self::searchIncludeNext($filename);
                 $tok = self::includeFile($restTok, $path ? $path : $filename, $start->next->next);
                 continue;
             }
