@@ -54,6 +54,7 @@ class Preprocessor
     private static string $baseFile = '';
     private static HashMap $cache;
     private static HashMap $includeGuards;
+    private static HashMap $pragmaOnce;
 
     private static function initMacrosIfNeeded(): void
     {
@@ -73,6 +74,13 @@ class Preprocessor
     {
         if (!isset(self::$includeGuards)) {
             self::$includeGuards = new HashMap();
+        }
+    }
+
+    private static function initPragmaOnceIfNeeded(): void
+    {
+        if (!isset(self::$pragmaOnce)) {
+            self::$pragmaOnce = new HashMap();
         }
     }
 
@@ -554,6 +562,12 @@ class Preprocessor
 
     private static function includeFile(Token $tok, string $path, Token $filenameTok): Token
     {
+        // Check for "#pragma once"
+        self::initPragmaOnceIfNeeded();
+        if (self::$pragmaOnce->get($path)) {
+            return $tok;
+        }
+
         // If we read the same file before, and if the file was guarded
         // by the usual #ifndef ... #endif pattern, we may be able to
         // skip the file without opening it.
@@ -1244,6 +1258,13 @@ class Preprocessor
 
             if ($tok->kind === TokenKind::TK_PP_NUM) {
                 self::readLineMarker($tok, $tok);
+                continue;
+            }
+
+            if ($tok->str === 'pragma' && $tok->next->str === 'once') {
+                self::initPragmaOnceIfNeeded();
+                self::$pragmaOnce->put($tok->file->name, '1');
+                $tok = self::skipLine($tok->next->next);
                 continue;
             }
 
