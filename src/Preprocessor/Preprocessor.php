@@ -53,7 +53,6 @@ class Preprocessor
     private static ?CondIncl $condIncl = null;
     private static string $baseFile = '';
     private static HashMap $cache;
-    private static HashMap $includeGuards;
     private static HashMap $pragmaOnce;
     private static int $includeNextIdx = 0;
 
@@ -71,12 +70,6 @@ class Preprocessor
         }
     }
 
-    private static function initIncludeGuardsIfNeeded(): void
-    {
-        if (!isset(self::$includeGuards)) {
-            self::$includeGuards = new HashMap();
-        }
-    }
 
     private static function initPragmaOnceIfNeeded(): void
     {
@@ -532,50 +525,6 @@ class Preprocessor
         return null;
     }
 
-    // Detect the following "include guard" pattern.
-    //
-    //   #ifndef FOO_H
-    //   #define FOO_H
-    //   ...
-    //   #endif
-    private static function detectIncludeGuard(Token $tok): ?string
-    {
-        // Detect the first two lines.
-        if (!self::isHash($tok) || $tok->next->str !== 'ifndef') {
-            return null;
-        }
-        $tok = $tok->next->next;
-
-        if ($tok->kind !== TokenKind::TK_IDENT) {
-            return null;
-        }
-
-        $macro = $tok->str;
-        $tok = $tok->next;
-
-        if (!self::isHash($tok) || $tok->next->str !== 'define' || $tok->next->next->str !== $macro) {
-            return null;
-        }
-
-        // Read until the end of the file.
-        while ($tok->kind !== TokenKind::TK_EOF) {
-            if (!self::isHash($tok)) {
-                $tok = $tok->next;
-                continue;
-            }
-
-            if ($tok->next->str === 'endif' && $tok->next->next->kind === TokenKind::TK_EOF) {
-                return $macro;
-            }
-
-            if ($tok->next->str === 'if' || $tok->next->str === 'ifdef' || $tok->next->str === 'ifndef') {
-                $tok = self::skipCondIncl($tok->next);
-            } else {
-                $tok = $tok->next;
-            }
-        }
-        return null;
-    }
 
     private static function includeFile(Token $tok, string $path, Token $filenameTok): Token
     {
@@ -585,14 +534,6 @@ class Preprocessor
             return $tok;
         }
 
-        // If we read the same file before, and if the file was guarded
-        // by the usual #ifndef ... #endif pattern, we may be able to
-        // skip the file without opening it.
-        self::initIncludeGuardsIfNeeded();
-        $guardName = self::$includeGuards->get($path);
-        if ($guardName && self::findMacro(new Token(TokenKind::TK_IDENT, $guardName, 0))) {
-            return $tok;
-        }
 
         // Check if file exists first
         if (!self::fileExists($path)) {
@@ -604,10 +545,6 @@ class Preprocessor
         $tokenizer->tokenize();
         $tok2 = $tokenizer->tok;
 
-        $guardName = self::detectIncludeGuard($tok2);
-        if ($guardName) {
-            self::$includeGuards->put($path, $guardName);
-        }
         
         return self::append($tok2, $tok);
     }
