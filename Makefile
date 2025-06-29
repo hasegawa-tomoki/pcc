@@ -30,6 +30,10 @@ ctest:
 	docker compose run --rm php ./ctest.sh test $(file)
 .PHONY: ctest
 
+cdriver:
+	docker compose run --rm php ./ctest.sh driver $(file)
+.PHONY: ctest
+
 cclean:
 	docker compose run --rm php ./ctest.sh clean
 .PHONY: cclean

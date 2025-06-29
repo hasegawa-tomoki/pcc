@@ -18,6 +18,9 @@ case "$CMD" in
       cd ctests && make clean && make test
     fi
     ;;
+  driver)
+    cd ctests && ./driver.sh
+    ;;
   *)
     echo "Usage: $0 [clean|test] [filename.c (optional)]"
     exit 1

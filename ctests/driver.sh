@@ -259,4 +259,19 @@ $pcc -c -MD -MF $tmp/md-mf.d -I. $tmp/md2.c
 grep -q -z '^md2.o:.*md2\.c .*/out2\.h' $tmp/md-mf.d
 check -MD
 
+echo 'extern int bar; int foo() { return bar; }' | $pcc -fPIC -xc -c -o $tmp/foo.o -
+cc -shared -o $tmp/foo.so $tmp/foo.o
+echo 'int foo(); int bar=3; int main() { foo(); }' > $tmp/main.c
+$pcc -o $tmp/foo $tmp/main.c $tmp/foo.so
+check -fPIC
+
+# #include_next
+mkdir -p $tmp/next1 $tmp/next2 $tmp/next3
+echo '#include "file1.h"' > $tmp/file.c
+echo '#include_next "file1.h"' > $tmp/next1/file1.h
+echo '#include_next "file2.h"' > $tmp/next2/file1.h
+echo 'foo' > $tmp/next3/file2.h
+$pcc -I$tmp/next1 -I$tmp/next2 -I$tmp/next3 -E $tmp/file.c | grep -q foo
+check '#include_next'
+
 echo OK
