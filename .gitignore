@@ -3,6 +3,7 @@
 tmp*
 a.out
 .idea
+/thirdparty
 
 
 /vendor/
