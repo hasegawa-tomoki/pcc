@@ -202,6 +202,7 @@ class Parser
     {
         $ty = Type::tyInt();
         $counter = 0;
+        $isAtomic = false;
 
         while ($this->isTypeName($tok)){
             // Handle storage class specifiers
@@ -235,6 +236,16 @@ class Parser
                 fn($kw) => $this->tokenizer->equal($tok, $kw))
             ){
                 $tok = $tok->next;
+                continue;
+            }
+
+            if ($this->tokenizer->equal($tok, '_Atomic')) {
+                $tok = $tok->next;
+                if ($this->tokenizer->equal($tok, '(')) {
+                    [$ty, $tok] = $this->typename($tok, $tok->next);
+                    $tok = $this->tokenizer->skip($tok, ')');
+                }
+                $isAtomic = true;
                 continue;
             }
 
@@ -365,6 +376,11 @@ class Parser
             }
 
             $tok = $tok->next;
+        }
+
+        if ($isAtomic) {
+            $ty = Type::copyType($ty);
+            $ty->isAtomic = true;
         }
 
         return [$ty, $tok];
@@ -1530,7 +1546,7 @@ class Parser
             'typedef', 'enum', 'static', 'extern', '_Alignas', 'signed', 'unsigned',
             'const', 'volatile', 'auto', 'register', 'restrict', '__restrict',
             '__restrict__', '_Noreturn', 'float', 'double', 'typeof', 'inline',
-            '_Thread_local', '__thread',
+            '_Thread_local', '__thread', '_Atomic',
         ];
 
         foreach ($keywords as $kw) {
@@ -2248,6 +2264,64 @@ class Parser
         $binary->lhs->addType();
         $binary->rhs->addType();
         $tok = $binary->tok;
+
+        // If A is an atomic type, convert `A op= B` to atomic compare-and-swap loop
+        if ($binary->lhs->ty->isAtomic) {
+            $addr = $this->newLvar('', Type::pointerTo($binary->lhs->ty));
+            $val = $this->newLvar('', $binary->rhs->ty);
+            $old = $this->newLvar('', $binary->lhs->ty);
+            $new = $this->newLvar('', $binary->lhs->ty);
+
+            $body = [];
+
+            // addr = &A
+            $body[] = Node::newUnary(NodeKind::ND_EXPR_STMT,
+                Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($addr, $tok),
+                    Node::newUnary(NodeKind::ND_ADDR, $binary->lhs, $tok), $tok),
+                $tok);
+
+            // val = B
+            $body[] = Node::newUnary(NodeKind::ND_EXPR_STMT,
+                Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($val, $tok), $binary->rhs, $tok),
+                $tok);
+
+            // old = *addr
+            $body[] = Node::newUnary(NodeKind::ND_EXPR_STMT,
+                Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($old, $tok),
+                    Node::newUnary(NodeKind::ND_DEREF, Node::newVarNode($addr, $tok), $tok), $tok),
+                $tok);
+
+            // do-while loop with atomic compare-and-swap
+            $loop = Node::newNode(NodeKind::ND_DO, $tok);
+            $loop->brkLabel = $this->newUniqueName();
+            $loop->contLabel = $this->newUniqueName();
+
+            // new = old op val
+            $newAssign = Node::newUnary(NodeKind::ND_EXPR_STMT,
+                Node::newBinary(NodeKind::ND_ASSIGN, Node::newVarNode($new, $tok),
+                    Node::newBinary($binary->kind, Node::newVarNode($old, $tok), Node::newVarNode($val, $tok), $tok),
+                    $tok),
+                $tok);
+
+            $loop->then = $newAssign;
+
+            // !atomic_compare_exchange_strong(addr, &old, new)
+            $cas = Node::newNode(NodeKind::ND_CAS, $tok);
+            $cas->casAddr = Node::newVarNode($addr, $tok);
+            $cas->casOld = Node::newUnary(NodeKind::ND_ADDR, Node::newVarNode($old, $tok), $tok);
+            $cas->casNew = Node::newVarNode($new, $tok);
+
+            $loop->cond = Node::newUnary(NodeKind::ND_NOT, $cas, $tok);
+
+            $body[] = $loop;
+
+            // Return new
+            $body[] = Node::newUnary(NodeKind::ND_EXPR_STMT, Node::newVarNode($new, $tok), $tok);
+
+            $stmt = Node::newNode(NodeKind::ND_STMT_EXPR, $tok);
+            $stmt->body = $body;
+            return $stmt;
+        }
 
         // Convert `A.x op= C` to `tmp = &A, (*tmp).x = (*tmp).x op C`.
         if ($binary->lhs->kind === NodeKind::ND_MEMBER) {

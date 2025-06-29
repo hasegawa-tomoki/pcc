@@ -10,6 +10,7 @@ class Type
     public int $size = 0;
     public int $align = 0;
     public bool $isUnsigned = false;
+    public bool $isAtomic = false; // true if _Atomic
     public ?Type $origin = null; // for type compatibility check
     // Pointer
     public ?Type $base;

@@ -65,6 +65,10 @@ class Node
     public ?Node $casOld = null;
     public ?Node $casNew = null;
 
+    // Atomic op= operators
+    public ?Obj $atomicAddr = null;
+    public ?Node $atomicExpr = null;
+
     // Variable
     public Obj $var;
     // Member access
