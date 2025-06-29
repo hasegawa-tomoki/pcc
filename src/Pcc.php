@@ -345,7 +345,9 @@ class Pcc
                 $argv[$i] === '-fno-strict-aliasing' ||
                 $argv[$i] === '-m64' ||
                 $argv[$i] === '-mno-red-zone' ||
-                $argv[$i] === '-w') {
+                $argv[$i] === '-w' ||
+                $argv[$i] === '-pie' ||
+                str_starts_with($argv[$i], '-O')) {
                 continue;
             }
             
@@ -390,6 +392,13 @@ class Pcc
             }
 
             if ($argv[$i] === '-Xlinker' and isset($argv[$i + 1])) {
+                self::$ldExtraArgs->push($argv[$i + 1]);
+                $i++;
+                continue;
+            }
+
+            if ($argv[$i] === '-soname' and isset($argv[$i + 1])) {
+                self::$ldExtraArgs->push('-soname');
                 self::$ldExtraArgs->push($argv[$i + 1]);
                 $i++;
                 continue;
