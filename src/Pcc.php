@@ -24,6 +24,7 @@ class Pcc
     //private static bool $optHashHashHash = false;
     private static array $options = [];
     private static bool $optFcommon = true;
+    private static bool $optFpic = false;
     private static FileType $optX = FileType::FILE_NONE;
     private static StringArray $optInclude;
     private static StringArray $tmpFiles;
@@ -40,6 +41,11 @@ class Pcc
     public static function getOptFcommon(): bool
     {
         return self::$optFcommon;
+    }
+
+    public static function getOptFpic(): bool
+    {
+        return self::$optFpic;
     }
 
     public static function displayHelp(): void
@@ -304,6 +310,11 @@ class Pcc
 
             if ($argv[$i] === '-fno-common') {
                 self::$optFcommon = false;
+                continue;
+            }
+            
+            if ($argv[$i] === '-fpic' || $argv[$i] === '-fPIC') {
+                self::$optFpic = true;
                 continue;
             }
             

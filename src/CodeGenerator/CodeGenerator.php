@@ -353,6 +353,21 @@ class CodeGenerator
                     return;
                 }
 
+                if (Pcc::getOptFpic()) {
+                    // Thread-local variable
+                    if ($node->var->isTls) {
+                        Console::out("  data16 lea %s@tlsgd(%%rip), %%rdi", $node->var->name);
+                        Console::out("  .value 0x6666");
+                        Console::out("  rex64");
+                        Console::out("  call __tls_get_addr@PLT");
+                        return;
+                    }
+
+                    // Function or global variable
+                    Console::out("  mov %s@GOTPCREL(%%rip), %%rax", $node->var->name);
+                    return;
+                }
+
                 // Thread-local variable
                 if ($node->var->isTls) {
                     Console::out("  mov %%fs:0, %%rax");
