@@ -1565,6 +1565,33 @@ class Parser
     }
 
     /**
+     * static-assert = "_Static_assert" "(" const-expr ("," string-literal)? ")" ";"
+     *
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return \Pcc\Tokenizer\Token
+     */
+    public function staticAssertion(Token $rest, Token $tok): Token
+    {
+        $tok = $this->tokenizer->skip($tok, '(');
+        [$result, $tok] = $this->constExpr($tok, $tok);
+        
+        if (PccGMP::toPHPInt($result) === 0) {
+            Console::errorTok($tok, 'static assertion failed');
+        }
+
+        if ($this->tokenizer->equal($tok, ',')) {
+            if ($tok->next->kind !== TokenKind::TK_STR) {
+                Console::errorTok($tok, 'expected string literal');
+            }
+            $tok = $tok->next->next;
+        }
+        
+        $tok = $this->tokenizer->skip($tok, ')');
+        return $this->tokenizer->skip($tok, ';');
+    }
+
+    /**
      * asm-stmt = "asm" ("volatile" | "inline")* "(" string-literal ")"
      *
      * @param \Pcc\Tokenizer\Token $rest
@@ -1721,6 +1748,8 @@ class Parser
             if ($this->isTypeName($tok)){
                 [$basety, $tok] = $this->typespec($tok, $tok, null);
                 [$node->init, $tok] = $this->declaration($tok, $tok, $basety, null);
+            } elseif ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $tok = $this->staticAssertion($tok, $tok->next);
             } else {
                 [$node->init, $tok] = $this->exprStmt($tok, $tok);
             }
@@ -1787,6 +1816,11 @@ class Parser
 
         if ($this->tokenizer->equal($tok, 'asm')){
             return $this->asmStmt($rest, $tok);
+        }
+
+        if ($this->tokenizer->equal($tok, '_Static_assert')) {
+            $tok = $this->staticAssertion($tok, $tok->next);
+            return [Node::newNode(NodeKind::ND_BLOCK, $tok), $tok];
         }
 
         if ($this->tokenizer->equal($tok, 'goto')){
@@ -1856,6 +1890,11 @@ class Parser
 
         $nodes = [];
         while (! $this->tokenizer->equal($tok, '}')){
+            if ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $tok = $this->staticAssertion($tok, $tok->next);
+                continue;
+            }
+            
             if ($this->isTypeName($tok) and (! $this->tokenizer->equal($tok->next, ':'))){
                 $attr = new VarAttr();
                 [$basety, $tok] = $this->typespec($tok, $tok, $attr);
@@ -2072,9 +2111,14 @@ class Parser
                 $val = $node->gmpVal;
                 break;
             case NodeKind::ND_LABEL_VAL:
-                // For labels-as-values, we store the label name directly
-                // The unique label will be resolved later by the linker
-                $label = [$node->label];
+                // For labels-as-values, we need to return the address of the unique label
+                // If the unique label hasn't been resolved yet (e.g., during global initialization),
+                // we store the original label name for later resolution
+                if (!$node->uniqueLabel) {
+                    $label = [$node->label];
+                } else {
+                    $label = [$node->uniqueLabel];
+                }
                 $val = gmp_init(0);
                 break;
             case NodeKind::ND_VAR:
@@ -2924,6 +2968,11 @@ class Parser
         $members = [];
 
         while (! $this->tokenizer->equal($tok, '}')){
+            if ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $tok = $this->staticAssertion($tok, $tok->next);
+                continue;
+            }
+            
             $attr = new VarAttr();
             [$basety, $tok] = $this->typespec($tok, $tok, $attr);
             $first = true;
@@ -3617,8 +3666,35 @@ class Parser
             Console::errorTok($goto->tok->next, 'use of undeclared label');
         }
 
+        // Also update relocations for static variables that reference labels-as-values
+        $this->updateRelocationLabels($this->labels);
+
         $this->gotos = [];
         $this->labels = [];
+    }
+
+    /**
+     * Update relocations in global/static variables to use unique labels instead of original label names
+     * @param Node[] $labels
+     */
+    private function updateRelocationLabels(array $labels): void
+    {
+        foreach ($this->globals as $var) {
+            if ($var->rels) {
+                foreach ($var->rels as $relocation) {
+                    if ($relocation->label && count($relocation->label) === 1) {
+                        $labelName = $relocation->label[0];
+                        // Find the corresponding unique label
+                        foreach ($labels as $label) {
+                            if ($label->label === $labelName) {
+                                $relocation->label[0] = $label->uniqueLabel;
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
     public function func(Token $tok, Type $basety, VarAttr $attr): Token
@@ -3782,6 +3858,11 @@ class Parser
         $this->globals = [];
 
         while (! $tok->isKind(TokenKind::TK_EOF)){
+            if ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $tok = $this->staticAssertion($tok, $tok->next);
+                continue;
+            }
+            
             $attr = new VarAttr();
             [$basety, $tok] = $this->typespec($tok, $tok, $attr);
 

@@ -1221,10 +1221,6 @@ class CodeGenerator
                 return;
             case NodeKind::ND_LABEL:
                 Console::out("%s:", $node->uniqueLabel);
-                // Also emit the original label name for labels-as-values
-                if ($node->label) {
-                    Console::out("%s:", $node->label);
-                }
                 $this->genStmt($node->lhs);
                 return;
             case NodeKind::ND_RETURN:

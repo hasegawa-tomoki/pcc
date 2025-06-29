@@ -1248,6 +1248,14 @@ class Preprocessor
                 Console::errorTok($tok, "error");
             }
 
+            if ($tok->str === 'warning') {
+                Console::warnTok($tok, "warning");
+                do {
+                    $tok = $tok->next;
+                } while (!$tok->atBol);
+                continue;
+            }
+
             // `#`のみの行は合法です。これはnull directiveと呼ばれます。
             if ($tok->atBol) {
                 continue;
@@ -1456,6 +1464,9 @@ class Preprocessor
         self::defineMacro('__SIZEOF_SIZE_T__', '8');
         self::defineMacro('__SIZE_TYPE__', 'unsigned long');
         self::defineMacro('__STDC_HOSTED__', '1');
+        self::defineMacro('__BYTE_ORDER__', '1234');
+        self::defineMacro('__ORDER_LITTLE_ENDIAN__', '1234');
+        self::defineMacro('__ORDER_BIG_ENDIAN__', '4321');
         self::defineMacro('__STDC_NO_COMPLEX__', '1');
         self::defineMacro('__STDC_NO_THREADS__', '1');
         self::defineMacro('__STDC_UTF_16__', '1');
