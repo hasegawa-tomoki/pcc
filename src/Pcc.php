@@ -585,10 +585,10 @@ class Pcc
         }
     }
 
-    private static function mustTokenizeFile(string $path): ?Token
+    private static function mustTokenizeFile(string $path, ?Token &$end = null): ?Token
     {
         $tokenizer = new Tokenizer($path);
-        $tokenizer->tokenize();
+        $tokenizer->tokenize($end);
         if ($tokenizer->tok === null) {
             Console::error('%s: file not found or cannot be read', $path);
         }
@@ -615,6 +615,7 @@ class Pcc
         $outputFile = self::$options['output_file'] ?? '';
 
         $tok = null;
+        $cur = null;
 
         // Process -include option
         for ($i = 0; $i < self::$optInclude->getLength(); $i++) {
@@ -630,13 +631,25 @@ class Pcc
                 }
             }
 
-            $tok2 = self::mustTokenizeFile($path);
-            $tok = self::appendTokens($tok, $tok2);
+            $end = null;
+            $tok2 = self::mustTokenizeFile($path, $end);
+            if ($tok === null) {
+                $tok = $tok2;
+                $cur = $end;
+            } else if ($cur !== null && $end !== null) {
+                $cur->next = $tok2;
+                $cur = $end;
+            }
         }
 
         // Tokenize and parse.
-        $tok2 = self::mustTokenizeFile($baseFile);
-        $tok = self::appendTokens($tok, $tok2);
+        $end = null;
+        $tok2 = self::mustTokenizeFile($baseFile, $end);
+        if ($tok === null) {
+            $tok = $tok2;
+        } else if ($cur !== null) {
+            $cur->next = $tok2;
+        }
         
         Preprocessor::setBaseFile($baseFile);
         $tok = Preprocessor::preprocess($tok);

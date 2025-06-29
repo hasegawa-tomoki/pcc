@@ -540,13 +540,19 @@ class Preprocessor
             Console::errorTok($filenameTok, "%s: cannot open file", $path);
         }
         
-        // Create a new tokenizer for the file
+        // Create a new tokenizer for the file and get the last token for efficient concatenation
         $tokenizer = new Tokenizer($path);
-        $tokenizer->tokenize();
+        $end = null;
+        $tokenizer->tokenize($end);
         $tok2 = $tokenizer->tok;
-
         
-        return self::append($tok2, $tok);
+        // Efficiently concatenate token lists
+        if ($end !== null) {
+            $end->next = $tok;
+            return $tok2;
+        } else {
+            return $tok;
+        }
     }
 
     private static function readConstExpr(Token &$rest, Token $tok): Token

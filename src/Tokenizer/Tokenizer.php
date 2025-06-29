@@ -558,7 +558,7 @@ class Tokenizer
         }
     }
 
-    public function tokenize(): void
+    public function tokenize(?Token &$end = null): void
     {
         $pos = 0;
         $tokens = [];
@@ -801,6 +801,11 @@ class Tokenizer
             Console::errorAt($pos, "invalid token: %s\n", $this->currentInput[$pos]);
         }
 
+        // Set the last non-EOF token if requested
+        if (count($tokens) > 0) {
+            $end = $tokens[count($tokens) - 1];
+        }
+        
         $eofToken = new Token(TokenKind::TK_EOF, '', $pos);
         $this->setTokenFileInfo($eofToken);
         $eofToken->atBol = $atBol;
@@ -840,6 +845,11 @@ class Tokenizer
     public static function getInputFiles(): array
     {
         return self::$inputFiles;
+    }
+    
+    public static function getFileNo(): int
+    {
+        return self::$fileNo;
     }
     
     public static function newFile(string $name, int $fileNo, string $contents): File
@@ -1014,7 +1024,7 @@ class Tokenizer
         return $result;
     }
     
-    public static function tokenizeFile(File $file): Token
+    public static function tokenizeFile(File $file, ?Token &$end = null): Token
     {
         $tokenizer = new self($file->name, null, true);
         // Override file content initialization
@@ -1023,9 +1033,13 @@ class Tokenizer
         $canonicalized = self::canonicalizeNewline($file->contents);
         $backslashRemoved = self::removeBackslashNewline($canonicalized);
         $tokenizer->currentInput = self::convertUniversalChars($backslashRemoved);
+        
+        // Register the file for .file directive
+        self::$inputFiles[] = $file;
+        
         Console::$currentFilename = $file->name;
         Console::$currentInput = $tokenizer->currentInput;
-        $tokenizer->tokenize();
+        $tokenizer->tokenize($end);
         return $tokenizer->tok;
     }
     
