@@ -6,6 +6,7 @@ RUN apt-get update  \
         wget \
         git \
         unzip \
+        ssh \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pecl install xdebug
