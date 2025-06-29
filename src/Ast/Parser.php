@@ -2974,25 +2974,49 @@ class Parser
     }
 
     /**
-     * attribute = ("__attribute__" "(" "(" "packed" ")" ")")?
+     * attribute_list = ("__attribute__" "(" "(" attribute-list ")" ")")*
      *
      * @param \Pcc\Tokenizer\Token $tok
      * @param \Pcc\Ast\Type $ty
      * @return \Pcc\Tokenizer\Token
      */
-    public function attribute(Token $tok, Type $ty): Token
+    public function attributeList(Token $tok, Type $ty): Token
     {
-        if (!$this->tokenizer->equal($tok, '__attribute__')) {
-            return $tok;
+        while ($this->tokenizer->consume($tok, $tok, '__attribute__')[0]) {
+            [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, '__attribute__');
+            $tok = $this->tokenizer->skip($tok, '(');
+            $tok = $this->tokenizer->skip($tok, '(');
+
+            $first = true;
+
+            while (!$this->tokenizer->consume($tok, $tok, ')')[0]) {
+                if (!$first) {
+                    $tok = $this->tokenizer->skip($tok, ',');
+                }
+                $first = false;
+
+                [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, 'packed');
+                if ($consumed) {
+                    $ty->isPacked = true;
+                    continue;
+                }
+
+                [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, 'aligned');
+                if ($consumed) {
+                    $tok = $this->tokenizer->skip($tok, '(');
+                    [$gmpVal, $tok] = $this->constExpr($tok, $tok);
+                    $ty->align = \Pcc\Ast\Type\PccGMP::toPHPInt($gmpVal);
+                    $tok = $this->tokenizer->skip($tok, ')');
+                    continue;
+                }
+
+                Console::errorTok($tok, 'unknown attribute');
+            }
+
+            [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ')');
+            $tok = $this->tokenizer->skip($tok, ')');
         }
 
-        $tok = $tok->next;
-        $tok = $this->tokenizer->skip($tok, '(');
-        $tok = $this->tokenizer->skip($tok, '(');
-        $tok = $this->tokenizer->skip($tok, 'packed');
-        $tok = $this->tokenizer->skip($tok, ')');
-        $tok = $this->tokenizer->skip($tok, ')');
-        $ty->isPacked = true;
         return $tok;
     }
 
@@ -3006,7 +3030,7 @@ class Parser
     public function structUnionDecl(Token $rest, Token $tok): array
     {
         $ty = Type::structType();
-        $tok = $this->attribute($tok, $ty);
+        $tok = $this->attributeList($tok, $ty);
 
         // Read a tag.
         $tag = null;
@@ -3034,7 +3058,7 @@ class Parser
 
         // Construct a struct object.
         $rest = $this->structMembers($tok, $tok, $ty);
-        $rest = $this->attribute($rest, $ty);
+        $rest = $this->attributeList($rest, $ty);
 
         if ($tag){
             // If this is a redefinition, overwrite the previous type.
