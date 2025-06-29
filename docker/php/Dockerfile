@@ -7,6 +7,8 @@ RUN apt-get update  \
         git \
         unzip \
         ssh \
+        libssl-dev \
+        zlib1g-dev \
     && rm -rf /var/lib/apt/lists/*
 
 RUN pecl install xdebug
