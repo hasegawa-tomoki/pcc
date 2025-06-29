@@ -6,7 +6,7 @@ endif
 TESTS=$(TEST_SRCS:.c=.out)
 
 test/%.out: test/%.c
-	php ../pcc.php -Iinclude -Itest -c -o test/$*.o test/$*.c
+	../pcc -Iinclude -Itest -c -o test/$*.o test/$*.c
 	$(CC) -Wa,--noexecstack -o $@ test/$*.o -xc common
 
 test: $(TESTS)
