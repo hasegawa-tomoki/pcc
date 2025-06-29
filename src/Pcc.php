@@ -362,6 +362,12 @@ class Pcc
                 continue;
             }
 
+            if ($argv[$i] === '-shared') {
+                self::$options['shared'] = true;
+                self::$ldExtraArgs->push('-shared');
+                continue;
+            }
+
             if (str_starts_with($argv[$i], '-') and $argv[$i] !== '-') {
                 Console::error("unknown argument: {$argv[$i]}");
             }
@@ -753,9 +759,14 @@ class Pcc
         $libpath = self::findLibPath();
         $gccLibpath = self::findGccLibpath();
         
-        $arr->push("$libpath/crt1.o");
-        $arr->push("$libpath/crti.o");
-        $arr->push("$gccLibpath/crtbegin.o");
+        if (isset(self::$options['shared'])) {
+            $arr->push("$libpath/crti.o");
+            $arr->push("$gccLibpath/crtbeginS.o");
+        } else {
+            $arr->push("$libpath/crt1.o");
+            $arr->push("$libpath/crti.o");
+            $arr->push("$gccLibpath/crtbegin.o");
+        }
         $arr->push("-L$gccLibpath");
         $arr->push('-L/usr/lib/x86_64-linux-gnu');
         $arr->push('-L/usr/lib64');
@@ -793,7 +804,12 @@ class Pcc
             $arr->push('--no-as-needed');
         }
         
-        $arr->push("$gccLibpath/crtend.o");
+        if (isset(self::$options['shared'])) {
+            $arr->push("$gccLibpath/crtendS.o");
+        } else {
+            $arr->push("$gccLibpath/crtend.o");
+        }
+        
         $arr->push("$libpath/crtn.o");
         
         self::runSubprocess($arr->getData());
