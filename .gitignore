@@ -13,5 +13,6 @@ a.out
 /ctests/test/*.out
 
 /chibicc/
+/slimcc/
 /.claude/settings.local.json
 
