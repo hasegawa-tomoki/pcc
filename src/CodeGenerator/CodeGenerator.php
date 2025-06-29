@@ -579,6 +579,28 @@ class CodeGenerator
         return $this->hasFlonum($ty, 8, 16, 0);
     }
 
+    private function regDx(int $sz): string
+    {
+        return match ($sz) {
+            1 => "%dl",
+            2 => "%dx", 
+            4 => "%edx",
+            8 => "%rdx",
+            default => Console::error("unreachable")
+        };
+    }
+
+    private function regAx(int $sz): string
+    {
+        return match ($sz) {
+            1 => "%al",
+            2 => "%ax",
+            4 => "%eax", 
+            8 => "%rax",
+            default => Console::error("unreachable")
+        };
+    }
+
     private function pushStruct(Type $ty): void
     {
         $sz = Align::alignTo($ty->size, 8);
@@ -773,6 +795,25 @@ class CodeGenerator
                 return;
             case NodeKind::ND_LABEL_VAL:
                 Console::out("  lea %s(%%rip), %%rax", $node->uniqueLabel);
+                return;
+            case NodeKind::ND_CAS:
+                $this->genExpr($node->casAddr);
+                $this->push();
+                $this->genExpr($node->casNew);
+                $this->push();
+                $this->genExpr($node->casOld);
+                Console::out("  mov %%rax, %%r8");
+                $this->load($node->casOld->ty->base);
+                $this->pop("%rdx"); // new
+                $this->pop("%rdi"); // addr
+
+                $sz = $node->casAddr->ty->base->size;
+                Console::out("  lock cmpxchg %s, (%%rdi)", $this->regDx($sz));
+                Console::out("  sete %%cl");
+                Console::out("  je 1f");
+                Console::out("  mov %s, (%%r8)", $this->regAx($sz));
+                Console::out("1:");
+                Console::out("  movzbl %%cl, %%eax");
                 return;
             case NodeKind::ND_FUNCALL:
                 // Handle alloca() as builtin function

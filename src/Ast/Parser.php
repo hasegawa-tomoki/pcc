@@ -3368,6 +3368,17 @@ class Parser
             return [Node::newNum(2, $start), $rest];
         }
 
+        if ($this->tokenizer->equal($tok, '__builtin_compare_and_swap')){
+            $node = Node::newNode(NodeKind::ND_CAS, $tok);
+            $tok = $this->tokenizer->skip($tok->next, '(');
+            [$node->casAddr, $tok] = $this->assign($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ',');
+            [$node->casOld, $tok] = $this->assign($tok, $tok);
+            $tok = $this->tokenizer->skip($tok, ',');
+            [$node->casNew, $tok] = $this->assign($tok, $tok);
+            $rest = $this->tokenizer->skip($tok, ')');
+            return [$node, $rest];
+        }
 
         if ($tok->isKind(TokenKind::TK_IDENT)){
             // Variable or enum constant

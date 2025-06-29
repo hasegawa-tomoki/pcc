@@ -60,6 +60,11 @@ class Node
     // "asm" string literal
     public ?string $asmStr = null;
 
+    // Atomic compare-and-swap
+    public ?Node $casAddr = null;
+    public ?Node $casOld = null;
+    public ?Node $casNew = null;
+
     // Variable
     public Obj $var;
     // Member access
@@ -271,6 +276,19 @@ class Node
                 Console::errorTok($this->tok, 'statement expression returning void is not supported');
             case NodeKind::ND_LABEL_VAL:
                 $this->ty = Type::pointerTo(Type::tyVoid());
+                return;
+            case NodeKind::ND_CAS:
+                $this->casAddr?->addType();
+                $this->casOld?->addType();
+                $this->casNew?->addType();
+                $this->ty = Type::tyBool();
+
+                if ($this->casAddr && $this->casAddr->ty->kind !== TypeKind::TY_PTR) {
+                    Console::errorTok($this->casAddr->tok, 'pointer expected');
+                }
+                if ($this->casOld && $this->casOld->ty->kind !== TypeKind::TY_PTR) {
+                    Console::errorTok($this->casOld->tok, 'pointer expected');
+                }
                 return;
         }
     }
