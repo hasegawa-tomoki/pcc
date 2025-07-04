@@ -1090,7 +1090,7 @@ class Preprocessor
         if ($tok->kind !== TokenKind::TK_NUM || $tok->ty->kind !== \Pcc\Ast\TypeKind::TY_INT) {
             Console::errorTok($tok, "invalid line marker");
         }
-        $start->file->lineDelta = $tok->val - $start->lineNo;
+        $start->file->lineDelta = $tok->val - $start->lineNo - 1;
 
         $tok = $tok->next;
         if ($tok->kind === TokenKind::TK_EOF) {
