@@ -13,6 +13,9 @@ class Macro
 {
     public string $name;
     public bool $isObjlike;
+    public bool $isLocked = false;
+    public ?Token $stopTok = null;
+    public ?Macro $lockedNext = null;
     public ?MacroParam $params = null;
     public ?string $vaArgsName = null;
     public ?Token $body;
@@ -56,6 +59,7 @@ class Preprocessor
     private static HashMap $pragmaOnce;
     private static int $includeNextIdx = 0;
     private static HashMap $includeGuards;
+    private static ?Macro $lockedMacros = null;
 
     private static function initMacrosIfNeeded(): void
     {
@@ -150,9 +154,7 @@ class Preprocessor
         if (isset($tok->file)) {
             $t->file = $tok->file;
         }
-        if (isset($tok->hideset)) {
-            $t->hideset = $tok->hideset;
-        }
+        $t->dontExpand = $tok->dontExpand;
         if (isset($tok->origin)) {
             $t->origin = $tok->origin;
         }
@@ -174,60 +176,20 @@ class Preprocessor
         return $t;
     }
 
-    private static function newHideset(string $name): Hideset
+    private static function pushMacroLock(Macro $m, Token $tok): void
     {
-        return new Hideset($name);
+        $m->isLocked = true;
+        $m->stopTok = $tok;
+        $m->lockedNext = self::$lockedMacros;
+        self::$lockedMacros = $m;
     }
 
-    private static function hidesetUnion(?Hideset $hs1, ?Hideset $hs2): ?Hideset
+    private static function popMacroLock(Token $tok): void
     {
-        $head = new Hideset('');
-        $cur = $head;
-
-        for (; $hs1; $hs1 = $hs1->next) {
-            $cur->next = self::newHideset($hs1->name);
-            $cur = $cur->next;
+        while (self::$lockedMacros && self::$lockedMacros->stopTok === $tok) {
+            self::$lockedMacros->isLocked = false;
+            self::$lockedMacros = self::$lockedMacros->lockedNext;
         }
-        $cur->next = $hs2;
-        return $head->next;
-    }
-
-    private static function hidesetContains(?Hideset $hs, string $s, int $len): bool
-    {
-        for (; $hs; $hs = $hs->next) {
-            if (strlen($hs->name) === $len && substr($hs->name, 0, $len) === $s) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    private static function hidesetIntersection(?Hideset $hs1, ?Hideset $hs2): ?Hideset
-    {
-        $head = new Hideset('');
-        $cur = $head;
-
-        for (; $hs1; $hs1 = $hs1->next) {
-            if (self::hidesetContains($hs2, $hs1->name, strlen($hs1->name))) {
-                $cur->next = self::newHideset($hs1->name);
-                $cur = $cur->next;
-            }
-        }
-        return $head->next;
-    }
-
-    private static function addHideset(Token $tok, ?Hideset $hs): Token
-    {
-        $head = new Token(TokenKind::TK_EOF, '', 0);
-        $cur = $head;
-
-        for (; $tok; $tok = $tok->next) {
-            $t = self::copyToken($tok);
-            $t->hideset = self::hidesetUnion($t->hideset, $hs);
-            $cur->next = $t;
-            $cur = $t;
-        }
-        return $head->next;
     }
     
     /**
@@ -758,6 +720,14 @@ class Preprocessor
         $level = 0;
 
         while (true) {
+            self::popMacroLock($tok);
+            if (self::$lockedMacros && $tok->kind === TokenKind::TK_IDENT) {
+                $m = self::findMacro($tok);
+                if ($m && $m->isLocked) {
+                    $tok->dontExpand = true;
+                }
+            }
+
             if ($level === 0 && $tok->str === ')') {
                 break;
             }
@@ -789,6 +759,8 @@ class Preprocessor
 
     private static function readMacroArgs(Token &$rest, Token $tok, ?MacroParam $params, ?string $vaArgsName): ?MacroArg
     {
+        self::popMacroLock($tok->next);
+        self::popMacroLock($tok->next->next);
         $tok = $tok->next->next; // skip identifier and '('
 
         $head = new MacroArg('', new Token(TokenKind::TK_EOF, '', 0));
@@ -821,8 +793,8 @@ class Preprocessor
             $cur->next = $arg;
         }
 
-        self::skip($tok, ')');
         $rest = $tok;
+        self::skip($rest, ')');
         return $head->next;
     }
 
@@ -1002,8 +974,7 @@ class Preprocessor
     // Otherwise, do nothing and return false.
     private static function expandMacro(Token &$rest, Token $tok): bool
     {
-        // Check hideset to prevent infinite recursion
-        if (isset($tok->hideset) && self::hidesetContains($tok->hideset, $tok->str, strlen($tok->str))) {
+        if ($tok->dontExpand) {
             return false;
         }
 
@@ -1012,61 +983,49 @@ class Preprocessor
             return false;
         }
 
+        if ($m->isLocked) {
+            $tok->dontExpand = true;
+            return false;
+        }
+
         // Built-in dynamic macro application such as __LINE__
         if ($m->handler !== null) {
             $rest = call_user_func($m->handler, $tok);
             $rest->next = $tok->next;
-            $rest->atBol = $tok->atBol;
-            $rest->hasSpace = $tok->hasSpace;
-            return true;
-        }
-
-        // Object-like macro application
-        if ($m->isObjlike) {
-            $hs = self::newHideset($m->name);
-            $body = self::addHideset($m->body, self::hidesetUnion($tok->hideset ?? null, $hs));
-            
-            // Set origin for all tokens in the body
-            for ($t = $body; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-                $t->origin = $tok;
-            }
-            
-            $rest = self::append($body, $tok->next);
-            $rest->atBol = $tok->atBol;
-            $rest->hasSpace = $tok->hasSpace;
             return true;
         }
 
         // If a funclike macro token is not followed by an argument list,
         // treat it as a normal identifier.
-        if (!$tok->next || $tok->next->str !== '(') {
+        if (!$m->isObjlike && (!$tok->next || $tok->next->str !== '(')) {
             return false;
         }
 
-        // Function-like macro application
-        $macroToken = $tok;
-        $args = self::readMacroArgs($tok, $tok, $m->params, $m->vaArgsName);
-        $rparen = $tok;
+        // The token right after the macro. For funclike, after parentheses.
+        $stopTok = null;
 
-        // Tokens that consist a func-like macro invocation may have different
-        // hidesets, and if that's the case, it's not clear what the hideset
-        // for the new tokens should be. We take the intersection of the
-        // macro token and the closing parenthesis and use it as a new hideset
-        // as explained in the Dave Prossor's algorithm.
-        $hs = self::hidesetIntersection($macroToken->hideset ?? null, $rparen->hideset ?? null);
-        $hs = self::hidesetUnion($hs, self::newHideset($m->name));
+        if ($m->isObjlike) {
+            $stopTok = $tok->next;
+            $body = $m->body;
+        } else {
+            $stopTok = $tok; // Initialize before passing by reference
+            $args = self::readMacroArgs($stopTok, $tok, $m->params, $m->vaArgsName);
+            $body = self::subst($m->body, $args);
+        }
 
-        $body = self::subst($m->body, $args);
-        $body = self::addHideset($body, $hs);
-        
         // Set origin for all tokens in the body
         for ($t = $body; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-            $t->origin = $macroToken;
+            $t->origin = $tok;
         }
-        
-        $rest = self::append($body, $tok);
-        $rest->atBol = $macroToken->atBol;
-        $rest->hasSpace = $macroToken->hasSpace;
+
+        $rest = self::append($body, $stopTok);
+
+        if ($rest !== $stopTok) {
+            self::pushMacroLock($m, $stopTok);
+        }
+
+        $rest->atBol = $tok->atBol;
+        $rest->hasSpace = $tok->hasSpace;
         return true;
     }
 
@@ -1100,15 +1059,15 @@ class Preprocessor
     {
         $head = new Token(TokenKind::TK_EOF, '', 0);
         $cur = $head;
+        $startM = self::$lockedMacros;
 
-        while ($tok->kind !== TokenKind::TK_EOF) {
+        for (; $tok->kind !== TokenKind::TK_EOF; self::popMacroLock($tok)) {
             // If it is a macro, expand it.
             if (self::expandMacro($tok, $tok)) {
                 continue;
             }
             
-            // "#"でない場合はそのまま通す
-            if (!self::isHash($tok)) {
+            if (!self::isHash($tok) || self::$lockedMacros) {
                 $tok->lineDelta = $tok->file->lineDelta;
                 $tok->filename = $tok->file->displayName;
                 $cur->next = $tok;
@@ -1276,6 +1235,8 @@ class Preprocessor
 
             Console::errorTok($tok, "invalid preprocessor directive");
         }
+
+        assert($startM === self::$lockedMacros);
 
         $cur->next = $tok;
         return $head->next;

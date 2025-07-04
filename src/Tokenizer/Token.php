@@ -26,7 +26,7 @@ class Token
     public ?\Pcc\File $file = null;
     public string $filename = '';
     public int $lineDelta = 0;
-    public ?\Pcc\Preprocessor\Hideset $hideset = null;
+    public bool $dontExpand = false;
     public ?Token $origin = null;
     public ?string $guardFile = null;
 
