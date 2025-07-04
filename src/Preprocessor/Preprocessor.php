@@ -1078,14 +1078,8 @@ class Preprocessor
     private static function readLineMarker(Token &$rest, Token $tok): void
     {
         $start = $tok;
-        $tok = self::copyLine($rest, $tok);
-
-        if ($tok->kind !== TokenKind::TK_PP_NUM) {
-            Console::errorTok($tok, "invalid line marker");
-        }
-        
-        // Convert PP_NUM to NUM
-        self::convertPpNumber($tok);
+        $tok = self::preprocess2(self::copyLine($rest, $tok));
+        self::convertPpTokens($tok);
         
         if ($tok->kind !== TokenKind::TK_NUM || $tok->ty->kind !== \Pcc\Ast\TypeKind::TY_INT) {
             Console::errorTok($tok, "invalid line marker");
