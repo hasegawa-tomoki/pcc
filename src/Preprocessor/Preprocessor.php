@@ -789,14 +789,12 @@ class Preprocessor
 
     private static function readMacroArgs(Token &$rest, Token $tok, ?MacroParam $params, ?string $vaArgsName): ?MacroArg
     {
-        $start = $tok;
         $tok = $tok->next->next; // skip identifier and '('
 
         $head = new MacroArg('', new Token(TokenKind::TK_EOF, '', 0));
         $cur = $head;
 
-        $pp = $params;
-        for (; $pp; $pp = $pp->next) {
+        for ($pp = $params; $pp; $pp = $pp->next) {
             if ($cur !== $head) {
                 if ($tok->str !== ',') {
                     Console::errorTok($tok, "expected ',' in macro arguments");
@@ -813,7 +811,7 @@ class Preprocessor
             if ($tok->str === ')') {
                 $arg = new MacroArg($vaArgsName, self::newEof($tok));
             } else {
-                if ($pp !== $params) {
+                if ($params) {
                     self::skip($tok, ',');
                 }
                 $arg = self::readMacroArgOne($tok, $tok, true);
@@ -821,8 +819,6 @@ class Preprocessor
             }
             $arg->isVaArgs = true;
             $cur->next = $arg;
-        } elseif ($pp) {
-            Console::errorTok($start, "too many arguments");
         }
 
         self::skip($tok, ')');
