@@ -195,22 +195,6 @@ class Preprocessor
     /**
      * Append tok2 to the end of tok1
      */
-    private static function append(Token $tok1, Token $tok2): Token
-    {
-        if ($tok1->kind === TokenKind::TK_EOF) {
-            return $tok2;
-        }
-        
-        $head = new Token(TokenKind::TK_EOF, '', 0);
-        $cur = $head;
-        
-        for (; $tok1->kind !== TokenKind::TK_EOF; $tok1 = $tok1->next) {
-            $cur->next = self::copyToken($tok1);
-            $cur = $cur->next;
-        }
-        $cur->next = $tok2;
-        return $head->next;
-    }
 
     private static function skipCondIncl2(Token $tok): Token
     {
@@ -978,6 +962,51 @@ class Preprocessor
         return $head->next;
     }
 
+    private static function insertObjlike(Token $tok, Token $tok2, Token $orig): Token
+    {
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+
+        for (; $tok->kind !== TokenKind::TK_EOF; $tok = $tok->next) {
+            if ($tok->str === '##') {
+                if ($cur === $head || $tok->next->kind === TokenKind::TK_EOF) {
+                    Console::errorTok($tok, "'##' cannot appear at either end of macro expansion");
+                }
+
+                $tok = $tok->next;
+                $pastedToken = self::paste($cur, $tok);
+                $cur->kind = $pastedToken->kind;
+                $cur->str = $pastedToken->str;
+                $cur->val = $pastedToken->val;
+                $cur->fval = $pastedToken->fval ?? null;
+                $cur->ty = $pastedToken->ty ?? null;
+                if (isset($pastedToken->gmpVal)) {
+                    $cur->gmpVal = $pastedToken->gmpVal;
+                }
+            } else {
+                $cur->next = self::copyToken($tok);
+                $cur = $cur->next;
+            }
+            $cur->origin = $orig;
+        }
+        $cur->next = $tok2;
+        return $head->next;
+    }
+
+    private static function insertFunclike(Token $tok, Token $tok2, Token $orig): Token
+    {
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+
+        for (; $tok->kind !== TokenKind::TK_EOF; $tok = $tok->next) {
+            $cur->next = $tok;
+            $cur = $cur->next;
+            $cur->origin = $orig;
+        }
+        $cur->next = $tok2;
+        return $head->next;
+    }
+
     // If tok is a macro, expand it and return true.
     // Otherwise, do nothing and return false.
     private static function expandMacro(Token &$rest, Token $tok): bool
@@ -1015,19 +1044,13 @@ class Preprocessor
 
         if ($m->isObjlike) {
             $stopTok = $tok->next;
-            $body = $m->body;
+            $rest = self::insertObjlike($m->body, $stopTok, $tok);
         } else {
             $stopTok = $tok; // Initialize before passing by reference
             $args = self::readMacroArgs($stopTok, $tok, $m->params, $m->vaArgsName);
             $body = self::subst($m->body, $args);
+            $rest = self::insertFunclike($body, $stopTok, $tok);
         }
-
-        // Set origin for all tokens in the body
-        for ($t = $body; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-            $t->origin = $tok;
-        }
-
-        $rest = self::append($body, $stopTok);
 
         if ($rest !== $stopTok) {
             self::pushMacroLock($m, $stopTok);
