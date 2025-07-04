@@ -304,7 +304,7 @@ class Preprocessor
 
         // Copy token texts.
         for ($t = $tok; $t !== $end && $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-            if ($t !== $tok && $t->hasSpace) {
+            if (($t->hasSpace || $t->atBol) && strlen($buf) !== 0) {
                 $buf .= ' ';
             }
             
@@ -339,6 +339,12 @@ class Preprocessor
         return self::newStrToken($s, $hash);
     }
 
+    private static function alignToken(Token $tok1, Token $tok2): void
+    {
+        $tok1->atBol = $tok2->atBol;
+        $tok1->hasSpace = $tok2->hasSpace;
+    }
+
     // Concatenate two tokens to create a new token.
     private static function paste(Token $lhs, Token $rhs): Token
     {
@@ -348,6 +354,7 @@ class Preprocessor
         // Tokenize the resulting string.
         $file = Tokenizer::newFile($lhs->file->name, $lhs->file->fileNo, $buf);
         $tok = Tokenizer::tokenizeFile($file);
+        self::alignToken($tok, $lhs);
         
         if ($tok->next && $tok->next->kind !== TokenKind::TK_EOF) {
             Console::errorTok($lhs, "pasting forms '%s', an invalid token", $buf);
@@ -822,6 +829,7 @@ class Preprocessor
                     Console::errorTok($tok->next, "'#' is not followed by a macro parameter");
                 }
                 $stringToken = self::stringize($tok, $arg->tok);
+                self::alignToken($stringToken, $tok);
                 $cur->next = $stringToken;
                 $cur = $stringToken;
                 $tok = $tok->next->next;
@@ -992,6 +1000,7 @@ class Preprocessor
         if ($m->handler !== null) {
             $rest = call_user_func($m->handler, $tok);
             $rest->next = $tok->next;
+            self::alignToken($rest, $tok);
             return true;
         }
 
@@ -1022,10 +1031,11 @@ class Preprocessor
 
         if ($rest !== $stopTok) {
             self::pushMacroLock($m, $stopTok);
+            self::alignToken($rest, $tok);
+        } else if (!$m->isObjlike) {
+            $rest->atBol |= $tok->atBol;
+            $rest->hasSpace |= $tok->hasSpace;
         }
-
-        $rest->atBol = $tok->atBol;
-        $rest->hasSpace = $tok->hasSpace;
         return true;
     }
 
