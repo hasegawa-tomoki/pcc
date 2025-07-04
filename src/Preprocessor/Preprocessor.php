@@ -55,6 +55,7 @@ class Preprocessor
     private static HashMap $cache;
     private static HashMap $pragmaOnce;
     private static int $includeNextIdx = 0;
+    private static HashMap $includeGuards;
 
     private static function initMacrosIfNeeded(): void
     {
@@ -75,6 +76,13 @@ class Preprocessor
     {
         if (!isset(self::$pragmaOnce)) {
             self::$pragmaOnce = new HashMap();
+        }
+    }
+
+    private static function initIncludeGuardsIfNeeded(): void
+    {
+        if (!isset(self::$includeGuards)) {
+            self::$includeGuards = new HashMap();
         }
     }
 
@@ -150,6 +158,9 @@ class Preprocessor
         }
         if (isset($tok->originalStr)) {
             $t->originalStr = $tok->originalStr;
+        }
+        if (isset($tok->guardFile)) {
+            $t->guardFile = $tok->guardFile;
         }
         // nextプロパティは呼び出し側で設定する
         return $t;
@@ -534,6 +545,11 @@ class Preprocessor
             return $tok;
         }
 
+        self::initIncludeGuardsIfNeeded();
+        $guardName = self::$includeGuards->get($path);
+        if ($guardName && self::findMacro(new Token(TokenKind::TK_IDENT, $guardName, 0))) {
+            return $tok;
+        }
 
         // Check if file exists first
         if (!self::fileExists($path)) {
@@ -546,6 +562,12 @@ class Preprocessor
         $tokenizer->tokenize($end);
         $tok2 = $tokenizer->tok;
         
+        if (self::isHash($tok2) && $tok2->next && $tok2->next->str === 'ifndef' &&
+            $tok2->next->next && $tok2->next->next->kind === TokenKind::TK_IDENT && $end && $end->str === 'endif') {
+            $tok2->next->guardFile = $path;
+            $end->guardFile = $path;
+        }
+
         // Efficiently concatenate token lists
         if ($end !== null) {
             $end->next = $tok;
@@ -1215,6 +1237,15 @@ class Preprocessor
                 if (self::$condIncl === null) {
                     Console::errorTok($start, "stray #endif");
                 }
+
+                if (isset($tok->guardFile) && isset(self::$condIncl->tok->guardFile) && 
+                    $tok->guardFile === self::$condIncl->tok->guardFile) {
+                    $nameTok = self::$condIncl->tok->next;
+                    $guardName = $nameTok->str;
+                    self::initIncludeGuardsIfNeeded();
+                    self::$includeGuards->put($tok->guardFile, $guardName);
+                }
+
                 self::$condIncl = self::$condIncl->next;
                 $tok = self::skipLine($tok->next);
                 continue;
@@ -1567,7 +1598,7 @@ class Preprocessor
         }
         
         // Format like "Fri Jul 24 01:32:50 2020"
-        $timestamp = date('D M j H:i:s Y', $mtime);
+        $timestamp = date('D M d H:i:s Y', $mtime);
         return self::newStrToken($timestamp, $tmpl);
     }
 

@@ -28,6 +28,7 @@ class Token
     public int $lineDelta = 0;
     public ?\Pcc\Preprocessor\Hideset $hideset = null;
     public ?Token $origin = null;
+    public ?string $guardFile = null;
 
     public function __construct(TokenKind $kind, string $str, int $pos)
     {
