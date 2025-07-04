@@ -789,6 +789,31 @@ class Preprocessor
         return $head->next;
     }
 
+    private static function expandArg(MacroArg $arg): Token
+    {
+        if ($arg->expanded) {
+            return $arg->expanded;
+        }
+
+        $tok = $arg->tok;
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $cur = $head;
+        $startM = self::$lockedMacros;
+
+        for (; $tok->kind !== TokenKind::TK_EOF; self::popMacroLock($tok)) {
+            if (self::expandMacro($tok, $tok)) {
+                continue;
+            }
+
+            $cur->next = self::copyToken($tok);
+            $cur = $cur->next;
+            $tok = $tok->next;
+        }
+        assert($startM === self::$lockedMacros);
+        $cur->next = self::newEof($tok);
+        return $arg->expanded = $head->next;
+    }
+
     private static function findArg(?MacroArg $args, Token $tok): ?MacroArg
     {
         for ($ap = $args; $ap; $ap = $ap->next) {
@@ -940,9 +965,8 @@ class Preprocessor
             // Handle a macro token. Macro arguments are completely macro-expanded
             // before they are substituted into a macro body.
             if ($arg) {
-                $t = self::preprocess2($arg->tok);
-                $t->atBol = $tok->atBol;
-                $t->hasSpace = $tok->hasSpace;
+                $t = self::expandArg($arg);
+                self::alignToken($t, $tok);
                 while ($t->kind !== TokenKind::TK_EOF) {
                     $cur->next = self::copyToken($t);
                     $cur = $cur->next;

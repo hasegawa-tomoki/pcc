@@ -9,6 +9,7 @@ class MacroArg
     public string $name;
     public bool $isVaArgs = false;
     public Token $tok;
+    public ?Token $expanded = null;
 
     public function __construct(string $name, Token $tok)
     {
