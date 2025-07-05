@@ -77,7 +77,7 @@ class Tokenizer
 
     public function equal(Token $tok, string $op): bool
     {
-        return $tok->str === $op;
+        return strlen($op) === $tok->len && $tok->str === $op;
     }
 
     public function skip(Token $tok, string $op): Token
