@@ -388,6 +388,22 @@ class Preprocessor
         return $head->next;
     }
 
+    // Split tokens before the next newline into an EOF-terminated list.
+    private static function splitLine(Token &$rest, Token $tok): Token
+    {
+        $head = new Token(TokenKind::TK_EOF, '', 0);
+        $head->next = $tok;
+        $cur = $head;
+
+        while (!$cur->next->atBol) {
+            $cur = $cur->next;
+        }
+
+        $rest = $cur->next;
+        $cur->next = self::newEof($tok);
+        return $head->next;
+    }
+
     // Read an #include argument.
     private static function readIncludeFilename(Token &$rest, Token $tok, bool &$isDquote): string
     {
@@ -535,7 +551,7 @@ class Preprocessor
 
     private static function readConstExpr(Token &$rest, Token $tok): Token
     {
-        $tok = self::copyLine($rest, $tok);
+        $tok = self::splitLine($rest, $tok);
 
         $head = new Token(TokenKind::TK_EOF, '', 0);
         $cur = $head;
@@ -698,12 +714,12 @@ class Preprocessor
             // Function-like macro
             $vaArgsName = null;
             $params = self::readMacroParams($tok, $tok->next, $vaArgsName);
-            $m = self::addMacro($name, false, self::copyLine($rest, $tok));
+            $m = self::addMacro($name, false, self::splitLine($rest, $tok));
             $m->params = $params;
             $m->vaArgsName = $vaArgsName;
         } else {
             // Object-like macro
-            self::addMacro($name, true, self::copyLine($rest, $tok));
+            self::addMacro($name, true, self::splitLine($rest, $tok));
         }
     }
 
