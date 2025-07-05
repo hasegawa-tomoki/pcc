@@ -464,7 +464,7 @@ class Parser
             return [Type::arrayOf($ty, -1), $rest];
         }
 
-        [$expr, $tok] = $this->conditional($tok, $tok);
+        [$expr, $tok] = $this->assign($tok, $tok);
         $tok = $this->tokenizer->skip($tok, ']');
         [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
 
