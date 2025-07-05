@@ -1618,7 +1618,7 @@ class CodeGenerator
         if ($ty->size > 8) {
             if ($this->hasFlonum($ty, 8, 16, 0)) {
                 assert($ty->size == 12 || $ty->size == 16);
-                if ($ty->size == 4) {
+                if ($ty->size == 12) {
                     Console::out("  movss 8(%%rdi), %%xmm%d", $fp);
                 } else {
                     Console::out("  movsd 8(%%rdi), %%xmm%d", $fp);

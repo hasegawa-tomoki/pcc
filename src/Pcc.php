@@ -899,8 +899,8 @@ class Pcc
             return self::cc1();
         }
         
-        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (isset(self::$options['c']) or isset(self::$options['S']) or isset(self::$options['E']) or isset(self::$options['M']) or isset(self::$options['MD']))) {
-            Console::error("cannot specify '-o' with '-c,' '-S', '-E', '-M' or '-MD' with multiple files");
+        if (self::$inputPaths->getLength() > 1 and isset(self::$options['o']) and (isset(self::$options['c']) or isset(self::$options['S']) or isset(self::$options['E']))) {
+            Console::error("cannot specify '-o' with '-c,' '-S' or '-E' with multiple files");
         }
         
         $ldArgs = new StringArray();

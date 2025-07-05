@@ -118,13 +118,6 @@ class HashMap
                 return $ent;
             }
 
-            if ($ent->isTombstone) {
-                $ent->key = $key;
-                $ent->keylen = $keylen;
-                $ent->isTombstone = false;
-                return $ent;
-            }
-
             if ($ent->isNull()) {
                 $ent->key = $key;
                 $ent->keylen = $keylen;
