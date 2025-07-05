@@ -346,15 +346,6 @@ class Preprocessor
         return $tok;
     }
 
-    private static function hasVarargs(?MacroArg $args): bool
-    {
-        for ($ap = $args; $ap !== null; $ap = $ap->next) {
-            if ($ap->isVaArgs) {
-                return $ap->tok->kind !== TokenKind::TK_EOF;
-            }
-        }
-        return false;
-    }
 
     private static function newNumToken(int $val, Token $tmpl): Token
     {
@@ -814,12 +805,41 @@ class Preprocessor
         return $arg->expanded = $head->next;
     }
 
-    private static function findArg(?MacroArg $args, Token $tok): ?MacroArg
+    private static function findArg(?Token &$rest, Token $tok, ?MacroArg $args): ?MacroArg
     {
         for ($ap = $args; $ap; $ap = $ap->next) {
-            if (strlen($tok->str) === strlen($ap->name) && $tok->str === $ap->name) {
+            if ($tok->str === $ap->name) {
+                if ($rest !== null) {
+                    $rest = $tok->next;
+                }
                 return $ap;
             }
+        }
+
+        // __VA_OPT__(x) is treated like a parameter which expands to parameter-
+        // substituted (x) if macro-expanded __VA_ARGS__ is not empty.
+        if ($tok->str === '__VA_OPT__' && $tok->next && $tok->next->str === '(') {
+            $arg = self::readMacroArgOne($tok, $tok->next->next, true);
+
+            $va = null;
+            for ($ap = $args; $ap; $ap = $ap->next) {
+                if ($ap->isVaArgs) {
+                    $va = $ap;
+                    break;
+                }
+            }
+
+            if ($va && self::expandArg($va)->kind !== TokenKind::TK_EOF) {
+                $arg->tok = self::subst($arg->tok, $args);
+            } else {
+                $arg->tok = self::newEof($tok);
+            }
+
+            $arg->expanded = $arg->tok;
+            if ($rest !== null) {
+                $rest = $tok->next;
+            }
+            return $arg;
         }
         return null;
     }
@@ -831,25 +851,26 @@ class Preprocessor
         $cur = $head;
 
         while ($tok->kind !== TokenKind::TK_EOF) {
+            $start = $tok;
+
             // "#" followed by a parameter is replaced with stringized actuals.
             if ($tok->str === '#') {
-                $arg = self::findArg($args, $tok->next);
+                $arg = self::findArg($tok, $tok->next, $args);
                 if (!$arg) {
                     Console::errorTok($tok->next, "'#' is not followed by a macro parameter");
                 }
-                $stringToken = self::stringize($tok, $arg->tok);
-                self::alignToken($stringToken, $tok);
-                $cur->next = $stringToken;
-                $cur = $stringToken;
-                $tok = $tok->next->next;
+                $cur->next = self::stringize($start, $arg->tok);
+                $cur = $cur->next;
+                self::alignToken($cur, $start);
                 continue;
             }
 
-            // [GNU] If __VA_ARGS__ is empty, `,##__VA_ARGS__` is expanded
-            // to the empty token list. Otherwise, its expanded to `,` and
+            // [GNU] If __VA_ARG__ is empty, `,##__VA_ARGS__` is expanded
+            // to the empty token list. Otherwise, its expaned to `,` and
             // __VA_ARGS__.
             if ($tok->str === ',' && $tok->next && $tok->next->str === '##') {
-                $arg = self::findArg($args, $tok->next->next);
+                $dummy = null;
+                $arg = self::findArg($dummy, $tok->next->next, $args);
                 if ($arg && $arg->isVaArgs) {
                     if ($arg->tok->kind === TokenKind::TK_EOF) {
                         $tok = $tok->next->next->next;
@@ -871,37 +892,34 @@ class Preprocessor
                     Console::errorTok($tok, "'##' cannot appear at end of macro expansion");
                 }
 
-                $arg = self::findArg($args, $tok->next);
+                $arg = self::findArg($tok, $tok->next, $args);
                 if ($arg) {
-                    if ($arg->tok->kind !== TokenKind::TK_EOF) {
-                        $pastedToken = self::paste($cur, $arg->tok);
-                        // Replace current token with pasted result
-                        $cur->kind = $pastedToken->kind;
-                        $cur->str = $pastedToken->str;
-                        if (isset($pastedToken->val)) {
-                            $cur->val = $pastedToken->val;
-                        }
-                        if (isset($pastedToken->gmpVal)) {
-                            $cur->gmpVal = $pastedToken->gmpVal;
-                        }
-                        if (isset($pastedToken->fval)) {
-                            $cur->fval = $pastedToken->fval;
-                        }
-                        if (isset($pastedToken->ty)) {
-                            $cur->ty = $pastedToken->ty;
-                        }
-                        // Add remaining tokens from the argument
-                        for ($t = $arg->tok->next; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-                            $cur->next = self::copyToken($t);
-                            $cur = $cur->next;
-                        }
+                    if ($arg->tok->kind === TokenKind::TK_EOF) {
+                        continue;
                     }
-                    $tok = $tok->next->next;
+
+                    $pastedToken = self::paste($cur, $arg->tok);
+                    $cur->kind = $pastedToken->kind;
+                    $cur->str = $pastedToken->str;
+                    if (isset($pastedToken->val)) {
+                        $cur->val = $pastedToken->val;
+                    }
+                    if (isset($pastedToken->gmpVal)) {
+                        $cur->gmpVal = $pastedToken->gmpVal;
+                    }
+                    if (isset($pastedToken->fval)) {
+                        $cur->fval = $pastedToken->fval;
+                    }
+                    if (isset($pastedToken->ty)) {
+                        $cur->ty = $pastedToken->ty;
+                    }
+                    for ($t = $arg->tok->next; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+                        $cur->next = self::copyToken($t);
+                        $cur = $cur->next;
+                    }
                     continue;
                 }
-
                 $pastedToken = self::paste($cur, $tok->next);
-                // Replace current token with pasted result
                 $cur->kind = $pastedToken->kind;
                 $cur->str = $pastedToken->str;
                 if (isset($pastedToken->val)) {
@@ -920,66 +938,47 @@ class Preprocessor
                 continue;
             }
 
-            $arg = self::findArg($args, $tok);
-
-            if ($arg && $tok->next && $tok->next->str === '##') {
-                $rhs = $tok->next->next;
-
+            $arg = self::findArg($tok, $tok, $args);
+            if ($arg && $tok && $tok->str === '##') {
                 if ($arg->tok->kind === TokenKind::TK_EOF) {
-                    $arg2 = self::findArg($args, $rhs);
+                    $arg2 = self::findArg($tok, $tok->next, $args);
                     if ($arg2) {
                         for ($t = $arg2->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
                             $cur->next = self::copyToken($t);
                             $cur = $cur->next;
                         }
-                    } else {
-                        $cur->next = self::copyToken($rhs);
-                        $cur = $cur->next;
+                        continue;
                     }
-                    $tok = $rhs->next;
+                    $cur->next = self::copyToken($tok->next);
+                    $cur = $cur->next;
+                    $tok = $tok->next->next;
                     continue;
                 }
-
                 for ($t = $arg->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
                     $cur->next = self::copyToken($t);
                     $cur = $cur->next;
                 }
-                $tok = $tok->next;
                 continue;
             }
 
-            // If __VA_ARGS__ is empty, __VA_OPT__(x) is expanded to the
-            // empty token list. Otherwise, __VA_OPT__(x) is expanded to x.
-            if ($tok->str === '__VA_OPT__' && $tok->next && $tok->next->str === '(') {
-                $arg = self::readMacroArgOne($tok, $tok->next->next, true);
-                if (self::hasVarargs($args)) {
-                    for ($t = $arg->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-                        $cur->next = $t;
-                        $cur = $cur->next;
-                    }
-                }
-                self::skip($tok, ')');
-                continue;
-            }
-
-            // Handle a macro token. Macro arguments are completely macro-expanded
+            // Handle a parameter token. Macro arguments are completely macro-expanded
             // before they are substituted into a macro body.
             if ($arg) {
                 $t = self::expandArg($arg);
-                self::alignToken($t, $tok);
-                while ($t->kind !== TokenKind::TK_EOF) {
+                self::alignToken($t, $start);
+                while ($t && $t->kind !== TokenKind::TK_EOF) {
                     $cur->next = self::copyToken($t);
                     $cur = $cur->next;
                     $t = $t->next;
                 }
-                $tok = $tok->next;
                 continue;
             }
 
-            // Handle a non-macro token.
+            // Handle a non-parameter token.
             $cur->next = self::copyToken($tok);
             $cur = $cur->next;
             $tok = $tok->next;
+            continue;
         }
 
         $cur->next = $tok;
