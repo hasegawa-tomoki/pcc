@@ -774,15 +774,14 @@ class Preprocessor
         }
 
         if ($vaArgsName !== null) {
-            if ($tok->str === ')') {
-                $arg = new MacroArg($vaArgsName, self::newEof($tok));
-            } else {
-                if ($params) {
-                    self::skip($tok, ',');
-                }
-                $arg = self::readMacroArgOne($tok, $tok, true);
-                $arg->name = $vaArgsName;
+            $start = $tok;
+            if ($tok->str !== ')' && $params) {
+                self::skip($tok, ',');
             }
+            
+            $arg = self::readMacroArgOne($tok, $tok, true);
+            $arg->omitComma = $start->str === ')';
+            $arg->name = $vaArgsName;
             $arg->isVaArgs = true;
             $cur->next = $arg;
         }
@@ -877,20 +876,20 @@ class Preprocessor
                 continue;
             }
 
-            // [GNU] If __VA_ARG__ is empty, `,##__VA_ARGS__` is expanded
-            // to the empty token list. Otherwise, its expaned to `,` and
+            // [GNU] If __VA_ARGS__ is empty, `,##__VA_ARGS__` is expanded
+            // to an empty token list. Otherwise, it's expanded to `,` and
             // __VA_ARGS__.
             if ($tok->str === ',' && $tok->next && $tok->next->str === '##') {
                 $dummy = null;
                 $arg = self::findArg($dummy, $tok->next->next, $args);
                 if ($arg && $arg->isVaArgs) {
-                    if ($arg->tok->kind === TokenKind::TK_EOF) {
+                    if ($arg->omitComma) {
                         $tok = $tok->next->next->next;
-                    } else {
-                        $cur->next = self::copyToken($tok);
-                        $cur = $cur->next;
-                        $tok = $tok->next->next;
+                        continue;
                     }
+                    $cur->next = self::copyToken($tok);
+                    $cur = $cur->next;
+                    $tok = $tok->next->next;
                     continue;
                 }
             }

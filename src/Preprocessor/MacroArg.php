@@ -8,6 +8,7 @@ class MacroArg
     public ?MacroArg $next = null;
     public string $name;
     public bool $isVaArgs = false;
+    public bool $omitComma = false;
     public Token $tok;
     public ?Token $expanded = null;
 
