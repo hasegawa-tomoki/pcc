@@ -176,6 +176,14 @@ class Preprocessor
         return $t;
     }
 
+    private static function newPmark(Token $tok): Token
+    {
+        $t = self::copyToken($tok);
+        $t->kind = TokenKind::TK_PMARK;
+        $t->str = '';
+        return $t;
+    }
+
     private static function pushMacroLock(Macro $m, Token $tok): void
     {
         $m->isLocked = true;
@@ -288,6 +296,10 @@ class Preprocessor
 
         // Copy token texts.
         for ($t = $tok; $t !== $end && $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
+            if ($t->kind === TokenKind::TK_PMARK) {
+                continue;
+            }
+            
             if (($t->hasSpace || $t->atBol) && strlen($buf) !== 0) {
                 $buf .= ' ';
             }
@@ -892,27 +904,35 @@ class Preprocessor
                     Console::errorTok($tok, "'##' cannot appear at end of macro expansion");
                 }
 
+                if ($cur->kind === TokenKind::TK_PMARK) {
+                    $tok = $tok->next;
+                    continue;
+                }
+
                 $arg = self::findArg($tok, $tok->next, $args);
                 if ($arg) {
                     if ($arg->tok->kind === TokenKind::TK_EOF) {
                         continue;
                     }
 
-                    $pastedToken = self::paste($cur, $arg->tok);
-                    $cur->kind = $pastedToken->kind;
-                    $cur->str = $pastedToken->str;
-                    if (isset($pastedToken->val)) {
-                        $cur->val = $pastedToken->val;
+                    if ($arg->tok->kind !== TokenKind::TK_PMARK) {
+                        $pastedToken = self::paste($cur, $arg->tok);
+                        $cur->kind = $pastedToken->kind;
+                        $cur->str = $pastedToken->str;
+                        if (isset($pastedToken->val)) {
+                            $cur->val = $pastedToken->val;
+                        }
+                        if (isset($pastedToken->gmpVal)) {
+                            $cur->gmpVal = $pastedToken->gmpVal;
+                        }
+                        if (isset($pastedToken->fval)) {
+                            $cur->fval = $pastedToken->fval;
+                        }
+                        if (isset($pastedToken->ty)) {
+                            $cur->ty = $pastedToken->ty;
+                        }
                     }
-                    if (isset($pastedToken->gmpVal)) {
-                        $cur->gmpVal = $pastedToken->gmpVal;
-                    }
-                    if (isset($pastedToken->fval)) {
-                        $cur->fval = $pastedToken->fval;
-                    }
-                    if (isset($pastedToken->ty)) {
-                        $cur->ty = $pastedToken->ty;
-                    }
+
                     for ($t = $arg->tok->next; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
                         $cur->next = self::copyToken($t);
                         $cur = $cur->next;
@@ -939,32 +959,20 @@ class Preprocessor
             }
 
             $arg = self::findArg($tok, $tok, $args);
-            if ($arg && $tok && $tok->str === '##') {
-                if ($arg->tok->kind === TokenKind::TK_EOF) {
-                    $arg2 = self::findArg($tok, $tok->next, $args);
-                    if ($arg2) {
-                        for ($t = $arg2->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-                            $cur->next = self::copyToken($t);
-                            $cur = $cur->next;
-                        }
-                        continue;
-                    }
-                    $cur->next = self::copyToken($tok->next);
+            if ($arg) {
+                $t = null;
+                if ($tok && $tok->str === '##') {
+                    $t = $arg->tok;
+                } else {
+                    $t = self::expandArg($arg);
+                }
+
+                if ($t->kind === TokenKind::TK_EOF) {
+                    $cur->next = self::newPmark($t);
                     $cur = $cur->next;
-                    $tok = $tok->next->next;
                     continue;
                 }
-                for ($t = $arg->tok; $t && $t->kind !== TokenKind::TK_EOF; $t = $t->next) {
-                    $cur->next = self::copyToken($t);
-                    $cur = $cur->next;
-                }
-                continue;
-            }
 
-            // Handle a parameter token. Macro arguments are completely macro-expanded
-            // before they are substituted into a macro body.
-            if ($arg) {
-                $t = self::expandArg($arg);
                 self::alignToken($t, $start);
                 while ($t && $t->kind !== TokenKind::TK_EOF) {
                     $cur->next = self::copyToken($t);
@@ -1022,6 +1030,10 @@ class Preprocessor
         $cur = $head;
 
         for (; $tok->kind !== TokenKind::TK_EOF; $tok = $tok->next) {
+            if ($tok->kind === TokenKind::TK_PMARK) {
+                continue;
+            }
+
             $cur->next = $tok;
             $cur = $cur->next;
             $cur->origin = $orig;
