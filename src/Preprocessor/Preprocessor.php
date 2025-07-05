@@ -1317,6 +1317,14 @@ class Preprocessor
                 Console::errorTok($tok, "error");
             }
 
+            if ($tok->str === 'warning') {
+                Console::warnTok($tok, "warning");
+                do {
+                    $tok = $tok->next;
+                } while (!$tok->atBol);
+                continue;
+            }
+
             // `#`のみの行は合法です。これはnull directiveと呼ばれます。
             if ($tok->atBol) {
                 continue;
