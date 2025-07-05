@@ -21,7 +21,7 @@ class Parser
     /** @var array<int, \Pcc\Ast\Scope\Scope> */
     public array $scopes = [];
     public int $scopeDepth = 0;
-    public Obj $currentFn;
+    public ?Obj $currentFn = null;
     /** @var Node[] */
     public array $gotos = [];
     /** @var Node[] */
@@ -140,8 +140,6 @@ class Parser
     {
         $var = $this->newVar($name, $ty);
         $var->isLocal = false;
-        $var->isStatic = true;
-        $var->isDefinition = true;
         $this->globals[] = $var;
         return $var;
     }
@@ -154,7 +152,10 @@ class Parser
 
     public function newAnonGVar(Type $ty): Obj
     {
-        return $this->newGVar($this->newUniqueName(), $ty);
+        $var = $this->newGVar($this->newUniqueName(), $ty);
+        $var->isDefinition = true;
+        $var->isStatic = true;
+        return $var;
     }
 
     public function newStringLiteral(string $p, Type $ty): Obj
@@ -729,6 +730,17 @@ class Parser
             }
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            if ($ty->kind === TypeKind::TY_FUNC) {
+                if ($this->scopeDepth === 0) {
+                    // Global scope: create or update function prototype
+                    $this->funcPrototype($ty, $attr);
+                } else {
+                    // Local scope: add to local scope for lookup
+                    $fn = $this->funcPrototype($ty, $attr);
+                    $this->pushScope($this->getIdent($ty->name))->var = $fn;
+                }
+                continue;
+            }
             if ($ty->kind === TypeKind::TY_VOID){
                 Console::errorTok($tok, 'variable declared void');
             }
@@ -739,6 +751,10 @@ class Parser
             if ($attr and $attr->isStatic){
                 // static local variable
                 $var = $this->newAnonGVar($ty);
+                // Keep the original type with the original name for local reference
+                $localTy = Type::copyType($ty);
+                $localTy->name = $ty->name;
+                $var->ty = $localTy;
                 $this->pushScope($this->getIdent($ty->name))->var = $var;
                 if ($this->tokenizer->equal($tok, '=')){
                     $tok = $this->gVarInitializer($tok, $tok->next, $var);
@@ -1865,16 +1881,11 @@ class Parser
                     continue;
                 }
 
-                if ($this->isFunction($tok)){
-                    $tok = $this->func($tok, $basety, $attr);
+                if ($attr->isExtern) {
+                    $tok = $this->globalDeclaration($tok, $basety, $attr);
                     continue;
                 }
-
-                if ($attr->isExtern){
-                    $tok = $this->globalVariable($tok, $basety, $attr);
-                    continue;
-                }
-
+                
                 [$n, $tok] = $this->declaration($tok, $tok, $basety, $attr);
             } else {
                 [$n, $tok] = $this->stmt($tok, $tok);
@@ -3621,41 +3632,34 @@ class Parser
         $this->labels = [];
     }
 
-    public function func(Token $tok, Type $basety, VarAttr $attr): Token
+    private function funcPrototype(Type $ty, VarAttr $attr): Obj
     {
-        [$ty, $tok] = $this->declarator($tok, $tok, $basety);
-        if (! $ty->name){
+        if (!$ty->name) {
             Console::errorTok($ty->namePos, 'function name omitted');
         }
         $nameStr = $this->getIdent($ty->name);
 
         $fn = $this->findFunc($nameStr);
-        if ($fn) {
-            // Redeclaration
-            if (!$fn->isFunction) {
-                Console::errorTok($tok, 'redeclared as a different kind of symbol');
-            }
-            if ($fn->isDefinition && $this->tokenizer->equal($tok, '{')) {
-                Console::errorTok($tok, 'redefinition of ' . $nameStr);
-            }
-            if (!$fn->isStatic && $attr->isStatic) {
-                Console::errorTok($tok, 'static declaration follows a non-static declaration');
-            }
-            $fn->isDefinition = $fn->isDefinition || $this->tokenizer->equal($tok, '{');
-        } else {
+        if (!$fn) {
             $fn = $this->newGVar($nameStr, $ty);
             $fn->isFunction = true;
-            $fn->isDefinition = $this->tokenizer->equal($tok, '{');
             $fn->isStatic = $attr->isStatic || ($attr->isInline && !$attr->isExtern);
             $fn->isInline = $attr->isInline;
+        } elseif (!$fn->isStatic && $attr->isStatic) {
+            Console::errorTok($ty->name, 'static declaration follows a non-static declaration');
         }
-
         $fn->isRoot = !($fn->isStatic && $fn->isInline);
+        return $fn;
+    }
 
-        [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';');
-        if ($consumed) {
-            return $tok;
+    private function funcDefinition(Token &$rest, Token $tok, Type $ty, VarAttr $attr): void
+    {
+        $fn = $this->funcPrototype($ty, $attr);
+
+        if ($fn->isDefinition) {
+            Console::errorTok($tok, 'redefinition of ' . $fn->name);
         }
+        $fn->isDefinition = true;
 
         $this->currentFn = $fn;
         $this->locals = [];
@@ -3677,8 +3681,6 @@ class Parser
         }
         $fn->allocaBottom = $this->newLvar('__alloca_size__', Type::pointerTo(Type::tyChar()));
 
-        $tok = $this->tokenizer->skip($tok, '{');
-
         // __func__ is automatically defined as a local variable containing the
         // current function name.
         $funcVar = $this->pushScope('__func__');
@@ -3688,40 +3690,52 @@ class Parser
         $functionVar = $this->pushScope('__FUNCTION__');
         $functionVar->var = $this->newStringLiteral($fn->name . "\0", Type::arrayOf(Type::tyChar(), strlen($fn->name) + 1));
 
-        [$compoundStmt, $tok] = $this->compoundStmt($tok, $tok);
+        [$compoundStmt, $rest] = $this->compoundStmt($rest, $tok->next);
         $fn->body = [$compoundStmt];
 
         $fn->locals = $this->locals;
         $this->leaveScope();
         $this->resolveGotoLabels();
-
-        return $tok;
+        $this->currentFn = null;
     }
 
-    public function globalVariable(Token $tok, Type $basety, VarAttr $attr): Token
+
+    public function globalDeclaration(Token $tok, Type $basety, VarAttr $attr): Token
     {
         $first = true;
 
-        while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
-            if (! $first){
+        for (; [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (!$consumed); $first = false) {
+            if (!$first) {
                 $tok = $this->tokenizer->skip($tok, ',');
             }
-            $first = false;
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
-            if (! $ty->name){
+
+            if ($ty->kind === TypeKind::TY_FUNC) {
+                if ($this->tokenizer->equal($tok, '{')) {
+                    if (!$first || $this->scopeDepth !== 0) {
+                        Console::errorTok($tok, 'function definition is not allowed here');
+                    }
+                    $this->funcDefinition($tok, $tok, $ty, $attr);
+                    return $tok;
+                }
+                $this->funcPrototype($ty, $attr);
+                continue;
+            }
+
+            if (!$ty->name) {
                 Console::errorTok($ty->namePos, 'variable name omitted');
             }
 
             $var = $this->newGVar($this->getIdent($ty->name), $ty);
-            $var->isDefinition = ! $attr->isExtern;
+            $var->isDefinition = !$attr->isExtern;
             $var->isStatic = $attr->isStatic;
             $var->isTls = $attr->isTls;
-            if ($attr->align){
+            if ($attr->align) {
                 $var->align = $attr->align;
             }
 
-            if ($this->tokenizer->equal($tok, '=')){
+            if ($this->tokenizer->equal($tok, '=')) {
                 $tok = $this->gVarInitializer($tok, $tok->next, $var);
             } elseif (!$attr->isExtern && !$attr->isTls) {
                 $var->isTentative = true;
@@ -3731,15 +3745,6 @@ class Parser
         return $tok;
     }
 
-    public function isFunction(Token $tok): bool
-    {
-        if ($this->tokenizer->equal($tok, ';')){
-            return false;
-        }
-        $dummy = Type::tyInt();
-        [$ty, $tok] = $this->declarator($tok, $tok, $dummy);
-        return $ty->kind === TypeKind::TY_FUNC;
-    }
 
     // Remove redundant tentative definitions.
     private function scanGlobals(): void
@@ -3791,14 +3796,8 @@ class Parser
                 continue;
             }
 
-            // Function
-            if ($this->isFunction($tok)){
-                $tok = $this->func($tok, $basety, $attr);
-                continue;
-            }
-
-            // Global variable
-            $tok = $this->globalVariable($tok, $basety, $attr);
+            // Global declarations
+            $tok = $this->globalDeclaration($tok, $basety, $attr);
         }
 
         foreach ($this->globals as $var) {
@@ -3850,8 +3849,8 @@ class Parser
     {
         $ty = Type::funcType(Type::pointerTo(Type::tyVoid()));
         $ty->params = [Type::copyType(Type::tyInt())];
-        $this->builtinAlloca = $this->newGvar('alloca', $ty);
-        $this->builtinAlloca->isDefinition = false;
-        $this->globals[] = $this->builtinAlloca;
+        $this->builtinAlloca = $this->newGVar('alloca', $ty);
+        $this->builtinAlloca->isFunction = true;
+        $this->builtinAlloca->isStatic = true;
     }
 }

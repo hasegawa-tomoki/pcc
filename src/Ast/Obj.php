@@ -17,8 +17,8 @@ class Obj
 
     // Global variable or function
     public bool $isFunction = false;
-    public bool $isDefinition;
-    public bool $isStatic;
+    public bool $isDefinition = false;
+    public bool $isStatic = false;
 
     // Global variable
     public bool $isTentative = false;
