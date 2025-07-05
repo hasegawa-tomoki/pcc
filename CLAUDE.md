@@ -38,7 +38,7 @@ $ make ctest                         # Cで書いたテスト
 
 テストコードをすべて実行する場合はプロジェクトルートで make ctest としてください。
 テストコードを単体で実行する場合はプロジェクトルートで make ctest file=filename.c としてください。
-phpコマンドや slimcc を実行する場合は必ず docker compose run --rm php php pcc.php のように実行し、Dockerコンテナの中で実行してください。
+phpコマンドや slimcc を実行する場合は必ず docker compose run --rm php pcc のように実行し、Dockerコンテナの中で実行してください。
 
 実装が完了したら必ず以下を確認してください。
 
