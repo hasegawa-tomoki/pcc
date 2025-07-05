@@ -18,6 +18,12 @@ class CodeGenerator
     private const FP_MAX = 8;
     
     public int $depth = 0;
+    
+    // Virtual temporary stack structure
+    private array $tmpStackData = [];
+    private int $tmpStackCapacity = 0;
+    private int $tmpStackDepth = 0;
+    private int $tmpStackBottom = 0;
     /** @var string[] */
     public array $argreg8 = ['%dil', '%sil', '%dl', '%cl', '%r8b', '%r9b'];
     /** @var string[] */
@@ -1329,7 +1335,7 @@ class CodeGenerator
                 $var->offset = -1 * $bottom;
             }
 
-            $fn->stackSize = Align::alignTo($bottom, 16);
+            $fn->lvarStackSize = $bottom;
         }
 
         return $funcs;
@@ -1465,11 +1471,17 @@ class CodeGenerator
             Console::out("  .type %s, @function", $fn->name);
             Console::out("%s:", $fn->name);
             $this->currentFn = $fn;
+            $this->tmpStackBottom = $fn->lvarStackSize;
+            $this->tmpStackDepth = 0;
+            $this->tmpStackData = [];
 
             // Prologue
             Console::out("  push %%rbp");
             Console::out("  mov %%rsp, %%rbp");
-            Console::out("  sub \$%d, %%rsp", $fn->stackSize);
+            // For now, allocate a reasonably large stack space for tmp_stack
+            // This is a workaround since we can't seek back in PHP's stdout
+            $estimatedStackSize = Align::alignTo($fn->lvarStackSize + 256, 16);
+            Console::out("  sub \$%d, %%rsp", $estimatedStackSize);
             Console::out("  mov %%rsp, %d(%%rbp)", $fn->allocaBottom->offset);
 
             // Save arg registers if function is variadic
@@ -1555,6 +1567,7 @@ class CodeGenerator
                 $this->genStmt($node);
             }
             assert($this->depth == 0);
+            assert($this->tmpStackDepth == 0);
 
             // [https://www.sigbus.info/n1570#5.1.2.2.3p1] The C spec defines
             // a special rule for the main function. Reaching the end of the

@@ -37,7 +37,7 @@ class Obj
     public array $locals = [];
     public ?Obj $vaArea = null;
     public ?Obj $allocaBottom = null;
-    public int $stackSize;
+    public int $lvarStackSize;
 
     // Static inline function
     public bool $isLive = false;
