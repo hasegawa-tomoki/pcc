@@ -1512,9 +1512,12 @@ class Preprocessor
         self::initMacrosIfNeeded();
         // Define predefined macros
         self::defineMacro('_LP64', '1');
+        self::defineMacro('__BYTE_ORDER__', '1234');
         self::defineMacro('__C99_MACRO_WITH_VA_ARGS', '1');
         self::defineMacro('__ELF__', '1');
         self::defineMacro('__LP64__', '1');
+        self::defineMacro('__ORDER_BIG_ENDIAN__', '4321');
+        self::defineMacro('__ORDER_LITTLE_ENDIAN__', '1234');
         self::defineMacro('__SIZEOF_DOUBLE__', '8');
         self::defineMacro('__SIZEOF_FLOAT__', '4');
         self::defineMacro('__SIZEOF_INT__', '4');
@@ -1537,13 +1540,14 @@ class Preprocessor
         self::defineMacro('__alignof__', '_Alignof');
         self::defineMacro('__amd64', '1');
         self::defineMacro('__amd64__', '1');
-        self::defineMacro('__chibicc__', '1');
         self::defineMacro('__const__', 'const');
         self::defineMacro('__gnu_linux__', '1');
         self::defineMacro('__inline__', 'inline');
         self::defineMacro('__linux', '1');
         self::defineMacro('__linux__', '1');
         self::defineMacro('__signed__', 'signed');
+        self::defineMacro('__slimcc__', '1');
+        self::defineMacro('__typeof', 'typeof');
         self::defineMacro('__typeof__', 'typeof');
         self::defineMacro('__unix', '1');
         self::defineMacro('__unix__', '1');
