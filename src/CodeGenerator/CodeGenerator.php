@@ -1259,6 +1259,36 @@ class CodeGenerator
         Console::errorTok($node->tok, 'invalid statement');
     }
 
+    private function assignLvarOffsets2(?\Pcc\Ast\Scope\Scope $sc, int $bottom): int
+    {
+        if (!$sc) {
+            return $bottom;
+        }
+
+        foreach (array_reverse($sc->locals) as $var) {
+            if (isset($var->offset) && $var->offset) {
+                continue;
+            }
+
+            // AMD64 System V ABI has a special alignment rule for an array of
+            // length at least 16 bytes. We need to align such array to at least
+            // 16-byte boundaries. See p.14 of
+            // https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-draft.pdf.
+            $align = ($var->ty->kind === TypeKind::TY_ARRAY && $var->ty->size >= 16)
+                ? max(16, $var->align) : $var->align;
+
+            $bottom += $var->ty->size;
+            $bottom = Align::alignTo($bottom, $align);
+            $var->offset = -1 * $bottom;
+        }
+
+        for ($sub = $sc->children; $sub; $sub = $sub->siblingNext) {
+            $bottom = $this->assignLvarOffsets2($sub, $bottom);
+        }
+
+        return $bottom;
+    }
+
     /**
      * @param Obj[] $funcs
      * @return Obj[]
@@ -1266,7 +1296,7 @@ class CodeGenerator
     public function assignLVarOffsets(array $funcs): array
     {
         foreach  ($funcs as $fn){
-            if (! $fn->isFunction){
+            if (! $fn->isFunction || !$fn->isDefinition){
                 continue;
             }
 
@@ -1317,25 +1347,7 @@ class CodeGenerator
                 }
             }
 
-            // Assign offsets to pass-by-register parameters and local variables.
-            foreach (array_reverse($fn->locals) as $var) {
-                if (isset($var->offset) && $var->offset) {
-                    continue;
-                }
-
-                // AMD64 System V ABI has a special alignment rule for an array of
-                // length at least 16 bytes. We need to align such array to at least
-                // 16-byte boundaries. See p.14 of
-                // https://github.com/hjl-tools/x86-psABI/wiki/x86-64-psABI-draft.pdf.
-                $align = ($var->ty->kind === TypeKind::TY_ARRAY && $var->ty->size >= 16)
-                    ? max(16, $var->align) : $var->align;
-
-                $bottom += $var->ty->size;
-                $bottom = Align::alignTo($bottom, $align);
-                $var->offset = -1 * $bottom;
-            }
-
-            $fn->lvarStackSize = $bottom;
+            $fn->lvarStackSize = $this->assignLvarOffsets2($fn->ty->scopes, 0);
         }
 
         return $funcs;

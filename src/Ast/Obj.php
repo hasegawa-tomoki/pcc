@@ -33,8 +33,6 @@ class Obj
     public array $params;
     /** @var \Pcc\Ast\Node[]  */
     public array $body;
-    /** @var array<string, \Pcc\Ast\Obj> */
-    public array $locals = [];
     public ?Obj $vaArea = null;
     public ?Obj $allocaBottom = null;
     public int $lvarStackSize;

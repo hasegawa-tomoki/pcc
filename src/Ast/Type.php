@@ -27,6 +27,7 @@ class Type
     public bool $isFlexible = false;
     public bool $isPacked = false;
     // Function type
+    public ?\Pcc\Ast\Scope\Scope $scopes = null;
     public Type $returnTy;
     /** @var \Pcc\Ast\Type[] */
     public array $params = [];

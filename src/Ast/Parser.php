@@ -15,8 +15,6 @@ use Pcc\Tokenizer\TokenKind;
 class Parser
 {
     /** @var array<int, \Pcc\Ast\Obj> */
-    public array $locals = [];
-    /** @var array<int, \Pcc\Ast\Obj> */
     public array $globals = [];
     /** @var array<int, \Pcc\Ast\Scope\Scope> */
     public array $scopes = [];
@@ -46,7 +44,11 @@ class Parser
 
     public function enterScope(): void
     {
-        array_unshift($this->scopes, new Scope());
+        $sc = new Scope();
+        $sc->parent = $this->scopes[0];
+        $sc->siblingNext = $this->scopes[0]->children;
+        $this->scopes[0]->children = $sc;
+        array_unshift($this->scopes, $sc);
         $this->scopeDepth++;
     }
 
@@ -58,7 +60,7 @@ class Parser
 
     public function findVar(Token $tok): ?VarScope
     {
-        foreach ($this->scopes as $sc) {
+        for ($sc = $this->scopes[0]; $sc; $sc = $sc->parent) {
             $sc2 = $sc->vars->get2($tok->str, strlen($tok->str));
             if ($sc2) {
                 return $sc2;
@@ -69,7 +71,7 @@ class Parser
 
     public function findTag(Token $tok): ?Type
     {
-        foreach ($this->scopes as $sc) {
+        for ($sc = $this->scopes[0]; $sc; $sc = $sc->parent) {
             $ty = $sc->tags->get2($tok->str, strlen($tok->str));
             if ($ty) {
                 return $ty;
@@ -132,7 +134,7 @@ class Parser
     {
         $var = $this->newVar($name, $ty);
         $var->isLocal = true;
-        $this->locals[] = $var;
+        $this->scopes[0]->locals[] = $var;
         return $var;
     }
 
@@ -3660,11 +3662,11 @@ class Parser
             Console::errorTok($tok, 'redefinition of ' . $fn->name);
         }
         $fn->isDefinition = true;
+        $fn->ty = $ty;
 
         $this->currentFn = $fn;
-        $this->locals = [];
         $this->enterScope();
-
+        $ty->scopes = $this->scopes[0];
         $this->createParamLVars($ty->params);
 
         // A buffer for a struct/union return value is passed
@@ -3674,7 +3676,7 @@ class Parser
             $this->newLvar('', Type::pointerTo($rty));
         }
 
-        $fn->params = $this->locals;
+        $fn->params = $this->scopes[0]->locals;
 
         if ($ty->isVariadic){
             $fn->vaArea = $this->newLvar('__va_area__', Type::arrayOf(Type::tyChar(), 136));
@@ -3693,7 +3695,6 @@ class Parser
         [$compoundStmt, $rest] = $this->compoundStmt($rest, $tok->next);
         $fn->body = [$compoundStmt];
 
-        $fn->locals = $this->locals;
         $this->leaveScope();
         $this->resolveGotoLabels();
         $this->currentFn = null;
@@ -3713,7 +3714,7 @@ class Parser
 
             if ($ty->kind === TypeKind::TY_FUNC) {
                 if ($this->tokenizer->equal($tok, '{')) {
-                    if (!$first || $this->scopeDepth !== 0) {
+                    if (!$first || $this->scopes[0]->parent !== null) {
                         Console::errorTok($tok, 'function definition is not allowed here');
                     }
                     $this->funcDefinition($tok, $tok, $ty, $attr);
@@ -3817,12 +3818,12 @@ class Parser
     private function findFunc(string $name): ?Obj
     {
         // Find the global scope
-        $sc = $this->scopes;
-        while (count($sc) > 1) {
-            array_shift($sc);
+        $sc = $this->scopes[0];
+        while ($sc->parent) {
+            $sc = $sc->parent;
         }
         
-        $sc2 = $sc[0]->vars->get($name);
+        $sc2 = $sc->vars->get($name);
         if ($sc2 && $sc2->var && $sc2->var->isFunction) {
             return $sc2->var;
         }
