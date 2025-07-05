@@ -69,7 +69,7 @@ slimcc を実行する時もコンテナ内に入ってから実行してくだ�
 $ make up                                     # 開発環境の起動
 $ make ctest                                  # テストをすべて実行
 $ make ctest file=foo.c                       # テストを1ファイルのみ実行
-$ docker compose run --rm php php pcc.php     # pcc.phpを単体で実行
+$ docker compose run --rm php pcc             # pcc.phpを単体で実行
 ```
 
 ## ディレクトリ構造
