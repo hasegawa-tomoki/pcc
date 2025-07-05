@@ -1007,11 +1007,17 @@ class Preprocessor
                 $pastedToken = self::paste($cur, $tok);
                 $cur->kind = $pastedToken->kind;
                 $cur->str = $pastedToken->str;
-                $cur->val = $pastedToken->val;
-                $cur->fval = $pastedToken->fval ?? null;
-                $cur->ty = $pastedToken->ty ?? null;
+                if (isset($pastedToken->val)) {
+                    $cur->val = $pastedToken->val;
+                }
                 if (isset($pastedToken->gmpVal)) {
                     $cur->gmpVal = $pastedToken->gmpVal;
+                }
+                if (isset($pastedToken->fval)) {
+                    $cur->fval = $pastedToken->fval;
+                }
+                if (isset($pastedToken->ty)) {
+                    $cur->ty = $pastedToken->ty;
                 }
             } else {
                 $cur->next = self::copyToken($tok);
