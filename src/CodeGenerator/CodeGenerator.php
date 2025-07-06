@@ -738,15 +738,9 @@ class CodeGenerator
                     $this->store($node->ty);
                     Console::out("  mov %%r8, %%rax");
 
-                    if ($mem->ty->kind === TypeKind::TY_BOOL) {
-                        return;
-                    }
-
-                    $shift = 64 - $mem->bitWidth - $mem->bitOffset;
-                    Console::out("  shl $%d, %%rax", $shift);
-                    if ($mem->ty->isUnsigned) {
-                        Console::out("  shr $%d, %%rax", $shift);
-                    } else {
+                    if (!$mem->ty->isUnsigned && $mem->ty->kind !== TypeKind::TY_BOOL) {
+                        $shift = 64 - $mem->bitWidth - $mem->bitOffset;
+                        Console::out("  shl $%d, %%rax", $shift);
                         Console::out("  sar $%d, %%rax", $shift);
                     }
                     return;
