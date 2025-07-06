@@ -75,6 +75,31 @@ class Tokenizer
         Console::$currentInput = $this->currentInput;
     }
 
+    public static function addInputFile(string $path, string $contents): File
+    {
+        static $inputFilesMap = null;
+        if ($inputFilesMap === null) {
+            $inputFilesMap = new HashMap();
+        }
+
+        $file = $inputFilesMap->get($path);
+        if ($file) {
+            return $file;
+        }
+
+        self::$fileNo++;
+        $file = new File($path, self::$fileNo, $contents);
+
+        self::$inputFiles[] = $file;
+        $inputFilesMap->put($path, $file);
+        return $file;
+    }
+
+    public static function getInputFiles(): array
+    {
+        return self::$inputFiles;
+    }
+
     public function equal(Token $tok, string $op): bool
     {
         return strlen($op) === $tok->len && $tok->str === $op;
@@ -568,6 +593,8 @@ class Tokenizer
         for ($pos = 0; $pos < strlen($this->currentInput); $pos++){
             if ($pos === $tok->pos){
                 $tok->lineNo = $lineNo;
+                $tok->displayLineNo = $lineNo + ($tok->file->displayFile->lineDelta ?? 0);
+                $tok->displayFileNo = $tok->file->displayFile->fileNo ?? $tok->file->fileNo;
                 $tok = $tok->next;
             }
             if ($this->currentInput[$pos] === "\n") {
@@ -576,6 +603,8 @@ class Tokenizer
         }
         if ($tok->kind === TokenKind::TK_EOF){
             $tok->lineNo = $lineNo;
+            $tok->displayLineNo = $lineNo + ($tok->file->displayFile->lineDelta ?? 0);
+            $tok->displayFileNo = $tok->file->displayFile->fileNo ?? $tok->file->fileNo;
         }
     }
 
@@ -842,7 +871,7 @@ class Tokenizer
     private function setTokenFileInfo(Token $tok): void
     {
         $tok->file = $this->currentFile;
-        $tok->filename = $this->currentFile->displayName;
+        $tok->filename = $this->currentFile->displayFile->name;
     }
    
     private function readFile(string $path): ?string
@@ -861,11 +890,6 @@ class Tokenizer
         }
         
         return $contents;
-    }
-    
-    public static function getInputFiles(): array
-    {
-        return self::$inputFiles;
     }
     
     public static function getFileNo(): int

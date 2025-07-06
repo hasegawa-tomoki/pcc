@@ -15,6 +15,8 @@ class Token
     public ?string $originalStr = null; // Original string representation for stringization
     public int $pos;
     public int $lineNo;
+    public int $displayLineNo;
+    public int $displayFileNo;
     public int $len {
         get {
             return strlen($this->str);

@@ -1138,7 +1138,9 @@ class Preprocessor
         if ($tok->kind !== TokenKind::TK_STR) {
             Console::errorTok($tok, "filename expected");
         }
-        $start->file->displayName = rtrim($tok->str, "\0"); // remove null terminator
+        
+        $filename = rtrim($tok->str, "\0"); // remove null terminator
+        $start->file->displayFile = \Pcc\Tokenizer\Tokenizer::addInputFile($filename, "");
     }
 
     /**
@@ -1158,7 +1160,7 @@ class Preprocessor
             
             if (!self::isHash($tok) || self::$lockedMacros) {
                 $tok->lineDelta = $tok->file->lineDelta;
-                $tok->filename = $tok->file->displayName;
+                $tok->filename = $tok->file->displayFile->name ?? $tok->file->name;
                 $cur->next = $tok;
                 $cur = $tok;
                 $tok = $tok->next;
@@ -1610,7 +1612,7 @@ class Preprocessor
         while ($tmpl->origin) {
             $tmpl = $tmpl->origin;
         }
-        return self::newStrToken($tmpl->file->displayName ?? '<unknown>', $tmpl);
+        return self::newStrToken($tmpl->file->displayFile->name ?? '<unknown>', $tmpl);
     }
 
     private static function lineMacro(Token $tmpl): Token

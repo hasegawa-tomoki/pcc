@@ -169,6 +169,26 @@ class CodeGenerator
         return $i++;
     }
 
+    private static array $emittedFiles = [];
+    private static ?int $currentLine = null;
+
+    private function printLoc(\Pcc\Tokenizer\Token $tok): void
+    {
+        if (!Pcc::getOptG()) {
+            return;
+        }
+
+        if (!in_array($tok->displayFileNo, self::$emittedFiles)) {
+            Console::out("  .file %d \"%s\"", $tok->displayFileNo, $tok->file->displayFile->name);
+            self::$emittedFiles[] = $tok->displayFileNo;
+        }
+
+        if (self::$currentLine !== $tok->displayLineNo) {
+            Console::out("  .loc %d %d", $tok->displayFileNo, $tok->displayLineNo);
+            self::$currentLine = $tok->displayLineNo;
+        }
+    }
+
     public function push(): void
     {
         Console::out("  push %%rax");
@@ -631,9 +651,7 @@ class CodeGenerator
 
     public function genExpr(Node $node): void
     {
-        if ($node->tok->file !== null) {
-            Console::out("  .loc %d %d", $node->tok->file->fileNo, $node->tok->lineNo);
-        }
+        // Debug info is now handled by printLoc() in genStmt()
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind) {
@@ -1141,7 +1159,7 @@ class CodeGenerator
 
     public function genStmt(Node $node): void
     {
-        Console::out("  .loc %d %d", $node->tok->file->fileNo, $node->tok->lineNo);
+        $this->printLoc($node->tok);
 
         /** @noinspection PhpUncoveredEnumCasesInspection */
         switch ($node->kind){
@@ -1611,11 +1629,7 @@ class CodeGenerator
      */
     public function gen(array $funcs): void
     {
-        // Output file directives
-        $files = \Pcc\Tokenizer\Tokenizer::getInputFiles();
-        foreach ($files as $file) {
-            Console::out("  .file %d \"%s\"", $file->fileNo, $file->name);
-        }
+        // File directives will be output on-demand by printLoc function
         
         $funcs = $this->assignLVarOffsets($funcs);
         $this->emitData($funcs);
