@@ -1565,7 +1565,7 @@ class Parser
                 if ($mem->isBitfield) {
                     $expr = $init->children[$idx]->expr;
                     if (!$expr) {
-                        break;
+                        continue;
                     }
 
                     $loc = $offset + $mem->offset;
