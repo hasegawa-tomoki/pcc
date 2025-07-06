@@ -4050,8 +4050,6 @@ class Parser
         // Remove redundant tentative definitions.
         $this->scanGlobals();
         
-        
-        ray($this->globals);
         return $this->globals;
     }
 
