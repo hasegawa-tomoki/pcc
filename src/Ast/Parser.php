@@ -1026,21 +1026,21 @@ class Parser
             Console::errorTok($tok, "expected a field designator");
         }
 
-        foreach ($ty->members as $idx => $mem) {
-            // Anonymous struct member
-            if ($mem->ty->kind === TypeKind::TY_STRUCT && !$mem->name) {
-                if ($this->getStructMember($mem->ty, $tok)) {
-                    return [$idx, $start];
-                }
-                continue;
-            }
-
-            // Regular struct member
-            if ($mem->name !== null && $mem->name->str === $tok->str) {
-                return [$idx, $tok->next];
+        $mem = $this->getStructMember($ty, $tok);
+        if (!$mem) {
+            Console::errorTok($tok, "struct has no such member");
+        }
+        
+        $nextTok = $mem->name ? $tok->next : $start;
+        
+        // Find the index of the member
+        foreach ($ty->members as $idx => $m) {
+            if ($m === $mem) {
+                return [$idx, $nextTok];
             }
         }
-
+        
+        // Should never reach here
         Console::errorTok($tok, "struct has no such member");
     }
 
@@ -3241,15 +3241,12 @@ class Parser
         foreach ($ty->members as $mem){
             // Anonymous struct member
             if (($mem->ty->kind === TypeKind::TY_STRUCT || $mem->ty->kind === TypeKind::TY_UNION) &&
-                !$mem->name) {
-                if ($this->getStructMember($mem->ty, $tok)) {
-                    return $mem;
-                }
-                continue;
+                !$mem->name && $this->getStructMember($mem->ty, $tok)) {
+                return $mem;
             }
 
             // Regular struct member
-            if ($mem->name && $mem->name->str === $tok->str){
+            if ($mem->name && ($mem->name->str === $tok->str)){
                 return $mem;
             }
         }
