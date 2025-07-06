@@ -25,6 +25,8 @@ class Pcc
     private static array $options = [];
     private static bool $optFcommon = true;
     private static bool $optFpic = false;
+    private static bool $optOptimize = false;
+    private static bool $optG = false;
     private static FileType $optX = FileType::FILE_NONE;
     private static StringArray $optInclude;
     private static StringArray $tmpFiles;
@@ -46,6 +48,16 @@ class Pcc
     public static function getOptFpic(): bool
     {
         return self::$optFpic;
+    }
+
+    public static function getOptOptimize(): bool
+    {
+        return self::$optOptimize;
+    }
+
+    public static function getOptG(): bool
+    {
+        return self::$optG;
     }
 
     public static function displayHelp(): void
@@ -332,11 +344,27 @@ class Pcc
                 $i++;
                 continue;
             }
+
+            if (str_starts_with($argv[$i], '-g')) {
+                if (strlen($argv[$i]) == 2 || $argv[$i][2] !== '0') {
+                    self::$optG = true;
+                } else {
+                    self::$optG = false;
+                }
+                continue;
+            }
+
+            if (str_starts_with($argv[$i], '-O')) {
+                if (strlen($argv[$i]) == 2 || $argv[$i][2] !== '0') {
+                    self::$optOptimize = true;
+                } else {
+                    self::$optOptimize = false;
+                }
+                continue;
+            }
             
             // These options are ignored for now.
-            if (str_starts_with($argv[$i], '-O') ||
-                str_starts_with($argv[$i], '-W') ||
-                str_starts_with($argv[$i], '-g') ||
+            if (str_starts_with($argv[$i], '-W') ||
                 str_starts_with($argv[$i], '-std=') ||
                 $argv[$i] === '-ffreestanding' ||
                 $argv[$i] === '-fno-builtin' ||
