@@ -671,11 +671,16 @@ class CodeGenerator
 
                 if (isset($node->member) && $node->member->isBitfield) {
                     $mem = $node->member;
-                    Console::out("  shl $%d, %%rax", 64 - $mem->bitWidth - $mem->bitOffset);
-                    if ($mem->ty->isUnsigned) {
-                        Console::out("  shr $%d, %%rax", 64 - $mem->bitWidth);
+                    if ($mem->ty->kind === TypeKind::TY_BOOL) {
+                        Console::out("  shr $%d, %%rax", $mem->bitOffset);
+                        Console::out("  and $1, %%eax");
                     } else {
-                        Console::out("  sar $%d, %%rax", 64 - $mem->bitWidth);
+                        Console::out("  shl $%d, %%rax", 64 - $mem->bitWidth - $mem->bitOffset);
+                        if ($mem->ty->isUnsigned) {
+                            Console::out("  shr $%d, %%rax", 64 - $mem->bitWidth);
+                        } else {
+                            Console::out("  sar $%d, %%rax", 64 - $mem->bitWidth);
+                        }
                     }
                 }
                 return;
