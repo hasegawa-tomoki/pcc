@@ -718,24 +718,37 @@ class CodeGenerator
                 $this->genExpr($node->rhs);
 
                 if ($node->lhs->kind === NodeKind::ND_MEMBER && isset($node->lhs->member) && $node->lhs->member->isBitfield) {
-                    Console::out("  mov %%rax, %%r8");
-
                     // If the lhs is a bitfield, we need to read the current value
                     // from memory and merge it with a new value.
                     $mem = $node->lhs->member;
-                    Console::out("  mov %%rax, %%rdi");
-                    Console::out("  and $%d, %%rdi", (1 << $mem->bitWidth) - 1);
-                    Console::out("  shl $%d, %%rdi", $mem->bitOffset);
+                    Console::out("  mov $%d, %%rdi", (1 << $mem->bitWidth) - 1);
+                    Console::out("  and %%rdi, %%rax");
+                    Console::out("  mov %%rax, %%r8");
 
                     Console::out("  mov (%%rsp), %%rax");
                     $this->load($mem->ty);
 
                     $mask = ((1 << $mem->bitWidth) - 1) << $mem->bitOffset;
-                    Console::out("  mov $%d, %%r9", ~$mask);
-                    Console::out("  and %%r9, %%rax");
+                    Console::out("  mov $%d, %%rdi", ~$mask);
+                    Console::out("  and %%rdi, %%rax");
+
+                    Console::out("  mov %%r8, %%rdi");
+                    Console::out("  shl $%d, %%rdi", $mem->bitOffset);
                     Console::out("  or %%rdi, %%rax");
                     $this->store($node->ty);
                     Console::out("  mov %%r8, %%rax");
+
+                    if ($mem->ty->kind === TypeKind::TY_BOOL) {
+                        return;
+                    }
+
+                    $shift = 64 - $mem->bitWidth - $mem->bitOffset;
+                    Console::out("  shl $%d, %%rax", $shift);
+                    if ($mem->ty->isUnsigned) {
+                        Console::out("  shr $%d, %%rax", $shift);
+                    } else {
+                        Console::out("  sar $%d, %%rax", $shift);
+                    }
                     return;
                 }
 
