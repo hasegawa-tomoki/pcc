@@ -252,15 +252,9 @@ class Node
             case NodeKind::ND_MEMBER:
                 $this->ty = $this->member->ty;
                 return;
-            case NodeKind::ND_ADDR: {
-                $ty = $this->lhs->ty;
-                if ($ty->kind === TypeKind::TY_ARRAY) {
-                    $this->ty = Type::pointerTo($ty->base);
-                } else {
-                    $this->ty = Type::pointerTo($ty);
-                }
+            case NodeKind::ND_ADDR:
+                $this->ty = Type::pointerTo($this->lhs->ty);
                 return;
-            }
             case NodeKind::ND_DEREF:
                 if (! $this->lhs->ty->base){
                     Console::errorTok($this->tok, 'invalid pointer dereference');
