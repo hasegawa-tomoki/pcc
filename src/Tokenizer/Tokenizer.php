@@ -94,9 +94,10 @@ class Tokenizer
      * @param string $op
      * @return array{0: bool, 1: \Pcc\Tokenizer\Token}
      */
-    public function consume(Token $rest, Token $tok, string $op): array
+    public function consume(Token &$rest, Token $tok, string $op): array
     {
         if ($this->equal($tok, $op)){
+            $rest = $tok->next;
             return [true, $tok->next];
         }
         return [false, $tok];
@@ -371,7 +372,7 @@ class Tokenizer
             'default', 'extern', '_Alignof', '_Alignas', 'do', 'signed',
             'unsigned', 'const', 'volatile', 'auto', 'register', 'restrict',
             '__restrict', '__restrict__', '_Noreturn', 'float', 'double',
-            'typeof', 'asm', '_Thread_local', '__thread',
+            'typeof', 'asm', '_Thread_local', '__thread', '__attribute__',
         ];
 
         foreach ($keywords as $kw) {

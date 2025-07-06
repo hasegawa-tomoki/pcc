@@ -401,13 +401,18 @@ class Parser
     public function funcParams(Token $rest, Token $tok, Type $ty): array
     {
         if ($this->tokenizer->equal($tok, 'void') and $this->tokenizer->equal($tok->next, ')')){
-            return [Type::funcType($ty), $tok->next->next];
+            $fnTy = Type::funcType($ty);
+            $fnTy->name = $ty->name;
+            $fnTy->namePos = $ty->namePos;
+            return [$fnTy, $tok->next->next];
         }
 
         $params = [];
         $paramObjs = [];
         $isVariadic = false;
         $fnTy = Type::funcType($ty);
+        $fnTy->name = $ty->name;
+        $fnTy->namePos = $ty->namePos;
         $vlaCalc = Node::newNullExpr($tok);
 
         // Enter scope for parameter parsing
@@ -627,7 +632,9 @@ class Parser
                 $ty = $foundTy;
             }
         }
-        return $this->abstractDeclarator($rest, $tok, $ty);
+        [$ty, $tok] = $this->abstractDeclarator($rest, $tok, $ty);
+        $tok = $this->attributeList($tok, $ty);
+        return [$ty, $tok];
     }
 
     public function isEnd(Token $tok): bool
@@ -756,6 +763,7 @@ class Parser
             }
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            $tok = $this->attributeList($tok, $ty);
             if ($ty->kind === TypeKind::TY_FUNC) {
                 if ($this->scopeDepth === 0) {
                     // Global scope: create or update function prototype
@@ -1903,7 +1911,11 @@ class Parser
                 [$basety, $tok] = $this->typespec($tok, $tok, $attr);
 
                 if ($attr->isTypedef){
-                    $tok = $this->parseTypedef($tok, $basety);
+                    $tempTok = $tok;
+                    $vlaCalc = $this->parseTypedef($tok, $tempTok, $basety);
+                    $n = Node::newUnary(NodeKind::ND_EXPR_STMT, $vlaCalc, $tok);
+                    $n->addType();
+                    $nodes[] = $n;
                     continue;
                 }
 
@@ -1913,9 +1925,11 @@ class Parser
                 }
                 
                 [$n, $tok] = $this->declaration($tok, $tok, $basety, $attr);
-            } else {
-                [$n, $tok] = $this->stmt($tok, $tok);
+                $n->addType();
+                $nodes[] = $n;
+                continue;
             }
+            [$n, $tok] = $this->stmt($tok, $tok);
             $n->addType();
             $nodes[] = $n;
         }
@@ -2261,6 +2275,10 @@ class Parser
     private function computeVlaSize(Type $ty, Token $tok): Node
     {
         $node = Node::newNullExpr($tok);
+        if ($ty->vlaSize) {
+            return $node;
+        }
+
         if ($ty->base) {
             $node = Node::newBinary(NodeKind::ND_COMMA, $node, $this->computeVlaSize($ty->base, $tok), $tok);
         }
@@ -2984,6 +3002,7 @@ class Parser
                 $first = false;
 
                 [$declarator, $tok] = $this->declarator($tok, $tok, $basety);
+                $tok = $this->attributeList($tok, $declarator);
 
                 $mem = new Member();
                 $mem->ty = $declarator;
@@ -3019,14 +3038,14 @@ class Parser
      */
     public function attributeList(Token $tok, Type $ty): Token
     {
-        while ($this->tokenizer->consume($tok, $tok, '__attribute__')[0]) {
-            [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, '__attribute__');
+        while ($this->tokenizer->equal($tok, '__attribute__')) {
+            $tok = $this->tokenizer->skip($tok, '__attribute__');
             $tok = $this->tokenizer->skip($tok, '(');
             $tok = $this->tokenizer->skip($tok, '(');
 
             $first = true;
 
-            while (!$this->tokenizer->consume($tok, $tok, ')')[0]) {
+            while (!$this->tokenizer->equal($tok, ')')) {
                 if (!$first) {
                     $tok = $this->tokenizer->skip($tok, ',');
                 }
@@ -3050,7 +3069,7 @@ class Parser
                 Console::errorTok($tok, 'unknown attribute');
             }
 
-            [$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ')');
+            $tok = $this->tokenizer->skip($tok, ')');
             $tok = $this->tokenizer->skip($tok, ')');
         }
 
@@ -3604,24 +3623,27 @@ class Parser
         Console::errorTok($tok, 'expected an expression');
     }
 
-    public function parseTypedef(Token $tok, Type $basety): Token
+    public function parseTypedef(Token &$rest, Token $tok, Type $basety): Node
     {
         $first = true;
+        $node = Node::newNullExpr($tok);
 
-        while ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ';') and (! $consumed)){
+        while ([$consumed, $tok] = $this->tokenizer->consume($rest, $tok, ';') and (! $consumed)){
             if (! $first){
                 $tok = $this->tokenizer->skip($tok, ',');
             }
             $first = false;
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            $tok = $this->attributeList($tok, $ty);
             if (! $ty->name){
-                Console::errorTok($ty->namePos, 'typedef name omitted');
+                Console::errorTok($ty->namePos ?: $tok, 'typedef name omitted');
             }
             $this->pushScope($this->getIdent($ty->name))->typeDef = $ty;
+            $node = Node::newBinary(NodeKind::ND_COMMA, $node, $this->computeVlaSize($ty, $tok), $tok);
         }
 
-        return $tok;
+        return $node;
     }
 
     /**
@@ -3755,6 +3777,7 @@ class Parser
             }
 
             [$ty, $tok] = $this->declarator($tok, $tok, $basety);
+            $tok = $this->attributeList($tok, $ty);
 
             if ($ty->kind === TypeKind::TY_FUNC) {
                 if ($this->tokenizer->equal($tok, '{')) {
@@ -3837,7 +3860,7 @@ class Parser
 
             // Typedef
             if ($attr->isTypedef){
-                $tok = $this->parseTypedef($tok, $basety);
+                $this->parseTypedef($tok, $tok, $basety);
                 continue;
             }
 
