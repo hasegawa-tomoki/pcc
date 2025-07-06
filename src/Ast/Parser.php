@@ -3297,6 +3297,15 @@ class Parser
         // Filter out anonymous bitfields and process remaining members
         $filteredMembers = [];
         foreach ($ty->members as $mem){
+            // Calculate size for this member
+            if ($mem->isBitfield) {
+                $sz = Align::alignTo($mem->bitWidth, 8) / 8;
+            } else {
+                $sz = $mem->ty->size;
+            }
+            
+            $ty->size = max($ty->size, $sz);
+            
             if (!$mem->name && $mem->isBitfield) {
                 continue;
             }
@@ -3304,9 +3313,6 @@ class Parser
             $mem->offset = 0;
             if ($ty->align < $mem->align){
                 $ty->align = $mem->align;
-            }
-            if ($ty->size < $mem->ty->size){
-                $ty->size = $mem->ty->size;
             }
 
             $filteredMembers[] = $mem;
