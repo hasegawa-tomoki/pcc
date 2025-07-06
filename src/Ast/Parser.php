@@ -105,14 +105,24 @@ class Parser
         }
 
         if ($ty->kind === TypeKind::TY_STRUCT or $ty->kind === TypeKind::TY_UNION){
+            // Count the number of struct members.
+            $len = 0;
+            foreach ($ty->members as $mem) {
+                $mem->idx = $len++;
+            }
+            
+            for ($i = 0; $i < $len; $i++) {
+                $init->children[] = null;
+            }
+            
             foreach ($ty->members as $idx => $mem){
                 if ($isFlexible and $ty->isFlexible and (! isset($ty->members[$idx + 1]))){
                     $child = new Initializer();
                     $child->ty = $mem->ty;
                     $child->isFlexible = true;
-                    $init->children[] = $child;
+                    $init->children[$mem->idx] = $child;
                 } else {
-                    $init->children[] = $this->newInitializer($mem->ty, false);
+                    $init->children[$mem->idx] = $this->newInitializer($mem->ty, false);
                 }
             }
             return $init;
@@ -850,7 +860,7 @@ class Parser
 
     public function skipExcessElement(Token $tok): Token
     {
-        if ($this->tokenizer->skip($tok, '{')){
+        if ($this->tokenizer->equal($tok, '{')){
             $tok = $this->skipExcessElement($tok->next);
             return $this->tokenizer->skip($tok, '}');
         }
@@ -1306,6 +1316,10 @@ class Parser
             if ($expr->ty->kind === TypeKind::TY_STRUCT){
                 $init->expr = $expr;
                 return [$init, $rest];
+            }
+
+            if (!$init->ty->members) {
+                Console::errorTok($tok, "initializer for empty aggregate requires explicit braces");
             }
 
             return $this->structInitializer2($rest, $tok, $init);
@@ -3101,9 +3115,10 @@ class Parser
      *
      * @param \Pcc\Tokenizer\Token $rest
      * @param \Pcc\Tokenizer\Token $tok
+     * @param bool $noList
      * @return array{0: \Pcc\Ast\Type, 1: \Pcc\Tokenizer\Token}
      */
-    public function structUnionDecl(Token $rest, Token $tok): array
+    public function structUnionDecl(Token $rest, Token $tok, bool &$noList = false): array
     {
         $ty = Type::structType();
         $tok = $this->attributeList($tok, $ty);
@@ -3117,6 +3132,7 @@ class Parser
 
         if ($tag and (! $this->tokenizer->equal($tok, '{'))){
             $rest = $tok;
+            $noList = true;
 
             $ty2 = $this->findTag($tag);
             if ($ty2){
@@ -3164,15 +3180,17 @@ class Parser
      */
     public function structDecl(Token $rest, Token $tok): array
     {
-        [$ty, $rest] = $this->structUnionDecl($rest, $tok);
+        $noList = false;
+        [$ty, $rest] = $this->structUnionDecl($rest, $tok, $noList);
         $ty->kind = TypeKind::TY_STRUCT;
 
-        if ($ty->size < 0){
+        if ($noList){
             return [$ty, $rest];
         }
 
         // Assign offsets within the struct to members.
         $bits = 0;
+        $newMembers = [];
         
         foreach ($ty->members as $mem) {
             if ($mem->isBitfield && $mem->bitWidth == 0) {
@@ -3196,10 +3214,19 @@ class Parser
                 $bits += $mem->ty->size * 8;
             }
 
+            if (!$mem->name && $mem->isBitfield) {
+                // Remove anonymous bitfields from member list after padding
+                continue;
+            }
+
             if (!$ty->isPacked && $ty->align < $mem->align) {
                 $ty->align = $mem->align;
             }
+            
+            $newMembers[] = $mem;
         }
+        
+        $ty->members = $newMembers;
         
         $ty->size = intval(Align::alignTo($bits, $ty->align * 8) / 8);
 
@@ -3215,10 +3242,11 @@ class Parser
      */
     public function unionDecl(Token $rest, Token $tok): array
     {
-        [$ty, $rest] = $this->structUnionDecl($rest, $tok);
+        $noList = false;
+        [$ty, $rest] = $this->structUnionDecl($rest, $tok, $noList);
         $ty->kind = TypeKind::TY_UNION;
 
-        if ($ty->size < 0){
+        if ($noList){
             return [$ty, $rest];
         }
 
