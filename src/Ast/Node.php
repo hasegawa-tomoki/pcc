@@ -13,6 +13,7 @@ class Node
 
     public ?Type $ty = null;
     public Token $tok;
+    public ?Node $next = null;
 
     public ?Node $lhs = null;
     public ?Node $rhs = null;

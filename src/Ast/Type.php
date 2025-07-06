@@ -31,6 +31,9 @@ class Type
     public Type $returnTy;
     /** @var \Pcc\Ast\Type[] */
     public array $params = [];
+    /** @var \Pcc\Ast\Obj[] */
+    public array $paramObjs = [];
+    public ?Node $vlaCalc = null;
     public bool $isVariadic = false;
 
     public function __construct(TypeKind $kind, ?Type $base = null, int $size = 0, int $align = 0, bool $isUnsigned = false)

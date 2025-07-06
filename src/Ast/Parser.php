@@ -405,7 +405,14 @@ class Parser
         }
 
         $params = [];
+        $paramObjs = [];
         $isVariadic = false;
+        $fnTy = Type::funcType($ty);
+        $vlaCalc = Node::newNullExpr($tok);
+
+        // Enter scope for parameter parsing
+        $this->enterScope();
+        $fnTy->scopes = $this->scopes[0];
 
         while (! $this->tokenizer->equal($tok, ')')){
             if (count($params) > 0){
@@ -424,7 +431,10 @@ class Parser
 
             $name = $ty2->name;
 
-            if ($ty2->kind === TypeKind::TY_ARRAY){
+            // Accumulate VLA calculations
+            $vlaCalc = Node::newBinary(NodeKind::ND_COMMA, $vlaCalc, $this->computeVlaSize($ty2, $tok), $tok);
+
+            if ($ty2->kind === TypeKind::TY_ARRAY || $ty2->kind === TypeKind::TY_VLA){
                 // "array of T" is converted to "pointer to T" only in the parameter context.
                 // For example, *argv[] is converted to **argv by this.
                 $ty2 = Type::pointerTo($ty2->base);
@@ -435,14 +445,28 @@ class Parser
                 $ty2 = Type::pointerTo($ty2);
                 $ty2->name = $name;
             }
+
+            // Create parameter variables in the current scope
+            $varName = $name ? $name->str : '';
+            $paramObj = $this->newLvar($varName, $ty2);
+            $paramObjs[] = $paramObj;
+
             $params[] = clone $ty2;
         }
 
-        $ty = Type::funcType($ty);
-        $ty->params = $params;
-        $ty->isVariadic = $isVariadic;
+        if (count($params) === 0) {
+            $isVariadic = true;
+        }
 
-        return [$ty, $tok->next];
+        // Leave scope after parameter parsing
+        $this->leaveScope();
+
+        $fnTy->params = $params;
+        $fnTy->paramObjs = $paramObjs;
+        $fnTy->vlaCalc = $vlaCalc;
+        $fnTy->isVariadic = $isVariadic;
+
+        return [$fnTy, $tok->next];
     }
 
     /**
@@ -3607,10 +3631,9 @@ class Parser
     public function createParamLVars(array $params): void
     {
         foreach ($params as $param){
-            if (! $param->name){
-                Console::errorTok($param->namePos, 'parameter name omitted');
-            }
-            $this->newLvar($this->getIdent($param->name), $param);
+            // Allow unnamed parameters in function definitions
+            $varName = $param->name ? $this->getIdent($param->name) : '';
+            $this->newLvar($varName, $param);
         }
     }
 
@@ -3665,9 +3688,17 @@ class Parser
         $fn->ty = $ty;
 
         $this->currentFn = $fn;
-        $this->enterScope();
-        $ty->scopes = $this->scopes[0];
-        $this->createParamLVars($ty->params);
+        
+        if ($ty->scopes) {
+            // Use the scope created during parameter parsing
+            array_unshift($this->scopes, $ty->scopes);
+            // Parameters are already created in funcParams(), don't create them again
+        } else {
+            // Create a new scope if no parameter scope exists
+            $this->enterScope();
+            $ty->scopes = $this->scopes[0];
+            $this->createParamLVars($ty->params);
+        }
 
         // A buffer for a struct/union return value is passed
         // as the hidden first parameter.
@@ -3676,7 +3707,7 @@ class Parser
             $this->newLvar('', Type::pointerTo($rty));
         }
 
-        $fn->params = $this->scopes[0]->locals;
+        $fn->params = $ty->paramObjs;
 
         if ($ty->isVariadic){
             $fn->vaArea = $this->newLvar('__va_area__', Type::arrayOf(Type::tyChar(), 136));
@@ -3694,6 +3725,19 @@ class Parser
 
         [$compoundStmt, $rest] = $this->compoundStmt($rest, $tok->next);
         $fn->body = [$compoundStmt];
+
+        // Insert VLA calculations at the beginning of the function body
+        if ($ty->vlaCalc) {
+            $calc = Node::newUnary(NodeKind::ND_EXPR_STMT, $ty->vlaCalc, $tok);
+            $calc->addType();
+            // Insert VLA calculations at the beginning of the function body
+            if ($compoundStmt->body) {
+                $calc->next = $compoundStmt->body[0];
+                $compoundStmt->body = array_merge([$calc], $compoundStmt->body);
+            } else {
+                $compoundStmt->body = [$calc];
+            }
+        }
 
         $this->leaveScope();
         $this->resolveGotoLabels();
