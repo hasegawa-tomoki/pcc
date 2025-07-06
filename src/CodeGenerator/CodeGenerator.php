@@ -269,21 +269,12 @@ class CodeGenerator
             switch ($ty->kind) {
                 case TypeKind::TY_STRUCT:
                 case TypeKind::TY_UNION:
-                    if ($ty->size > 16) {
+                    if ($this->passByReg($ty, $gp, $fp)) {
+                        $fp += ($this->hasFlonum1($ty) ? 1 : 0) + ($ty->size > 8 && $this->hasFlonum2($ty) ? 1 : 0);
+                        $gp += (!$this->hasFlonum1($ty) ? 1 : 0) + ($ty->size > 8 && !$this->hasFlonum2($ty) ? 1 : 0);
+                    } else {
                         $arg->passByStack = true;
                         $stack += intval(Align::alignTo($ty->size, 8) / 8);
-                    } else {
-                        $fp1 = $this->hasFlonum1($ty);
-                        $fp2 = $this->hasFlonum2($ty);
-
-                        if ($fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0) < self::FP_MAX && 
-                            $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1) < self::GP_MAX) {
-                            $fp = $fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0);
-                            $gp = $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1);
-                        } else {
-                            $arg->passByStack = true;
-                            $stack += intval(Align::alignTo($ty->size, 8) / 8);
-                        }
                     }
                     break;
                 case TypeKind::TY_FLOAT:
@@ -615,6 +606,25 @@ class CodeGenerator
         return $this->hasFlonum($ty, 8, 16, 0);
     }
 
+    private function passByReg(Type $ty, int $gp, int $fp): bool
+    {
+        if ($ty->size > 16) {
+            return false;
+        }
+
+        $fpInc = ($this->hasFlonum1($ty) ? 1 : 0) + ($ty->size > 8 && $this->hasFlonum2($ty) ? 1 : 0);
+        $gpInc = (!$this->hasFlonum1($ty) ? 1 : 0) + ($ty->size > 8 && !$this->hasFlonum2($ty) ? 1 : 0);
+
+        if ($fpInc && ($fp + $fpInc > self::FP_MAX)) {
+            return false;
+        }
+        if ($gpInc && ($gp + $gpInc > self::GP_MAX)) {
+            return false;
+        }
+
+        return true;
+    }
+
     private function regDx(int $sz): string
     {
         return match ($sz) {
@@ -897,27 +907,21 @@ class CodeGenerator
                     switch ($ty->kind) {
                         case TypeKind::TY_STRUCT:
                         case TypeKind::TY_UNION:
-                            if ($ty->size > 16) {
+                            if (!$this->passByReg($ty, $gp, $fp)) {
                                 break;
                             }
 
-                            $fp1 = $this->hasFlonum1($ty);
-                            $fp2 = $this->hasFlonum2($ty);
+                            if ($this->hasFlonum1($ty)) {
+                                $this->popf($fp++);
+                            } else {
+                                $this->pop($this->argreg64[$gp++]);
+                            }
 
-                            if ($fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0) < self::FP_MAX && 
-                                $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1) < self::GP_MAX) {
-                                if ($fp1) {
+                            if ($ty->size > 8) {
+                                if ($this->hasFlonum2($ty)) {
                                     $this->popf($fp++);
                                 } else {
                                     $this->pop($this->argreg64[$gp++]);
-                                }
-
-                                if ($ty->size > 8) {
-                                    if ($fp2) {
-                                        $this->popf($fp++);
-                                    } else {
-                                        $this->pop($this->argreg64[$gp++]);
-                                    }
                                 }
                             }
                             break;
@@ -1366,14 +1370,10 @@ class CodeGenerator
                     switch ($ty->kind) {
                         case TypeKind::TY_STRUCT:
                         case TypeKind::TY_UNION:
-                            if ($ty->size <= 16) {
-                                $fp1 = $this->hasFlonum($ty, 0, 8, 0);
-                                $fp2 = $this->hasFlonum($ty, 8, 16, 8);
-                                if ($fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0) < self::FP_MAX && $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1) < self::GP_MAX) {
-                                    $fp = $fp + ($fp1 ? 1 : 0) + ($fp2 ? 1 : 0);
-                                    $gp = $gp + ($fp1 ? 0 : 1) + ($fp2 ? 0 : 1);
-                                    continue 2;
-                                }
+                            if ($this->passByReg($ty, $gp, $fp)) {
+                                $fp += ($this->hasFlonum1($ty) ? 1 : 0) + ($ty->size > 8 && $this->hasFlonum2($ty) ? 1 : 0);
+                                $gp += (!$this->hasFlonum1($ty) ? 1 : 0) + ($ty->size > 8 && !$this->hasFlonum2($ty) ? 1 : 0);
+                                continue 2;
                             }
                             break;
                         case TypeKind::TY_FLOAT:
@@ -1599,14 +1599,14 @@ class CodeGenerator
                         case TypeKind::TY_STRUCT:
                         case TypeKind::TY_UNION:
                             assert($ty->size <= 16);
-                            if ($this->hasFlonum($ty, 0, 8, 0)) {
+                            if ($this->hasFlonum1($ty)) {
                                 $this->storeFp($fp++, $param->offset, min(8, $ty->size));
                             } else {
                                 $this->storeGp($gp++, $param->offset, min(8, $ty->size));
                             }
 
                             if ($ty->size > 8) {
-                                if ($this->hasFlonum($ty, 8, 16, 0)) {
+                                if ($this->hasFlonum2($ty)) {
                                     $this->storeFp($fp++, $param->offset + 8, $ty->size - 8);
                                 } else {
                                     $this->storeGp($gp++, $param->offset + 8, $ty->size - 8);
@@ -1668,7 +1668,7 @@ class CodeGenerator
 
         Console::out("  mov %%rax, %%rdi");
 
-        if ($this->hasFlonum($ty, 0, 8, 0)) {
+        if ($this->hasFlonum1($ty)) {
             assert($ty->size == 4 || 8 <= $ty->size);
             if ($ty->size == 4) {
                 Console::out("  movss (%%rdi), %%xmm0");
@@ -1686,7 +1686,7 @@ class CodeGenerator
         }
 
         if ($ty->size > 8) {
-            if ($this->hasFlonum($ty, 8, 16, 0)) {
+            if ($this->hasFlonum2($ty)) {
                 assert($ty->size == 12 || $ty->size == 16);
                 if ($ty->size == 12) {
                     Console::out("  movss 8(%%rdi), %%xmm%d", $fp);

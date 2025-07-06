@@ -5,9 +5,9 @@ TEST_SRCS=$(wildcard test/*.c)
 endif
 TESTS=$(TEST_SRCS:.c=.out)
 
-test/%.out: test/%.c
+test/%.out: test/%.c test/common
 	../pcc -Iinclude -Itest -c -o test/$*.o test/$*.c
-	$(CC) -Wa,--noexecstack -o $@ test/$*.o -xc common
+	$(CC) -Wa,--noexecstack -o $@ test/$*.o -xc test/common
 
 test: $(TESTS)
 	for i in $^; do echo $$i; ./$$i || exit 1; echo; done
