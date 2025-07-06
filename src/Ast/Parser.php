@@ -498,6 +498,9 @@ class Parser
         [$ty, $rest] = $this->typeSuffix($rest, $tok, $ty);
 
         if ($ty->kind === TypeKind::TY_VLA || !$this->isConstExpr($expr)) {
+            if (count($this->scopes) === 1) {
+                Console::errorTok($tok, 'variably-modified type at file scope');
+            }
             return [Type::vlaOf($ty, $expr), $rest];
         }
         return [Type::arrayOf($ty, PccGMP::toPHPInt($this->evaluate($expr), 32)), $rest];
@@ -783,6 +786,10 @@ class Parser
             }
 
             if ($attr and $attr->isStatic){
+                if ($ty->kind === TypeKind::TY_VLA) {
+                    Console::errorTok($tok, 'variable length arrays cannot be \'static\'');
+                }
+                
                 // static local variable
                 $var = $this->newAnonGVar($ty);
                 // Keep the original type with the original name for local reference
@@ -3008,6 +3015,13 @@ class Parser
                 $mem->ty = $declarator;
                 $mem->name = $mem->ty->name;
                 $mem->align = $attr->align?: $mem->ty->align;
+
+                // Check for VLA members
+                for ($t = $mem->ty; $t !== null; $t = $t->base) {
+                    if ($t->kind === TypeKind::TY_VLA) {
+                        Console::errorTok($tok, 'members cannot be of variably-modified type');
+                    }
+                }
 
                 if ([$consumed, $tok] = $this->tokenizer->consume($tok, $tok, ':') and $consumed) {
                     $mem->isBitfield = true;
