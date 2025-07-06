@@ -3602,9 +3602,16 @@ class Parser
             return [$node, $rest];
         }
 
-        if ($this->tokenizer->equal($tok, 'sizeof') and $this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
-            [$ty, $tok] = $this->typename($tok, $tok->next->next);
-            $rest = $this->tokenizer->skip($tok, ')');
+        if ($this->tokenizer->equal($tok, 'sizeof')){
+            $ty = null;
+            if ($this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
+                [$ty, $tok] = $this->typename($tok, $tok->next->next);
+                $rest = $this->tokenizer->skip($tok, ')');
+            } else {
+                [$node, $rest] = $this->unary($rest, $tok->next);
+                $node->addType();
+                $ty = $node->ty;
+            }
             
             if ($ty->kind === TypeKind::TY_VLA) {
                 if ($ty->vlaSize) {
@@ -3617,15 +3624,6 @@ class Parser
             }
             
             return [Node::newUlong($ty->size, $start), $rest];
-        }
-
-        if ($this->tokenizer->equal($tok, 'sizeof')){
-            [$node, $rest] = $this->unary($rest, $tok->next);
-            $node->addType();
-            if ($node->ty->kind === TypeKind::TY_VLA) {
-                return [Node::newVar($node->ty->vlaSize, $tok), $rest];
-            }
-            return [Node::newUlong($node->ty->size, $tok), $rest];
         }
 
         if ($this->tokenizer->equal($tok, '_Alignof') and $this->tokenizer->equal($tok->next, '(') and $this->isTypeName($tok->next->next)){
