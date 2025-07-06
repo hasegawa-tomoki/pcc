@@ -1789,12 +1789,55 @@ class Parser
             [$beginGmp, $tok] = $this->constExpr($tok, $tok->next);
             $begin = PccGMP::toPHPInt($beginGmp);
             $end = $begin;
+
+            $this->currentSwitch->cond->addType();
             
+            // GNU case ranges, e.g. "case 1 ... 5:"
             if ($this->tokenizer->equal($tok, '...')){
-                // GNU case ranges, e.g. "case 1 ... 5:"
                 [$endGmp, $tok] = $this->constExpr($tok, $tok->next);
                 $end = PccGMP::toPHPInt($endGmp);
-                if ($end < $begin){
+            } else {
+                $endGmp = $beginGmp;
+            }
+
+            // Handle casting to the switch condition type
+            $origBeginGmp = $beginGmp;
+            $origEndGmp = $endGmp;
+            
+            if ($this->currentSwitch->cond->ty->size === 4) {
+                if (!$this->currentSwitch->cond->ty->isUnsigned) {
+                    // Cast to int32_t range
+                    $beginGmp = gmp_and($beginGmp, 0xFFFFFFFF);
+                    if (gmp_cmp($beginGmp, 0x7FFFFFFF) > 0) {
+                        $beginGmp = gmp_sub($beginGmp, 0x100000000);
+                    }
+                    $endGmp = gmp_and($endGmp, 0xFFFFFFFF);  
+                    if (gmp_cmp($endGmp, 0x7FFFFFFF) > 0) {
+                        $endGmp = gmp_sub($endGmp, 0x100000000);
+                    }
+                } else {
+                    // Cast to uint32_t range  
+                    $beginGmp = gmp_and($beginGmp, 0xFFFFFFFF);
+                    $endGmp = gmp_and($endGmp, 0xFFFFFFFF);
+                }
+            }
+            // For 64-bit types, no casting is needed, use original values
+            
+            $begin = gmp_intval($beginGmp);
+            $end = gmp_intval($endGmp);
+
+            // Check for empty case range using GMP values
+            // For unsigned types, use uint64_t cast for comparison
+            if ($this->currentSwitch->cond->ty->isUnsigned) {
+                // For unsigned types, cast both to uint64_t for comparison
+                $beginUint64 = gmp_and($beginGmp, gmp_init('0xFFFFFFFFFFFFFFFF'));
+                $endUint64 = gmp_and($endGmp, gmp_init('0xFFFFFFFFFFFFFFFF'));
+                if (gmp_cmp($endUint64, $beginUint64) < 0) {
+                    Console::errorTok($tok, 'empty case range specified');
+                }
+            } else {
+                // For signed types, use direct comparison
+                if (gmp_cmp($endGmp, $beginGmp) < 0) {
                     Console::errorTok($tok, 'empty case range specified');
                 }
             }
@@ -1806,6 +1849,7 @@ class Parser
             $node->end = $end;
             $node->val = $begin;  // Keep val for backward compatibility
             $node->gmpVal = $beginGmp;
+            $node->gmpEnd = $endGmp;
             array_unshift($this->currentSwitch->cases, $node);
 
             return [$node, $rest];

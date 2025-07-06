@@ -1218,19 +1218,35 @@ class CodeGenerator
                 $this->genExpr($node->cond);
 
                 foreach ($node->cases as $n){
-                    $ax = ($node->cond->ty->size == 8) ? '%rax' : '%eax';
-                    $di = ($node->cond->ty->size == 8) ? '%rdi' : '%edi';
+                    if ($node->cond->ty->size == 8) {
+                        $ax = '%rax';
+                        $di = '%rdi';
+                        $dx = '%rdx';
+                    } else {
+                        $ax = '%eax';
+                        $di = '%edi';
+                        $dx = '%edx';
+                    }
 
                     if ($n->begin == $n->end) {
-                        Console::out("  cmp \$%ld, %s", $n->begin, $ax);
+                        Console::out("  mov \$%ld, %s", $n->begin, $dx);
+                        Console::out("  cmp %s, %s", $dx, $ax);
                         Console::out("  je %s", $n->label);
                         continue;
                     }
 
                     // GNU case ranges
                     Console::out("  mov %s, %s", $ax, $di);
-                    Console::out("  sub \$%ld, %s", $n->begin, $di);
-                    Console::out("  cmp \$%ld, %s", $n->end - $n->begin, $di);
+                    Console::out("  mov \$%ld, %s", $n->begin, $dx);
+                    Console::out("  sub %s, %s", $dx, $di);
+                    // Use GMP for proper range calculation
+                    $beginGmp = $n->gmpVal ?? gmp_init($n->begin);
+                    $endGmp = $n->gmpEnd ?? gmp_init($n->end);
+                    $rangeGmp = gmp_sub($endGmp, $beginGmp);
+                    // Format as unsigned 64-bit hex for assembly
+                    $rangeHex = gmp_strval($rangeGmp, 16);
+                    Console::out("  mov \$0x%s, %s", $rangeHex, $dx);
+                    Console::out("  cmp %s, %s", $dx, $di);
                     Console::out("  jbe %s", $n->label);
                 }
 
