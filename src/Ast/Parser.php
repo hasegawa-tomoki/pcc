@@ -1073,7 +1073,7 @@ class Parser
             [$idx, $tok] = $this->structDesignator($tok, $tok, $init->ty);
             [$init->children[$idx], $tok] = $this->designation($tok, $tok, $init->children[$idx]);
             $init->expr = null;
-            [$init, $rest] = $this->structInitializer2($rest, $tok, $init, $idx + 1);
+            [$init, $rest] = $this->structInitializer2($rest, $tok, $init, $idx + 1, true);
             return [$init, $rest];
         }
 
@@ -1220,14 +1220,14 @@ class Parser
      * @param int $startIdx
      * @return array{\Pcc\Ast\Initializer, \Pcc\Tokenizer\Token}
      */
-    public function structInitializer2(Token $rest, Token $tok, Initializer $init, int $startIdx = 0): array
+    public function structInitializer2(Token $rest, Token $tok, Initializer $init, int $startIdx = 0, bool $postDesig = false): array
     {
         $first = true;
         
         for ($idx = $startIdx; $idx < count($init->ty->members) && !$this->isEnd($tok); $idx++) {
             $start = $tok;
             
-            if (!$first) {
+            if (!$first || $postDesig) {
                 $tok = $this->tokenizer->skip($tok, ',');
             }
             $first = false;
