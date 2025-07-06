@@ -868,6 +868,17 @@ class Pcc
             return FileType::FILE_ASM;
         }
 
+        $p = strpos($filename, '.so.');
+        if ($p !== false) {
+            $p += 4; // skip ".so."
+            while ($p < strlen($filename) && (ctype_digit($filename[$p]) || ($filename[$p] === '.' && $p + 1 < strlen($filename) && ctype_digit($filename[$p + 1])))) {
+                $p++;
+            }
+            if ($p === strlen($filename)) {
+                return FileType::FILE_DSO;
+            }
+        }
+
         if ($filename === '-') {
             // stdin requires -x option
             Console::error('<command line>: -x option is required for stdin');
