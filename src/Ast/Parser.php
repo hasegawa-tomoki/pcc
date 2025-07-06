@@ -1836,7 +1836,9 @@ class Parser
             $this->brkLabel = $node->brkLabel = $this->newUniqueName();
             $this->contLabel = $node->contLabel = $this->newUniqueName();
 
-            if ($this->isTypeName($tok)){
+            if ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $this->staticAssertion($tok, $tok->next);
+            } elseif ($this->isTypeName($tok)){
                 [$basety, $tok] = $this->typespec($tok, $tok, null);
                 [$node->init, $tok] = $this->declaration($tok, $tok, $basety, null);
             } else {
@@ -1974,6 +1976,11 @@ class Parser
 
         $nodes = [];
         while (! $this->tokenizer->equal($tok, '}')){
+            if ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $this->staticAssertion($tok, $tok->next);
+                continue;
+            }
+            
             if ($this->isTypeName($tok) and (! $this->tokenizer->equal($tok->next, ':'))){
                 $attr = new VarAttr();
                 [$basety, $tok] = $this->typespec($tok, $tok, $attr);
@@ -2277,6 +2284,26 @@ class Parser
         [$node, $rest] = $this->conditional($rest, $tok);
         $val = $this->evaluate($node);
         return [$val, $rest];
+    }
+
+    private function staticAssertion(Token &$rest, Token $tok): void
+    {
+        $tok = $this->tokenizer->skip($tok, '(');
+        [$result, $tok] = $this->constExpr($tok, $tok);
+        
+        if (gmp_cmp($result, 0) == 0) {
+            Console::errorTok($tok, "static assertion failed");
+        }
+
+        if ($this->tokenizer->equal($tok, ',')) {
+            if ($tok->next->kind !== TokenKind::TK_STR) {
+                Console::errorTok($tok, "expected string literal");
+            }
+            $tok = $tok->next->next;
+        }
+        
+        $tok = $this->tokenizer->skip($tok, ')');
+        $rest = $this->tokenizer->skip($tok, ';');
     }
 
     private function evalDouble(Node $node): float
@@ -3040,6 +3067,11 @@ class Parser
         $members = [];
 
         while (! $this->tokenizer->equal($tok, '}')){
+            if ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $this->staticAssertion($tok, $tok->next);
+                continue;
+            }
+            
             $attr = new VarAttr();
             [$basety, $tok] = $this->typespec($tok, $tok, $attr);
             $first = true;
@@ -3949,6 +3981,11 @@ class Parser
         $this->globals = [];
 
         while (! $tok->isKind(TokenKind::TK_EOF)){
+            if ($this->tokenizer->equal($tok, '_Static_assert')) {
+                $this->staticAssertion($tok, $tok->next);
+                continue;
+            }
+            
             $attr = new VarAttr();
             [$basety, $tok] = $this->typespec($tok, $tok, $attr);
 
