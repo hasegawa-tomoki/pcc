@@ -1259,26 +1259,33 @@ class Parser
      */
     public function unionInitializer(Token $rest, Token $tok, Initializer $init): array
     {
-        // Unlike structs, union initializers take only one initializer,
-        // and that initializes the first union member by default.
-        // You can initialize other member using a designated initializer.
-        if ($this->tokenizer->equal($tok, '{') && $this->tokenizer->equal($tok->next, '.')) {
-            [$idx, $tok] = $this->structDesignator($tok, $tok->next, $init->ty);
-            $init->mem = $init->ty->members[$idx];
-            [$init->children[$idx], $tok] = $this->designation($tok, $tok, $init->children[$idx]);
-            $rest = $this->tokenizer->skip($tok, '}');
-            return [$init, $rest];
+        $tok = $this->tokenizer->skip($tok, '{');
+
+        $first = true;
+
+        while (!$this->tokenizer->consumeEnd($rest, $tok)) {
+            if (!$first) {
+                $tok = $this->tokenizer->skip($tok, ',');
+            }
+
+            if ($this->tokenizer->equal($tok, '.')) {
+                [$idx, $tok] = $this->structDesignator($tok, $tok, $init->ty);
+                $init->mem = $init->ty->members[$idx];
+                [$init->children[$idx], $tok] = $this->designation($tok, $tok, $init->children[$idx]);
+                $first = false;
+                continue;
+            }
+
+            if ($first && $init->ty->members) {
+                $init->mem = $init->ty->members[0];
+                [$init->children[0], $tok] = $this->initializer2($tok, $tok, $init->children[0]);
+            } else {
+                $tok = $this->skipExcessElement($tok);
+            }
+
+            $first = false;
         }
 
-        $init->mem = $init->ty->members[0];
-
-        if ($this->tokenizer->equal($tok, '{')){
-            [$init->children[0], $rest] = $this->initializer2($tok, $tok->next, $init->children[0]);
-            [$consumed, $rest] = $this->tokenizer->consume($rest, $rest, ',');
-            $rest = $this->tokenizer->skip($rest, '}');
-        } else {
-            [$init->children[0], $rest] = $this->initializer2($tok, $tok, $init->children[0]);
-        }
         return [$init, $rest];
     }
 
@@ -1326,7 +1333,23 @@ class Parser
         }
 
         if ($init->ty->kind === TypeKind::TY_UNION){
-            return $this->unionInitializer($rest, $tok, $init);
+            if ($this->tokenizer->equal($tok, '{')){
+                return $this->unionInitializer($rest, $tok, $init);
+            }
+
+            [$expr, $rest] = $this->assign($rest, $tok);
+            $expr->addType();
+            if ($expr->ty->kind === TypeKind::TY_UNION){
+                $init->expr = $expr;
+                return [$init, $rest];
+            }
+            if (!$init->ty->members) {
+                Console::errorTok($tok, "initializer for empty aggregate requires explicit braces");
+            }
+
+            $init->mem = $init->ty->members[0];
+            [$init->children[0], $rest] = $this->initializer2($rest, $tok, $init->children[0]);
+            return [$init, $rest];
         }
 
         if ($this->tokenizer->equal($tok, '{')){
@@ -1420,10 +1443,16 @@ class Parser
         }
 
         if ($ty->kind === TypeKind::TY_UNION){
-            $mem = $init->mem ? $init->mem : $ty->members[0];
-            $idx = array_search($mem, $ty->members, true);
-            $desg2 = new InitDesg($desg, 0, [$mem]);
-            return $this->createLVarInit($init->children[$idx], $mem->ty, $desg2, $tok);
+            if ($init->expr) {
+                $lhs = $this->initDesgExpr($desg, $tok);
+                return Node::newBinary(NodeKind::ND_ASSIGN, $lhs, $init->expr, $tok);
+            }
+            if (!$init->mem) {
+                return Node::newNode(NodeKind::ND_NULL_EXPR, $tok);
+            }
+            $idx = array_search($init->mem, $ty->members, true);
+            $desg2 = new InitDesg($desg, 0, [$init->mem]);
+            return $this->createLVarInit($init->children[$idx], $init->mem->ty, $desg2, $tok);
         }
 
         if (! $init->expr){
@@ -1551,9 +1580,24 @@ class Parser
 
         if ($ty->kind === TypeKind::TY_UNION){
             if (!$init->mem){
+                // If no member is specified but we have an expression, use the first member
+                if ($init->expr && $ty->members){
+                    $init->mem = $ty->members[0];
+                } else {
+                    return [$buf, $rels];
+                }
+            }
+            $idx = $init->mem->idx;
+            
+            // If children array doesn't have the right index, try to process the expression directly
+            if (!isset($init->children[$idx])) {
+                if ($init->expr) {
+                    $val = PccGMP::toPHPInt($this->evaluate($init->expr));
+                    $buf = $this->writeBuf($buf, $offset, $val, $init->mem->ty->size);
+                }
                 return [$buf, $rels];
             }
-            $idx = array_search($init->mem, $ty->members, true);
+            
             return $this->writeGVarData($rels, $init->children[$idx], $init->mem->ty, $buf, $offset);
         }
 
@@ -3250,7 +3294,13 @@ class Parser
             return [$ty, $rest];
         }
 
+        // Filter out anonymous bitfields and process remaining members
+        $filteredMembers = [];
         foreach ($ty->members as $mem){
+            if (!$mem->name && $mem->isBitfield) {
+                continue;
+            }
+
             $mem->offset = 0;
             if ($ty->align < $mem->align){
                 $ty->align = $mem->align;
@@ -3258,7 +3308,10 @@ class Parser
             if ($ty->size < $mem->ty->size){
                 $ty->size = $mem->ty->size;
             }
+
+            $filteredMembers[] = $mem;
         }
+        $ty->members = $filteredMembers;
         $ty->size = Align::alignTo($ty->size, $ty->align);
 
         return [$ty, $rest];

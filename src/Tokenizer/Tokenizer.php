@@ -103,6 +103,26 @@ class Tokenizer
         return [false, $tok];
     }
 
+    /**
+     * @param \Pcc\Tokenizer\Token $rest
+     * @param \Pcc\Tokenizer\Token $tok
+     * @return bool
+     */
+    public function consumeEnd(Token &$rest, Token $tok): bool
+    {
+        if ($this->equal($tok, '}')) {
+            $rest = $tok->next;
+            return true;
+        }
+
+        if ($this->equal($tok, ',') && $this->equal($tok->next, '}')) {
+            $rest = $tok->next->next;
+            return true;
+        }
+
+        return false;
+    }
+
     public function isIdent1(string $c): bool
     {
         if (strlen($c) === 1) {
