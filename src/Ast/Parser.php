@@ -785,6 +785,11 @@ class Parser
                 Console::errorTok($ty->namePos, 'variable name omitted');
             }
 
+            // Generate code for computing a VLA size. We need to do this
+            // even if ty is not VLA because ty may be a pointer to VLA
+            // (e.g. int (*foo)[n][m] where n and m are variables.)
+            $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->computeVlaSize($ty, $tok), $tok);
+
             if ($attr and $attr->isStatic){
                 if ($ty->kind === TypeKind::TY_VLA) {
                     Console::errorTok($tok, 'variable length arrays cannot be \'static\'');
@@ -802,11 +807,6 @@ class Parser
                 }
                 continue;
             }
-
-            // Generate code for computing a VLA size. We need to do this
-            // even if ty is not VLA because ty may be a pointer to VLA
-            // (e.g. int (*foo)[n][m] where n and m are variables.)
-            $nodes[] = Node::newUnary(NodeKind::ND_EXPR_STMT, $this->computeVlaSize($ty, $tok), $tok);
 
             if ($ty->kind === TypeKind::TY_VLA) {
                 if ($this->tokenizer->equal($tok, '=')) {
