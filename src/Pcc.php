@@ -340,11 +340,13 @@ class Pcc
                 str_starts_with($argv[$i], '-std=') ||
                 $argv[$i] === '-ffreestanding' ||
                 $argv[$i] === '-fno-builtin' ||
+                $argv[$i] === '-fno-lto' ||
                 $argv[$i] === '-fno-omit-frame-pointer' ||
                 $argv[$i] === '-fno-stack-protector' ||
                 $argv[$i] === '-fno-strict-aliasing' ||
                 $argv[$i] === '-m64' ||
                 $argv[$i] === '-mno-red-zone' ||
+                $argv[$i] === '-pedantic' ||
                 $argv[$i] === '-w') {
                 continue;
             }
