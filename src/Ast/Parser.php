@@ -2135,6 +2135,12 @@ class Parser
                 $label = [$node->label];
                 $val = gmp_init(0);
                 break;
+            case NodeKind::ND_DEREF:
+                if ($node->ty->kind !== TypeKind::TY_ARRAY) {
+                    Console::errorTok($node->tok, 'not a compile-time constant');
+                }
+                [$val, $label] = $this->evaluate2($node->lhs, $label);
+                break;
             case NodeKind::ND_VAR:
                 // Array or function variables in expression context
                 if ($node->var->ty->kind === TypeKind::TY_ARRAY || $node->var->ty->kind === TypeKind::TY_FUNC) {
