@@ -33,6 +33,9 @@ class Parser
 
     private ?Obj $builtinAlloca = null;
     
+    // For recoverable evaluation
+    private ?bool $evalRecover = null;
+    
     private static ?HashMap $typenameMap = null;
 
     public function __construct(
@@ -1624,7 +1627,7 @@ class Parser
         }
 
         $label = null;
-        [$gmpVal, $label] = $this->evaluate2($init->expr, $label);
+        [$gmpVal, $label] = $this->evaluate2($init->expr, $label, true);
 
         if (! $label){
             $buf = $this->writeBuf($buf, $offset, PccGMP::toPHPInt($gmpVal), $ty->size);
@@ -2046,9 +2049,24 @@ class Parser
 
     public function evaluate(Node $node): GMP
     {
+        return $this->evaluateInternal($node, false);
+    }
+    
+    private function evaluateInternal(Node $node, bool $allowLabel): GMP
+    {
         $label = null;
-        [$val, ] = $this->evaluate2($node, $label);
+        [$val, ] = $this->evaluate2($node, $label, $allowLabel);
         return $val;
+    }
+
+    private function evalError(Token $tok, string $message): GMP
+    {
+        if ($this->evalRecover !== null) {
+            $this->evalRecover = true;
+            return gmp_init(0);
+        }
+        Console::errorTok($tok, $message);
+        return gmp_init(0); // Never reached but needed for type checking
     }
 
     /**
@@ -2057,7 +2075,7 @@ class Parser
      * @param ?array $label
      * @return array{0: GMP, 1: ?array}
      */
-    public function evaluate2(Node $node, ?array &$label): array
+    public function evaluate2(Node $node, ?array &$label, bool $allowLabel = true): array
     {
         $node->addType();
 
@@ -2174,14 +2192,13 @@ class Parser
                 [$val, $label] = $this->evalRval($node->lhs, $label);
                 break;
             case NodeKind::ND_MEMBER:
-                // Only arrays and functions can be used in compile-time expressions
-                if ($node->ty->kind !== TypeKind::TY_ARRAY and $node->ty->kind !== TypeKind::TY_FUNC){
-                    Console::errorTok($node->tok, 'invalid initializer');
+                if (!$allowLabel){
+                    return [$this->evalError($node->tok, 'not a compile-time constant'), $label];
+                }
+                if ($node->ty->kind !== TypeKind::TY_ARRAY){
+                    return [$this->evalError($node->tok, 'invalid initializer'), $label];
                 }
                 [$val, $label] = $this->evalRval($node->lhs, $label);
-                if (is_null($label)){
-                    Console::errorTok($node->tok, 'not a compile-time constant (ND_MEMBER)');
-                }
                 $val = gmp_add($val, $node->member->offset);
                 break;
             case NodeKind::ND_NUM:
@@ -2195,21 +2212,19 @@ class Parser
                 break;
             case NodeKind::ND_DEREF:
                 if ($node->ty->kind !== TypeKind::TY_ARRAY) {
-                    Console::errorTok($node->tok, 'not a compile-time constant');
+                    return [$this->evalError($node->tok, 'not a compile-time constant'), $label];
                 }
                 [$val, $label] = $this->evaluate2($node->lhs, $label);
                 break;
             case NodeKind::ND_VAR:
-                // Array or function variables in expression context
-                if ($node->var->ty->kind === TypeKind::TY_ARRAY || $node->var->ty->kind === TypeKind::TY_FUNC) {
-                    if ($node->var->isLocal) {
-                        Console::errorTok($node->tok, 'not a compile-time constant');
-                    }
-                    $label = [$node->var->name];
-                    $val = gmp_init(0);
-                } else {
-                    Console::errorTok($node->tok, 'not a compile-time constant (ND_VAR)');
+                if (!$allowLabel){
+                    return [$this->evalError($node->tok, 'not a compile-time constant'), $label];
                 }
+                if ($node->var->ty->kind !== TypeKind::TY_ARRAY and $node->var->ty->kind !== TypeKind::TY_FUNC) {
+                    return [$this->evalError($node->tok, 'invalid initializer'), $label];
+                }
+                $label = [$node->var->name];
+                $val = gmp_init(0);
                 break;
         }
         if ($node->ty->isFlonum()) {
@@ -2217,7 +2232,7 @@ class Parser
         }
 
         if (is_null($val)){
-            Console::errorTok($node->tok, 'not a compile-time constant (E)');
+            return [$this->evalError($node->tok, 'not a compile-time constant'), $label];
         }
 
         if ($val === true or $val === false){
@@ -2239,7 +2254,7 @@ class Parser
         switch($node->kind){
             case NodeKind::ND_VAR:
                 if ($node->var->isLocal){
-                    Console::errorTok($node->tok, 'not a compile-time constant');
+                    return [$this->evalError($node->tok, 'not a compile-time constant'), $label];
                 }
                 $label = [$node->var->name];
                 return [gmp_init(0), $label];
@@ -2249,7 +2264,7 @@ class Parser
                 [$rval, $label] = $this->evalRval($node->lhs, $label);
                 return [gmp_add(gmp_init($rval), gmp_init($node->member->offset)), $label];
         }
-        Console::errorTok($node->tok, 'invalid initializer');
+        return [$this->evalError($node->tok, 'invalid initializer'), $label];
     }
 
     /**
@@ -2299,47 +2314,22 @@ class Parser
                 return $node->fval;
         }
 
-        Console::errorTok($node->tok, 'not a compile-time constant');
+        // Return a dummy value for evalError - it won't be used if evalRecover is set
+        $this->evalError($node->tok, 'not a compile-time constant');
+        return 0.0;
     }
 
     private function isConstExpr(Node $node): bool
     {
-        $node->addType();
-
-        switch ($node->kind) {
-            case NodeKind::ND_ADD:
-            case NodeKind::ND_SUB:
-            case NodeKind::ND_MUL:
-            case NodeKind::ND_DIV:
-            case NodeKind::ND_BITAND:
-            case NodeKind::ND_BITOR:
-            case NodeKind::ND_BITXOR:
-            case NodeKind::ND_SHL:
-            case NodeKind::ND_SHR:
-            case NodeKind::ND_EQ:
-            case NodeKind::ND_NE:
-            case NodeKind::ND_LT:
-            case NodeKind::ND_LE:
-            case NodeKind::ND_LOGAND:
-            case NodeKind::ND_LOGOR:
-                return $this->isConstExpr($node->lhs) && $this->isConstExpr($node->rhs);
-            case NodeKind::ND_COND:
-                if (!$this->isConstExpr($node->cond)) {
-                    return false;
-                }
-                return $this->isConstExpr($this->evaluate($node->cond) ? $node->then : $node->els);
-            case NodeKind::ND_COMMA:
-                return $this->isConstExpr($node->rhs);
-            case NodeKind::ND_NEG:
-            case NodeKind::ND_NOT:
-            case NodeKind::ND_BITNOT:
-            case NodeKind::ND_CAST:
-                return $this->isConstExpr($node->lhs);
-            case NodeKind::ND_NUM:
-                return true;
-        }
-
-        return false;
+        $failed = false;
+        
+        assert($this->evalRecover === null);
+        $this->evalRecover = false;
+        $this->evaluate($node);
+        $failed = $this->evalRecover;
+        $this->evalRecover = null;
+        
+        return !$failed;
     }
 
     // Generate code for computing a VLA size.
